@@ -33,7 +33,12 @@ function DashboardContent() {
           <div className={styles.cardIcon}>📊</div>
           <h2>Meal Plans</h2>
           <p>Generate personalized nutrition plans</p>
-          <button className={styles.primaryBtn}>Generate Plan</button>
+          <button 
+            className={styles.primaryBtn}
+            onClick={() => router.push('/generator-plan')}
+          >
+            Generate Plan
+          </button>
         </div>
 
         <div className={styles.card}>
