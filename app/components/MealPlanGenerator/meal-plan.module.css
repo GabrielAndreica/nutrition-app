@@ -1,0 +1,112 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+}
+
+.clientSummary {
+  background: var(--bg-tertiary);
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-200);
+  border-left: none;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.summaryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.mealsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--spacing-lg);
+}
+
+.mealCard {
+  background: var(--bg-primary);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  transition: border 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.mealCard:hover {
+  border-color: var(--gray-300);
+  box-shadow: none;
+}
+
+.mealCardHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: transparent;
+  border-bottom: 1px solid var(--gray-200);
+  flex-shrink: 0;
+}
+
+.mealEmoji {
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.mealCardHeader h4 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.mealList {
+  list-style: none;
+  padding: var(--spacing-md);
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 200px;
+}
+
+.mealItem {
+  padding: var(--spacing-xs) 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+.mealItem:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.mealItem::before {
+  content: '✓ ';
+  color: var(--success);
+  font-weight: bold;
+  margin-right: var(--spacing-xs);
+}
+
