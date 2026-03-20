@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.99.3",
+    "bcrypt": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
     "next": "16.2.0",
     "openai": "^6.32.0",
     "react": "19.2.4",
