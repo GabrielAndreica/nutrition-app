@@ -1,112 +1,709 @@
+/* Apple/Nike Inspired Minimalist Design */
+
 .container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 40px 24px;
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Left Column - Sidebar (hidden, kept for legacy JSX) */
+.leftColumn {
+  display: none;
+}
+
+.clientSummary,
+.summaryGrid,
+.summaryItem,
+.label,
+.value {
+  display: none;
+}
+
+/* Client Header */
+.clientHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 16px;
+  padding: 20px 24px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.clientHeaderLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.dayShort {
+  display: none;
+}
+
+.dayFull {
+  display: inline;
+}
+
+.clientName {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+}
+
+.clientSub {
+  margin: 3px 0 0 0;
+  font-size: 13px;
+  color: #86868b;
+  font-weight: 400;
+}
+
+.clientStats {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.clientStat {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-lg);
-}
-
-.clientSummary {
-  background: var(--bg-tertiary);
-  padding: var(--spacing-xl);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--gray-200);
-  border-left: none;
-}
-
-.summaryGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: var(--spacing-lg);
-}
-
-.summaryItem {
-  display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 2px;
 }
 
-.label {
+.clientStatValue {
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.clientStatLabel {
   font-size: 11px;
-  font-weight: 700;
-  color: var(--text-secondary);
+  font-weight: 500;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* Macro Targets - Hero Section */
+.macroTargets {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.macroTargetsTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: #86868b;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  margin-bottom: 16px;
 }
 
-.value {
-  font-size: 15px;
+.macroGrid {
+  display: flex;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+
+.macroItem {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.macroValue {
+  font-size: 32px;
   font-weight: 600;
-  color: var(--text-primary);
+  color: #1d1d1f;
+  letter-spacing: -0.5px;
 }
 
-.mealsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: var(--spacing-lg);
+.macroLabel {
+  font-size: 14px;
+  font-weight: 500;
+  color: #86868b;
 }
 
-.mealCard {
-  background: var(--bg-primary);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  transition: border 0.2s ease;
+/* Client Macros Row */
+.clientMacros {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding-top: 14px;
+  margin-top: 14px;
+  border-top: 1px solid #f0f0f5;
+  flex-wrap: wrap;
+}
+
+.clientMacrosLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.clientMacrosValues {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #3c3c43;
+}
+
+.clientMacrosValues strong {
+  color: #1d1d1f;
+  font-weight: 600;
+}
+
+.dot {
+  color: #c7c7cc;
+  font-size: 11px;
+}
+
+/* Day Totals Bar */
+.dayTotalsBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #1d1d1f;
+  border-radius: 12px;
+  padding: 12px 20px;
+  flex-wrap: wrap;
+}
+
+.dayTotalsLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.dayTotalsValues {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+}
+
+.dayTotalsValues strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.dotLight {
+  color: rgba(255,255,255,0.2);
+  font-size: 11px;
+}
+
+/* Right Column - Main Content */
+.rightColumn {
   display: flex;
   flex-direction: column;
+  gap: 32px;
+}
+
+/* Day Tabs */
+.dayTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  width: 100%;
+}
+
+.dayTab {
+  padding: 9px 20px;
+  border: 1.5px solid #e8e8ed;
+  border-radius: 20px;
+  background: #fff;
+  color: #3c3c43;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.dayTab:hover {
+  border-color: #1d1d1f;
+  color: #1d1d1f;
+}
+
+.dayTabActive {
+  background: #1d1d1f;
+  border-color: #1d1d1f;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Client Macros Row */
+.clientMacros {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding-top: 14px;
+  margin-top: 14px;
+  border-top: 1px solid #f0f0f5;
+  flex-wrap: wrap;
+}
+
+.clientMacrosLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.clientMacrosValues {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: #3c3c43;
+}
+
+.clientMacrosValues strong {
+  color: #1d1d1f;
+  font-weight: 600;
+}
+
+.dot {
+  color: #c7c7cc;
+  font-size: 11px;
+}
+
+/* Day Totals Bar */
+.dayTotalsBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #1d1d1f;
+  border-radius: 12px;
+  padding: 12px 20px;
+  flex-wrap: wrap;
+}
+
+.dayTotalsLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.dayTotalsValues {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: rgba(255,255,255,0.7);
+}
+
+.dayTotalsValues strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.dotLight {
+  color: rgba(255,255,255,0.2);
+  font-size: 11px;
+}
+
+/* Meals Grid */
+.mealsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+/* Meal Card */
+.mealCard {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e8e8ed;
+  overflow: hidden;
+  transition: all 0.3s ease;
 }
 
 .mealCard:hover {
-  border-color: var(--gray-300);
-  box-shadow: none;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
 }
 
 .mealCardHeader {
   display: flex;
   align-items: center;
-  gap: var(--spacing-sm);
-  padding: var(--spacing-md);
-  background: transparent;
-  border-bottom: 1px solid var(--gray-200);
-  flex-shrink: 0;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f5f5f7;
 }
 
 .mealEmoji {
-  font-size: 20px;
-  flex-shrink: 0;
+  font-size: 28px;
 }
 
 .mealCardHeader h4 {
   margin: 0;
-  font-size: 15px;
-  color: var(--text-primary);
-  font-weight: 700;
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
+  flex: 1;
 }
 
+.mealCalories {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1d1d1f;
+  background: #f5f5f7;
+  padding: 6px 14px;
+  border-radius: 20px;
+}
+
+/* Meal List */
 .mealList {
   list-style: none;
-  padding: var(--spacing-md);
+  padding: 0;
   margin: 0;
-  flex: 1;
-  overflow-y: auto;
-  max-height: 200px;
 }
 
 .mealItem {
-  padding: var(--spacing-xs) 0;
-  color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.4;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 24px;
+  border-bottom: 1px solid #f5f5f7;
+  transition: background 0.2s ease;
 }
 
 .mealItem:last-child {
   border-bottom: none;
-  padding-bottom: 0;
+}
+
+.mealItem:hover {
+  background: #fafafa;
 }
 
 .mealItem::before {
-  content: '✓ ';
-  color: var(--success);
-  font-weight: bold;
-  margin-right: var(--spacing-xs);
+  display: none;
+}
+
+.foodName {
+  font-size: 15px;
+  font-weight: 500;
+  color: #1d1d1f;
+}
+
+.foodMacros {
+  font-size: 13px;
+  color: #86868b;
+  font-weight: 400;
+}
+
+/* Preparation */
+.preparation {
+  padding: 16px 24px;
+  background: #f5f5f7;
+  font-size: 14px;
+  color: #1d1d1f;
+  line-height: 1.5;
+}
+
+.prepIcon {
+  margin-right: 8px;
+}
+
+/* Meal Totals */
+.mealTotals {
+  display: flex;
+  gap: 24px;
+  padding: 16px 24px;
+  background: #f5f5f7;
+  font-size: 13px;
+  font-weight: 500;
+  color: #86868b;
+}
+
+/* Daily Totals */
+.dailyTotals {
+  background: linear-gradient(135deg, #1d1d1f 0%, #2d2d2f 100%);
+  padding: 28px 32px;
+  border-radius: 20px;
+  color: #fff;
+  margin-bottom: 32px;
+}
+
+.dailyTotals h4 {
+  margin: 0 0 20px 0;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.dailyTotals .macroGrid {
+  display: flex;
+  gap: 40px;
+}
+
+.dailyTotals .macroItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dailyTotals .macroValue {
+  font-size: 28px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.dailyTotals .macroLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .container {
+    padding: 16px;
+  }
+
+  .clientHeader {
+    padding: 14px 16px;
+    margin-bottom: 16px;
+    gap: 12px;
+    flex-wrap: nowrap;
+  }
+
+  .clientHeaderLeft {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .clientName {
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .clientSub {
+    font-size: 11px;
+  }
+
+  .clientStats {
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .clientStatValue {
+    font-size: 14px;
+  }
+
+  .clientStatLabel {
+    font-size: 10px;
+  }
+
+  .dayFull {
+    display: none;
+  }
+
+  .dayShort {
+    display: inline;
+  }
+
+  .dayTabs {
+    gap: 6px;
+  }
+
+  .dayTab {
+    flex: 1;
+    min-width: 0;
+    text-align: center;
+    padding: 8px 4px;
+    font-size: 12px;
+    border-radius: 10px;
+  }
+
+  .mealsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .macroGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .macroItem {
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+
+  .macroValue {
+    font-size: 20px;
+  }
+
+  .macroLabel {
+    font-size: 10px;
+  }
+
+  .mealCard {
+    border-radius: 12px;
+  }
+
+  .mealCard:hover {
+    transform: none;
+    box-shadow: none;
+  }
+
+  .mealCard:active {
+    background: #f9f9f9;
+  }
+
+  .mealCardHeader {
+    padding: 14px 16px;
+    gap: 10px;
+  }
+
+  .mealEmoji {
+    font-size: 22px;
+  }
+
+  .mealCardHeader h4 {
+    font-size: 15px;
+  }
+
+  .mealCalories {
+    font-size: 13px;
+    padding: 5px 10px;
+  }
+
+  .mealItem {
+    padding: 12px 16px;
+    gap: 2px;
+  }
+
+  .foodName {
+    font-size: 14px;
+  }
+
+  .foodMacros {
+    font-size: 11px;
+  }
+
+  .dailyTotals {
+    padding: 20px;
+    border-radius: 16px;
+    margin-bottom: 20px;
+  }
+
+  .dailyTotals h4 {
+    margin-bottom: 14px;
+    font-size: 11px;
+  }
+
+  .dailyTotals .macroGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+  }
+
+  .dailyTotals .macroItem {
+    align-items: center;
+  }
+
+  .dailyTotals .macroValue {
+    font-size: 20px;
+  }
+
+  .dailyTotals .macroLabel {
+    font-size: 10px;
+    text-align: center;
+  }
+
+  .mealTotals {
+    padding: 10px 16px;
+    gap: 16px;
+    font-size: 11px;
+  }
+
+  .preparation {
+    padding: 12px 16px;
+    font-size: 13px;
+  }
+
+  .rightColumn {
+    gap: 16px;
+  }
+
+  .mealsGrid {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 380px) {
+  .container {
+    padding: 12px;
+  }
+
+  .dayTab {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .macroValue {
+    font-size: 18px;
+  }
+
+  .dailyTotals .macroValue {
+    font-size: 18px;
+  }
+
+  .mealCardHeader {
+    padding: 12px 14px;
+  }
+
+  .mealItem {
+    padding: 10px 14px;
+  }
+
+  .foodName {
+    font-size: 13px;
+  }
+
+  .foodMacros {
+    font-size: 10px;
+  }
 }
 
