@@ -1,90 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import styles from './meal-plan.module.css';
 
-export default function MealPlan({ plan, clientData }) {
-  const parseMealPlan = (planText) => {
-    const lines = planText.split('\n').map(line => line.trim()).filter(line => line);
-    const meals = {};
-    let currentMeal = null;
-    let currentItems = [];
-
-    lines.forEach(line => {
-      const lowerLine = line.toLowerCase();
-      
-      // Detectează anteturile mesei
-      let mealType = null;
-      
-      // Detectează "Masa 1", "Masa 2" etc.
-      const mealMatch = lowerLine.match(/masa\s+(\d+)/);
-      if (mealMatch) {
-        const mealNumber = parseInt(mealMatch[1]);
-        mealType = `meal_${mealNumber}`;
-      }
-      // Fallback la etichete vechi dacă nu sunt găsite "Masa X"
-      else if (
-        lowerLine.includes('mic dejun') ||
-        lowerLine.includes('breakfast') ||
-        lowerLine.includes('micul dejun')
-      ) {
-        mealType = 'breakfast';
-      } else if (
-        lowerLine.includes('prânz') ||
-        lowerLine.includes('lunch')
-      ) {
-        mealType = 'lunch';
-      } else if (
-        lowerLine.includes('cină') ||
-        lowerLine.includes('dinner')
-      ) {
-        mealType = 'dinner';
-      } else if (
-        lowerLine.includes('gustări') ||
-        lowerLine.includes('snack')
-      ) {
-        mealType = 'snacks';
-      }
-
-      // Dacă am găsit un antet de masă nou
-      if (mealType) {
-        if (currentMeal && currentItems.length > 0) {
-          meals[currentMeal] = currentItems;
-        }
-        currentMeal = mealType;
-        currentItems = [];
-      } else if (currentMeal && line && !line.startsWith('**')) {
-        // Elimina markdown și gloanțe
-        const cleanLine = line.replace(/^[-*•]\s*/, '').replace(/\*\*/g, '');
-        if (cleanLine && !cleanLine.includes('---')) {
-          currentItems.push(cleanLine);
-        }
-      }
-    });
-
-    // Adaugă ultima masă
-    if (currentMeal && currentItems.length > 0) {
-      meals[currentMeal] = currentItems;
-    }
-
-    return meals;
-  };
-
-  const meals = parseMealPlan(plan);
-
-  const mealLabels = {
-    meal_1: { name: 'Masa 1', emoji: '🌅', order: 1 },
-    meal_2: { name: 'Masa 2', emoji: '☀️', order: 2 },
-    meal_3: { name: 'Masa 3', emoji: '🍎', order: 3 },
-    meal_4: { name: 'Masa 4', emoji: '🥗', order: 4 },
-    meal_5: { name: 'Masa 5', emoji: '🌙', order: 5 },
-    // Fallback labels pentru format vechi
-    breakfast: { name: 'Mic Dejun', emoji: '🌅', order: 1 },
-    lunch: { name: 'Prânz', emoji: '☀️', order: 2 },
-    snacks: { name: 'Gustări', emoji: '🍎', order: 3 },
-    snacks_2: { name: 'Gustări 2', emoji: '🥗', order: 4 },
-    snacks_3: { name: 'Gustări 3', emoji: '🍌', order: 5 },
-    dinner: { name: 'Cină', emoji: '🌙', order: 6 },
-  };
+export default function MealPlan({ plan, clientData, nutritionalNeeds }) {
+  const [activeDay, setActiveDay] = useState(0);
 
   const goalLabels = {
     weight_loss: 'Slăbit',
@@ -99,53 +19,225 @@ export default function MealPlan({ plan, clientData }) {
     vegan: 'Vegan',
   };
 
+  const dayNames = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
+  const dayNamesShort = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
+
+  const mealTypeLabels = {
+    'Breakfast': { name: 'Mic Dejun', emoji: '🌅' },
+    'Lunch': { name: 'Prânz', emoji: '☀️' },
+    'Dinner': { name: 'Cină', emoji: '🌙' },
+    'Snack': { name: 'Gustare', emoji: '🍎' },
+    'Snack 1': { name: 'Gustare 1', emoji: '🍎' },
+    'Snack 2': { name: 'Gustare 2', emoji: '🥗' },
+    'Mic Dejun': { name: 'Mic Dejun', emoji: '🌅' },
+    'Prânz': { name: 'Prânz', emoji: '☀️' },
+    'Cină': { name: 'Cină', emoji: '🌙' },
+    'Gustare': { name: 'Gustare', emoji: '🍎' },
+    'Gustare 1': { name: 'Gustare 1', emoji: '🍎' },
+    'Gustare 2': { name: 'Gustare 2', emoji: '🥗' },
+  };
+
+  const getMealLabel = (mealType) => {
+    return mealTypeLabels[mealType] || { name: mealType, emoji: '🍽️' };
+  };
+
+  if (!plan || !plan.days || plan.days.length === 0) {
+    return <div className={styles.container}>Nu s-a putut genera planul.</div>;
+  }
+
+  const currentDay = plan.days[activeDay];
+
+  const activityLabels = {
+    sedentary: 'Sedentar',
+    lightly_active: 'Ușor activ',
+    moderately_active: 'Moderat activ',
+    very_active: 'Foarte activ',
+    extra_active: 'Extrem de activ',
+  };
+
   return (
     <div className={styles.container}>
-      <div className={styles.clientSummary}>
-        <div className={styles.summaryGrid}>
-          <div className={styles.summaryItem}>
-            <span className={styles.label}>Client</span>
-            <span className={styles.value}>{clientData.name}</span>
+      {/* Client Header */}
+      {clientData && (
+        <div className={styles.clientHeader}>
+          <div className={styles.clientHeaderLeft}>
+            <div>
+              <h2 className={styles.clientName}>{clientData.name}</h2>
+              <p className={styles.clientSub}>{goalLabels[clientData.goal]} · {dietLabels[clientData.dietType]}</p>
+            </div>
           </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.label}>Vârstă</span>
-            <span className={styles.value}>{clientData.age} ani</span>
-          </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.label}>Obiectiv</span>
-            <span className={styles.value}>{goalLabels[clientData.goal]}</span>
-          </div>
-          <div className={styles.summaryItem}>
-            <span className={styles.label}>Dietă</span>
-            <span className={styles.value}>{dietLabels[clientData.dietType]}</span>
+          <div className={styles.clientStats}>
+            <div className={styles.clientStat}>
+              <span className={styles.clientStatValue}>{clientData.age}</span>
+              <span className={styles.clientStatLabel}>ani</span>
+            </div>
+            <div className={styles.clientStat}>
+              <span className={styles.clientStatValue}>{clientData.weight}</span>
+              <span className={styles.clientStatLabel}>kg</span>
+            </div>
+            <div className={styles.clientStat}>
+              <span className={styles.clientStatValue}>{clientData.height}</span>
+              <span className={styles.clientStatLabel}>cm</span>
+            </div>
+            {clientData.activityLevel && (
+              <div className={styles.clientStat}>
+                <span className={styles.clientStatValue}>{activityLabels[clientData.activityLevel] || clientData.activityLevel}</span>
+                <span className={styles.clientStatLabel}>activitate</span>
+              </div>
+            )}
           </div>
         </div>
+      )}
+
+      {/* Left Column - Client Info */}
+      <div className={styles.leftColumn}>
+        <div className={styles.clientSummary}>
+          <div className={styles.summaryGrid}>
+            <div className={styles.summaryItem}>
+              <span className={styles.label}>Client</span>
+              <span className={styles.value}>{clientData.name}</span>
+            </div>
+            <div className={styles.summaryItem}>
+              <span className={styles.label}>Vârstă</span>
+              <span className={styles.value}>{clientData.age} ani</span>
+            </div>
+            <div className={styles.summaryItem}>
+              <span className={styles.label}>Obiectiv</span>
+              <span className={styles.value}>{goalLabels[clientData.goal]}</span>
+            </div>
+            <div className={styles.summaryItem}>
+              <span className={styles.label}>Dietă</span>
+              <span className={styles.value}>{dietLabels[clientData.dietType]}</span>
+            </div>
+          </div>
+
+          {nutritionalNeeds && (
+            <div className={styles.macroTargets}>
+              <h4 className={styles.macroTargetsTitle}>Necesar zilnic</h4>
+              <div className={styles.macroGrid}>
+                <div className={styles.macroItem}>
+                  <span className={styles.macroValue}>{nutritionalNeeds.calories}</span>
+                  <span className={styles.macroLabel}>kcal</span>
+                </div>
+                <div className={styles.macroItem}>
+                  <span className={styles.macroValue}>{nutritionalNeeds.protein}g</span>
+                  <span className={styles.macroLabel}>Proteine</span>
+                </div>
+                <div className={styles.macroItem}>
+                  <span className={styles.macroValue}>{nutritionalNeeds.carbs}g</span>
+                  <span className={styles.macroLabel}>Carbo</span>
+                </div>
+                <div className={styles.macroItem}>
+                  <span className={styles.macroValue}>{nutritionalNeeds.fat}g</span>
+                  <span className={styles.macroLabel}>Grăsimi</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Daily Totals in Left Column */}
+        {currentDay.dailyTotals && (
+          <div className={styles.dailyTotals}>
+            <h4>Total {dayNames[activeDay]}</h4>
+            <div className={styles.macroGrid}>
+              <div className={styles.macroItem}>
+                <span className={styles.macroValue}>{currentDay.dailyTotals.calories}</span>
+                <span className={styles.macroLabel}>kcal</span>
+              </div>
+              <div className={styles.macroItem}>
+                <span className={styles.macroValue}>{currentDay.dailyTotals.protein}g</span>
+                <span className={styles.macroLabel}>Proteine</span>
+              </div>
+              <div className={styles.macroItem}>
+                <span className={styles.macroValue}>{currentDay.dailyTotals.carbs}g</span>
+                <span className={styles.macroLabel}>Carbo</span>
+              </div>
+              <div className={styles.macroItem}>
+                <span className={styles.macroValue}>{currentDay.dailyTotals.fat}g</span>
+                <span className={styles.macroLabel}>Grăsimi</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className={styles.mealsGrid}>
-        {Object.entries(meals)
-          .sort(([keyA], [keyB]) => (mealLabels[keyA]?.order || 0) - (mealLabels[keyB]?.order || 0))
-          .map(([mealType, items]) => {
-            if (!items || items.length === 0) return null;
+      {/* Right Column - Meals */}
+      <div className={styles.rightColumn}>
+        {/* Day Tabs */}
+        <div className={styles.dayTabs}>
+          {plan.days.map((day, index) => (
+            <button
+              key={index}
+              className={`${styles.dayTab} ${activeDay === index ? styles.dayTabActive : ''}`}
+              onClick={() => setActiveDay(index)}
+            >
+              <span className={styles.dayFull}>{dayNames[index]}</span>
+              <span className={styles.dayShort}>{dayNamesShort[index]}</span>
+            </button>
+          ))}
+        </div>
 
-            const { name, emoji } = mealLabels[mealType];
-
-            return (
-            <div key={mealType} className={styles.mealCard}>
-              <div className={styles.mealCardHeader}>
-                <span className={styles.mealEmoji}>{emoji}</span>
-                <h4>{name}</h4>
-              </div>
-              <ul className={styles.mealList}>
-                {items.slice(0, 4).map((item, index) => (
-                  <li key={index} className={styles.mealItem}>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+        {/* Day Totals */}
+        {currentDay.dailyTotals && (
+          <div className={styles.dayTotalsBar}>
+            <span className={styles.dayTotalsLabel}>Total {dayNames[activeDay]}</span>
+            <div className={styles.dayTotalsValues}>
+              <span><strong>{currentDay.dailyTotals.calories}</strong> kcal</span>
+              <span className={styles.dotLight}>·</span>
+              <span><strong>{currentDay.dailyTotals.protein}g</strong> prot</span>
+              <span className={styles.dotLight}>·</span>
+              <span><strong>{currentDay.dailyTotals.carbs}g</strong> carbo</span>
+              <span className={styles.dotLight}>·</span>
+              <span><strong>{currentDay.dailyTotals.fat}g</strong> grăsimi</span>
             </div>
-          );
-        })}
+          </div>
+        )}
+
+        {/* Meals Grid for Active Day */}
+        <div className={styles.mealsGrid}>
+          {currentDay.meals.map((meal, mealIndex) => {
+            const { name, emoji } = getMealLabel(meal.mealType);
+            return (
+              <div key={mealIndex} className={styles.mealCard}>
+                <div className={styles.mealCardHeader}>
+                  <span className={styles.mealEmoji}>{emoji}</span>
+                  <h4>{name}</h4>
+                  {meal.mealTotals && (
+                    <span className={styles.mealCalories}>{meal.mealTotals.calories} kcal</span>
+                  )}
+                </div>
+
+                <ul className={styles.mealList}>
+                  {meal.foods.map((food, foodIndex) => (
+                    <li key={foodIndex} className={styles.mealItem}>
+                      <span className={styles.foodName}>
+                        {food.name} ({food.amount}{food.unit})
+                      </span>
+                      <span className={styles.foodMacros}>
+                        {food.calories}kcal · P:{food.protein}g · C:{food.carbs}g · G:{food.fat}g
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+
+                {meal.preparation && (
+                  <div className={styles.preparation}>
+                    <span className={styles.prepIcon}>👨‍🍳</span> {meal.preparation}
+                  </div>
+                )}
+
+                {meal.mealTotals && (
+                  <div className={styles.mealTotals}>
+                    <span>P: {meal.mealTotals.protein}g</span>
+                    <span>C: {meal.mealTotals.carbs}g</span>
+                    <span>G: {meal.mealTotals.fat}g</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

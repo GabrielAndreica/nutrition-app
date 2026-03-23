@@ -15,6 +15,7 @@ function GeneratorContent() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [clientData, setClientData] = useState(null);
+  const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
 
   const handleGeneratePlan = async (formData) => {
     setLoading(true);
@@ -45,6 +46,7 @@ function GeneratorContent() {
 
       const data = await response.json();
       setMealPlan(data.plan);
+      setNutritionalNeeds(data.nutritionalNeeds);
     } catch (err) {
       setError(err.message);
       console.error('Error:', err);
@@ -56,6 +58,7 @@ function GeneratorContent() {
   const handleReset = () => {
     setMealPlan(null);
     setClientData(null);
+    setNutritionalNeeds(null);
     setError(null);
   };
 
@@ -80,7 +83,7 @@ function GeneratorContent() {
           </>
         ) : (
           <>
-            <MealPlan plan={mealPlan} clientData={clientData} />
+            <MealPlan plan={mealPlan} clientData={clientData} nutritionalNeeds={nutritionalNeeds} />
             <button className={styles.resetBtn} onClick={handleReset}>
               Generează Alt Plan
             </button>
