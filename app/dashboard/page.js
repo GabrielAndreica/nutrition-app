@@ -42,10 +42,12 @@ function DashboardContent() {
         </div>
 
         <div className={styles.card}>
-          <div className={styles.cardIcon}>📈</div>
-          <h2>Progress Tracker</h2>
-          <p>Monitor your nutrition goals</p>
-          <button className={styles.primaryBtn}>View Progress</button>
+          <div className={styles.cardIcon}>�</div>
+          <h2>Clienți</h2>
+          <p>Gestionează datele clienților tăi</p>
+          <button className={styles.primaryBtn} onClick={() => router.push('/clients')}>
+            Vezi Clienți
+          </button>
         </div>
 
         <div className={styles.card}>
