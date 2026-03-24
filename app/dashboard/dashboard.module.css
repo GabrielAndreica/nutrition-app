@@ -6,7 +6,7 @@
 
 .header {
   background: var(--bg-primary);
-  border-bottom: 1px solid rgba(255, 149, 0, 0.1);
+  border-bottom: 1px solid var(--gray-200);
   padding: var(--spacing-2xl) var(--spacing-lg);
   margin: -16px -16px var(--spacing-2xl) -16px;
   box-shadow: var(--shadow-sm);
@@ -40,8 +40,8 @@
 
 .logoutBtn:hover {
   border-color: var(--primary-orange);
-  color: var(--primary-orange);
-  background: rgba(255, 149, 0, 0.05);
+  color: var(--text-primary);
+  background: rgba(183, 255, 0, 0.1);
 }
 
 .content {
@@ -63,7 +63,7 @@
 }
 
 .card:hover {
-  border-color: rgba(255, 149, 0, 0.3);
+  border-color: rgba(183, 255, 0, 0.6);
   box-shadow: var(--shadow-md);
   transform: translateY(-4px);
 }
@@ -89,18 +89,19 @@
 
 .primaryBtn {
   padding: var(--spacing-md) var(--spacing-xl);
-  background: linear-gradient(135deg, var(--primary-orange) 0%, var(--primary-orange-light) 100%);
-  color: white;
+  background: var(--primary-orange);
+  color: #000;
   border: none;
   border-radius: var(--radius-md);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 2px 14px rgba(183, 255, 0, 0.3);
 }
 
 .primaryBtn:hover {
-  box-shadow: var(--shadow-lg);
+  background: var(--primary-orange-light);
+  box-shadow: 0 4px 22px rgba(183, 255, 0, 0.4);
   transform: translateY(-2px);
 }
 

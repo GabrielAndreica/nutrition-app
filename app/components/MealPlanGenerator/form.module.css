@@ -74,7 +74,7 @@
 .formGroup textarea:focus {
   outline: none;
   border-color: var(--primary-orange);
-  box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.1);
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
 }
 
 .formGroupRow {
@@ -86,22 +86,22 @@
 .submitBtn {
   padding: var(--spacing-lg) var(--spacing-2xl);
   background: var(--primary-orange);
-  color: white;
+  color: #000;
   border: none;
   border-radius: var(--radius-sm);
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.2s ease;
+  transition: all 0.2s ease;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  box-shadow: none;
+  box-shadow: 0 2px 14px rgba(183, 255, 0, 0.3);
   min-height: 48px;
 }
 
 .submitBtn:hover:not(:disabled) {
-  background: var(--primary-orange-dark);
-  box-shadow: none;
+  background: var(--primary-orange-light);
+  box-shadow: 0 4px 22px rgba(183, 255, 0, 0.4);
 }
 
 .submitBtn:active:not(:disabled) {

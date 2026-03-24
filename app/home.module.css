@@ -26,10 +26,6 @@
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
-  background: linear-gradient(135deg, var(--primary-orange) 0%, var(--primary-orange-light) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
 }
 
 .navButtons {
@@ -46,14 +42,14 @@
 
 .navBtn {
   padding: var(--spacing-md) var(--spacing-xl);
-  background: linear-gradient(135deg, var(--primary-orange) 0%, var(--primary-orange-light) 100%);
-  color: white;
+  background: var(--primary-orange);
+  color: #000;
   border: none;
   border-radius: var(--radius-md);
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 2px 14px rgba(183, 255, 0, 0.3);
 }
 
 .navBtn:hover {
@@ -74,8 +70,8 @@
 
 .navBtnSecondary:hover {
   border-color: var(--primary-orange);
-  color: var(--primary-orange);
-  background: rgba(255, 149, 0, 0.05);
+  color: var(--text-primary);
+  background: rgba(183, 255, 0, 0.1);
 }
 
 /* Hero Section */
@@ -97,7 +93,7 @@
   right: -20%;
   width: 600px;
   height: 600px;
-  background: radial-gradient(circle, rgba(255, 149, 0, 0.1) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(183, 255, 0, 0.08) 0%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
 }
@@ -126,15 +122,15 @@
 
 .heroCTA {
   padding: var(--spacing-lg) var(--spacing-2xl);
-  background: linear-gradient(135deg, var(--primary-orange) 0%, var(--primary-orange-light) 100%);
-  color: white;
+  background: var(--primary-orange);
+  color: #000;
   border: none;
   border-radius: var(--radius-md);
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: var(--shadow-lg);
+  box-shadow: 0 4px 20px rgba(183, 255, 0, 0.35);
 }
 
 .heroCTA:hover {
@@ -174,7 +170,7 @@
 }
 
 .featureCard:hover {
-  border-color: rgba(255, 149, 0, 0.3);
+  border-color: rgba(183, 255, 0, 0.6);
   box-shadow: var(--shadow-md);
   transform: translateY(-8px);
 }
