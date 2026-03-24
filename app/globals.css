@@ -2,9 +2,9 @@
 
 :root {
   /* Primary Colors */
-  --primary-orange: #FF9500;
-  --primary-orange-light: #FFA51A;
-  --primary-orange-dark: #E68A00;
+  --primary-orange: #b7ff00;
+  --primary-orange-light: #c8ff33;
+  --primary-orange-dark: #9ed900;
   
   /* Neutral Colors */
   --white: #FFFFFF;
@@ -127,7 +127,7 @@ p {
 
 /* Links */
 a {
-  color: var(--primary-orange);
+  color: var(--text-primary);
   text-decoration: none;
   transition: opacity 0.2s ease;
 }
@@ -165,5 +165,5 @@ textarea:focus,
 select:focus {
   outline: none;
   border-color: var(--primary-orange);
-  box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.1);
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
 }

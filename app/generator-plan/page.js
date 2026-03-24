@@ -13,19 +13,21 @@ function GeneratorContent() {
   const { user } = useAuth();
   const [mealPlan, setMealPlan] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [error, setError] = useState(null);
   const [clientData, setClientData] = useState(null);
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
 
   const handleGeneratePlan = async (formData) => {
     setLoading(true);
+    setLoadingStep(0);
+    setLoadingProgress(0);
     setError(null);
     setClientData(formData);
 
     try {
-      // Get JWT token from localStorage
       const token = localStorage.getItem('token');
-
       if (!token) {
         throw new Error('Token de autentificare lipsă. Vă rog reconectați.');
       }
@@ -44,9 +46,31 @@ function GeneratorContent() {
         throw new Error(errorData.error || 'Eroare la generarea planului alimentar');
       }
 
-      const data = await response.json();
-      setMealPlan(data.plan);
-      setNutritionalNeeds(data.nutritionalNeeds);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.type === 'progress') {
+            setLoadingStep(event.day);
+            setLoadingProgress(Math.round((event.day / event.total) * 90));
+          } else if (event.type === 'complete') {
+            setLoadingProgress(100);
+            setMealPlan(event.plan);
+            setNutritionalNeeds(event.nutritionalNeeds);
+          } else if (event.type === 'error') {
+            throw new Error(event.message);
+          }
+        }
+      }
     } catch (err) {
       setError(err.message);
       console.error('Error:', err);
@@ -67,7 +91,7 @@ function GeneratorContent() {
       <div className={styles.header}>
         <div className={styles.headerContent}>
           <div className={styles.headerTitle}>
-            <button className={styles.backBtn} onClick={() => router.back()}>
+            <button className={styles.backBtn} onClick={() => router.push('/dashboard')}>
               ← Înapoi
             </button>
             <h1>Generator Plan Alimentar</h1>
@@ -78,15 +102,45 @@ function GeneratorContent() {
       <div className={styles.content}>
         {!mealPlan ? (
           <>
-            <ClientForm onSubmit={handleGeneratePlan} loading={loading} />
-            {error && <div className={styles.error}>{error}</div>}
+            {loading ? (
+              <div className={styles.loadingWrapper}>
+                <div className={styles.loadingBox}>
+                  <p className={styles.loadingTitle}>Se generează planul alimentar</p>
+                  <p className={styles.loadingStep}>
+                    {loadingStep > 0 ? `Ziua ${loadingStep} din 7...` : 'Se pregăteşte...'}
+                  </p>
+                  <div className={styles.progressTrack}>
+                    <div
+                      className={styles.progressFill}
+                      style={{ width: `${loadingProgress}%` }}
+                    />
+                  </div>
+                  <div className={styles.progressDots}>
+                    {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                      <div
+                        key={d}
+                        className={`${styles.progressDot} ${
+                          d < loadingStep ? styles.progressDotDone :
+                          d === loadingStep ? styles.progressDotActive : ''
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <ClientForm onSubmit={handleGeneratePlan} loading={loading} />
+            )}
+            {error && (
+              <div className={styles.error}>
+                <span className={styles.errorIcon}>⚠️</span>
+                <span>{error}</span>
+              </div>
+            )}
           </>
         ) : (
           <>
-            <MealPlan plan={mealPlan} clientData={clientData} nutritionalNeeds={nutritionalNeeds} />
-            <button className={styles.resetBtn} onClick={handleReset}>
-              Generează Alt Plan
-            </button>
+            <MealPlan plan={mealPlan} clientData={clientData} nutritionalNeeds={nutritionalNeeds} onReset={handleReset} />
           </>
         )}
       </div>

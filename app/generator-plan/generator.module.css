@@ -106,14 +106,26 @@
 }
 
 .error {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-lg) var(--spacing-xl);
   margin: var(--spacing-lg) 0;
-  background: rgba(255, 59, 48, 0.1);
-  border: 1px solid var(--error);
+  background: rgba(255, 59, 48, 0.07);
+  border: 1px solid rgba(255, 59, 48, 0.3);
+  border-left: 4px solid var(--error);
   border-radius: var(--radius-sm);
   color: var(--error);
-  text-align: center;
-  font-weight: 600;
+  text-align: left;
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.5;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.errorIcon {
+  flex-shrink: 0;
+  font-size: 16px;
+  margin-top: 1px;
 }
 
 .resetBtn {
@@ -122,21 +134,91 @@
   padding: var(--spacing-lg);
   margin-top: var(--spacing-xl);
   background: var(--primary-orange);
-  color: white;
+  color: #000;
   border: none;
   border-radius: var(--radius-sm);
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.2s ease;
+  transition: all 0.2s ease;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  box-shadow: none;
+  box-shadow: 0 2px 14px rgba(183, 255, 0, 0.3);
 }
 
 .resetBtn:hover {
-  background: var(--primary-orange-dark);
-  box-shadow: none;
+  background: var(--primary-orange-light);
+  box-shadow: 0 4px 22px rgba(183, 255, 0, 0.4);
+}
+
+/* ── Loading Progress ───────────────────────────────────────── */
+.loadingWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 20px;
+}
+
+.loadingBox {
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.loadingTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+  margin: 0 0 8px;
+}
+
+.loadingStep {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 28px;
+  min-height: 22px;
+  font-weight: 500;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 5px;
+  background: var(--gray-200);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.progressFill {
+  height: 100%;
+  background: #b7ff00;
+  border-radius: 99px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progressDots {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.progressDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gray-200);
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.progressDotActive {
+  background: #b7ff00;
+  transform: scale(1.35);
+  box-shadow: 0 0 8px rgba(183, 255, 0, 0.6);
+}
+
+.progressDotDone {
+  background: #b7ff00;
 }
 
 .resetBtn:active {
