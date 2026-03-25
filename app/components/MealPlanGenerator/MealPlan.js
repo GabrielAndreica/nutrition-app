@@ -5,6 +5,7 @@ import styles from './meal-plan.module.css';
 
 export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }) {
   const [activeDay, setActiveDay] = useState(0);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   const goalLabels = {
     weight_loss: 'Slăbit',
@@ -41,49 +42,15 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
     return mealTypeLabels[mealType] || { name: mealType, emoji: '🍽️' };
   };
 
-  const handleDownload = () => {
-    let content = `PLAN ALIMENTAR - ${clientData?.name || 'Client'}\n`;
-    content += `${'='.repeat(50)}\n\n`;
-
-    if (clientData) {
-      content += `CLIENT: ${clientData.name} | ${clientData.age} ani | ${clientData.weight}kg | ${clientData.height}cm\n`;
-      content += `Obiectiv: ${goalLabels[clientData.goal]} | Dietă: ${dietLabels[clientData.dietType]}\n\n`;
+  const handleDownload = async () => {
+    if (pdfLoading) return;
+    setPdfLoading(true);
+    try {
+      const { generateMealPlanPDF } = await import('./generatePDF');
+      generateMealPlanPDF(plan, clientData, nutritionalNeeds);
+    } finally {
+      setPdfLoading(false);
     }
-
-    if (nutritionalNeeds) {
-      content += `NECESAR ZILNIC:\n`;
-      content += `Calorii: ${nutritionalNeeds.calories} kcal | Proteine: ${nutritionalNeeds.protein}g | Carbohidrați: ${nutritionalNeeds.carbs}g | Grăsimi: ${nutritionalNeeds.fat}g\n\n`;
-    }
-
-    plan.days.forEach((day, dayIndex) => {
-      content += `${dayNames[dayIndex].toUpperCase()}\n${'-'.repeat(40)}\n`;
-      day.meals.forEach((meal) => {
-        const { name } = getMealLabel(meal.mealType);
-        content += `\n  ${name}`;
-        if (meal.mealTotals) content += ` (${meal.mealTotals.calories} kcal)`;
-        content += '\n';
-        meal.foods.forEach((food) => {
-          content += `    • ${food.name} - ${food.amount}${food.unit} | ${food.calories}kcal  P:${food.protein}g  C:${food.carbs}g  G:${food.fat}g\n`;
-        });
-        if (meal.preparation) {
-          content += `    Preparare: ${meal.preparation}\n`;
-        }
-      });
-      if (day.dailyTotals) {
-        content += `\n  TOTAL ZI: ${day.dailyTotals.calories} kcal | P:${day.dailyTotals.protein}g  C:${day.dailyTotals.carbs}g  G:${day.dailyTotals.fat}g\n`;
-      }
-      content += '\n';
-    });
-
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `plan-alimentar-${(clientData?.name || 'client').replace(/\s+/g, '-').toLowerCase()}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
   if (!plan || !plan.days || plan.days.length === 0) {
@@ -223,13 +190,27 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
               </button>
             ))}
           </div>
-          <button className={styles.downloadBtn} onClick={handleDownload} title="Descarcă plan">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            <span className={styles.downloadBtnLabel}>Salvează</span>
+          <button
+            className={`${styles.downloadBtn} ${pdfLoading ? styles.downloadBtnLoading : ''}`}
+            onClick={handleDownload}
+            disabled={pdfLoading}
+            title="Descarcă plan PDF"
+          >
+            {pdfLoading ? (
+              <>
+                <span className={styles.pdfSpinner} />
+                <span className={styles.downloadBtnLabel}>Se generează...</span>
+              </>
+            ) : (
+              <>
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                  <polyline points="7 10 12 15 17 10"/>
+                  <line x1="12" y1="15" x2="12" y2="3"/>
+                </svg>
+                <span className={styles.downloadBtnLabel}>Export PDF</span>
+              </>
+            )}
           </button>
         </div>
 

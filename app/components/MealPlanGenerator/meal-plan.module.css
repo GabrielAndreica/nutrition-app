@@ -252,9 +252,10 @@
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.18s ease, transform 0.18s ease;
+  transition: background 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
   flex-shrink: 0;
   letter-spacing: 0.1px;
+  min-width: 130px;
 }
 
 .downloadBtn:hover {
@@ -265,6 +266,32 @@
 .downloadBtn:active {
   transform: translateY(0);
   background: #1d1d1f;
+}
+
+.downloadBtnLoading {
+  opacity: 0.75;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.downloadBtnLoading:hover {
+  transform: none;
+  background: #1d1d1f;
+}
+
+@keyframes pdfSpin {
+  to { transform: rotate(360deg); }
+}
+
+.pdfSpinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #b7ff00;
+  border-radius: 50%;
+  animation: pdfSpin 0.7s linear infinite;
+  flex-shrink: 0;
 }
 
 .downloadBtnLabel {
