@@ -236,7 +236,7 @@ function ClientsContent() {
               <div className={styles.formRow}>
                 <div className={styles.formGroup}>
                   <label>Vârstă *</label>
-                  <input name="age" type="number" min="10" max="100" value={form.age} onChange={handleFormChange} required placeholder="ani" />
+                  <input name="age" type="number" min="18" max="100" value={form.age} onChange={handleFormChange} required placeholder="ani" />
                 </div>
                 <div className={styles.formGroup}>
                   <label>Greutate (kg) *</label>
