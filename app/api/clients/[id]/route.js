@@ -22,6 +22,26 @@ function verifyToken(request) {
   }
 }
 
+// GET /api/clients/[id] — get a single client
+export async function GET(request, { params }) {
+  const { id } = await params;
+  const auth = verifyToken(request);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('id', id)
+    .eq('trainer_id', auth.userId)
+    .single();
+
+  if (error || !data) {
+    return NextResponse.json({ error: 'Clientul nu a fost găsit sau nu ai acces.' }, { status: 404 });
+  }
+
+  return NextResponse.json({ client: data });
+}
+
 // PUT /api/clients/[id] — update a client
 export async function PUT(request, { params }) {
   const { id } = await params;
