@@ -252,6 +252,7 @@
 
 .editBtn,
 .generateBtn,
+.viewPlanBtn,
 .deleteBtn {
   font-size: 13px;
   font-weight: 600;
@@ -271,15 +272,25 @@
 }
 
 .generateBtn {
-  background: var(--primary-orange);
-  color: #000;
+  background: #1d1d1f;
+  color: #fff;
   flex: 1;
   font-weight: 700;
-  box-shadow: 0 2px 10px rgba(183, 255, 0, 0.25);
 }
 .generateBtn:hover {
-  background: var(--primary-orange-light);
-  box-shadow: 0 4px 14px rgba(183, 255, 0, 0.35);
+  background: #3a3a3c;
+  transform: translateY(-1px);
+}
+
+.viewPlanBtn {
+  background: #fff;
+  border: 1px solid #1d1d1f;
+  color: #1d1d1f;;
+  flex: 1;
+  font-weight: 700;
+}
+.viewPlanBtn:hover {
+  transform: translateY(-1px);
 }
 
 .deleteBtn {
@@ -515,6 +526,121 @@
 .deleteBtnConfirm:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* ─── Plan Generation Modal ──────────────────────────── */
+.planModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  z-index: 1100;
+}
+
+.planModal {
+  background: var(--bg-secondary);
+  width: 100%;
+  max-width: 1100px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.planModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-xl) var(--spacing-3xl);
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--gray-200);
+  flex-shrink: 0;
+}
+
+.planModalHeader h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.planLoadingBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 80px 40px;
+  text-align: center;
+}
+
+.planLoadingStep {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 28px;
+  min-height: 22px;
+  font-weight: 500;
+}
+
+.progressTrack {
+  width: 100%;
+  max-width: 380px;
+  height: 5px;
+  background: var(--gray-200);
+  border-radius: 99px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+.progressFill {
+  height: 100%;
+  background: #b7ff00;
+  border-radius: 99px;
+  transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progressDots {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.progressDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gray-200);
+  transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.progressDotActive {
+  background: #b7ff00;
+  transform: scale(1.35);
+  box-shadow: 0 0 8px rgba(183, 255, 0, 0.6);
+}
+
+.progressDotDone {
+  background: #b7ff00;
+}
+
+.planErrorBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xl);
+  flex: 1;
+  padding: 60px 40px;
+  color: var(--error);
+  font-weight: 500;
+  font-size: 14px;
+  text-align: center;
+}
+
+.planResultWrapper {
+  flex: 1;
+  overflow-y: auto;
 }
 
 /* ─── Responsive ─────────────────────────────────────── */

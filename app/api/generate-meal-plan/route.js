@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import jwt from 'jsonwebtoken';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -306,6 +312,24 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
     }
 
     const plan = { clientName: name, dailyTargets: targets, days };
+
+    // Salvează planul în Supabase dacă există clientId
+    if (clientData.clientId) {
+      const { error: saveError } = await supabase
+        .from('meal_plans')
+        .insert({
+          client_id: clientData.clientId,
+          trainer_id: String(decoded.userId || decoded.id || decoded.sub),
+          plan_data: plan,
+          daily_targets: targets,
+        });
+      if (saveError) {
+        console.error('Eroare la salvarea planului în Supabase:', saveError.message);
+      } else {
+        console.log('Plan salvat cu succes în Supabase pentru clientul', clientData.clientId);
+      }
+    }
+
     sendEvent({ type: 'complete', plan, nutritionalNeeds: targets });
         } catch (err) {
           sendEvent({ type: 'error', message: err.message });
