@@ -43,6 +43,9 @@ function ClientsContent() {
   // Search
   const [search, setSearch] = useState('');
 
+  // Plan map: { [clientId]: planId }
+  const [clientPlanMap, setClientPlanMap] = useState({});
+
   const authHeaders = useCallback(() => ({
     'Content-Type': 'application/json',
     'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -52,10 +55,15 @@ function ClientsContent() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/clients', { headers: authHeaders() });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Eroare la încărcare');
-      setClients(data.clients || []);
+      const [clientsRes, plansRes] = await Promise.all([
+        fetch('/api/clients', { headers: authHeaders() }),
+        fetch('/api/meal-plans', { headers: authHeaders() }),
+      ]);
+      const clientsData = await clientsRes.json();
+      const plansData = await plansRes.json();
+      if (!clientsRes.ok) throw new Error(clientsData.error || 'Eroare la încărcare');
+      setClients(clientsData.clients || []);
+      setClientPlanMap(plansData.plans || {});
     } catch (err) {
       setError(err.message);
     } finally {
@@ -197,12 +205,21 @@ function ClientsContent() {
                 </div>
                 <div className={styles.clientActions}>
                   <button className={styles.editBtn} onClick={() => openEdit(client)}>Editează</button>
-                  <button
-                    className={styles.generateBtn}
-                    onClick={() => router.push(`/generator-plan?clientId=${client.id}`)}
-                  >
-                    Generează plan
-                  </button>
+                  {clientPlanMap[client.id] ? (
+                    <button
+                      className={styles.viewPlanBtn}
+                      onClick={() => router.push(`/meal-plan/${clientPlanMap[client.id].planId}`)}
+                    >
+                      Vizualizează plan
+                    </button>
+                  ) : (
+                    <button
+                      className={styles.generateBtn}
+                      onClick={() => router.push(`/generator-plan?clientId=${client.id}`)}
+                    >
+                      Generează plan
+                    </button>
+                  )}
                   <button className={styles.deleteBtn} onClick={() => setDeleteId(client.id)}>Șterge</button>
                 </div>
               </div>
