@@ -240,7 +240,7 @@ export function generateMealPlanPDF(plan, clientData, nutritionalNeeds) {
     doc.setFillColor(...C.lime);
     doc.roundedRect(MARGIN, 7, 12, 12, 2, 2, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
+    doc.setFontSize(18);
     doc.setTextColor(...C.dark);
     doc.text(String(dayIndex + 1), MARGIN + 6, 15.5, { align: 'center' });
 
