@@ -30,12 +30,25 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
-  const logout = () => {
+  const logout = async () => {
+    // Notifică serverul pentru a înregistra deconectarea în activity_logs
+    const currentToken = token || localStorage.getItem('token');
+    if (currentToken) {
+      try {
+        await fetch('/api/auth/signout', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${currentToken}` },
+        });
+      } catch {
+        // fire-and-forget — ignoră erorile de rețea
+      }
+    }
+
     setUser(null);
     setToken(null);
     localStorage.removeItem('user');
     localStorage.removeItem('token');
-    // Clear token cookie
+    // Șterge cookie-ul token
     document.cookie = 'token=; path=/; max-age=0';
   };
 

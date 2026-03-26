@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcrypt';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -25,40 +26,40 @@ const ValidationRules = {
 };
 
 const validateEmail = (email) => {
-  if (!email) return 'Email is required';
-  if (email.length < ValidationRules.email.minLength) return 'Email is too short';
-  if (email.length > ValidationRules.email.maxLength) return 'Email is too long';
-  if (!ValidationRules.email.pattern.test(email)) return 'Invalid email format';
+  if (!email) return 'Adresa de email este obligatorie';
+  if (email.length < ValidationRules.email.minLength) return 'Adresa de email este prea scurtă';
+  if (email.length > ValidationRules.email.maxLength) return 'Adresa de email este prea lungă';
+  if (!ValidationRules.email.pattern.test(email)) return 'Format de email invalid';
   return null;
 };
 
 const validatePassword = (password) => {
-  if (!password) return 'Password is required';
+  if (!password) return 'Parola este obligatorie';
   if (password.length < ValidationRules.password.minLength) {
-    return `Password must be at least ${ValidationRules.password.minLength} characters`;
+    return `Parola trebuie să aibă cel puțin ${ValidationRules.password.minLength} caractere`;
   }
   if (password.length > ValidationRules.password.maxLength) {
-    return 'Password is too long';
+    return 'Parola este prea lungă';
   }
 
   // Check for common weak passwords
   const commonPasswords = ['password', '12345678', 'qwerty123', 'abc123456', 'password123'];
   if (commonPasswords.some(common => password.toLowerCase().includes(common))) {
-    return 'This password is too common. Please choose a stronger password';
+    return 'Această parolă este prea comună. Alege o parolă mai puternică';
   }
 
   return null;
 };
 
 const validateName = (name) => {
-  if (!name) return 'Name is required';
+  if (!name) return 'Numele este obligatoriu';
   const trimmed = name.trim();
   if (trimmed.length < ValidationRules.name.minLength) {
-    return `Name must be at least ${ValidationRules.name.minLength} characters`;
+    return `Numele trebuie să aibă cel puțin ${ValidationRules.name.minLength} caractere`;
   }
-  if (trimmed.length > ValidationRules.name.maxLength) return 'Name is too long';
+  if (trimmed.length > ValidationRules.name.maxLength) return 'Numele este prea lung';
   if (!ValidationRules.name.pattern.test(trimmed)) {
-    return 'Name can only contain letters, spaces, hyphens, and apostrophes';
+    return 'Numele poate conține doar litere, spații, cratime și apostroafe';
   }
   return null;
 };
@@ -68,6 +69,8 @@ const sanitizeInput = (input) => {
 };
 
 export async function POST(request) {
+  const { ip, userAgent } = getRequestMeta(request);
+
   try {
     const body = await request.json();
 
@@ -81,6 +84,7 @@ export async function POST(request) {
     // Validate name
     const nameError = validateName(name);
     if (nameError) {
+      await logActivity({ action: 'auth.signup', status: 'failure', email, ipAddress: ip, userAgent, details: { reason: 'validation_error', field: 'name' } });
       return new Response(
         JSON.stringify({ error: nameError }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -90,6 +94,7 @@ export async function POST(request) {
     // Validate email
     const emailError = validateEmail(email);
     if (emailError) {
+      await logActivity({ action: 'auth.signup', status: 'failure', email, ipAddress: ip, userAgent, details: { reason: 'validation_error', field: 'email' } });
       return new Response(
         JSON.stringify({ error: emailError }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -99,6 +104,7 @@ export async function POST(request) {
     // Validate password
     const passwordError = validatePassword(password);
     if (passwordError) {
+      await logActivity({ action: 'auth.signup', status: 'failure', email, ipAddress: ip, userAgent, details: { reason: 'validation_error', field: 'password' } });
       return new Response(
         JSON.stringify({ error: passwordError }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -113,9 +119,10 @@ export async function POST(request) {
       .single();
 
     if (existingUser) {
+      await logActivity({ action: 'auth.signup', status: 'failure', email, ipAddress: ip, userAgent, details: { reason: 'email_exists' } });
       return new Response(
         JSON.stringify({ 
-          error: 'Email already registered. Please sign in instead.',
+          error: 'Email deja înregistrat. Autentifică-te în schimb.',
           code: 'EMAIL_EXISTS'
         }),
         { status: 409, headers: { 'Content-Type': 'application/json' } }
@@ -128,8 +135,9 @@ export async function POST(request) {
       hashedPassword = await bcrypt.hash(password, 12);
     } catch (hashError) {
       console.error('Bcrypt hashing error:', hashError);
+      await logActivity({ action: 'auth.signup', status: 'error', email, ipAddress: ip, userAgent, details: { reason: 'bcrypt_error' } });
       return new Response(
-        JSON.stringify({ error: 'Failed to process password. Please try again.' }),
+        JSON.stringify({ error: 'Eroare la procesarea parolei. Încearcă din nou.' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
@@ -152,31 +160,36 @@ export async function POST(request) {
       
       // Handle duplicate email error from database
       if (error.code === '23505') {
+        await logActivity({ action: 'auth.signup', status: 'failure', email, ipAddress: ip, userAgent, details: { reason: 'email_exists_db' } });
         return new Response(
           JSON.stringify({ 
-            error: 'Email already registered. Please sign in instead.',
+            error: 'Email deja înregistrat. Autentifică-te în schimb.',
             code: 'EMAIL_EXISTS'
           }),
           { status: 409, headers: { 'Content-Type': 'application/json' } }
         );
       }
 
+      await logActivity({ action: 'auth.signup', status: 'error', email, ipAddress: ip, userAgent, details: { reason: 'db_error', code: error.code } });
       return new Response(
-        JSON.stringify({ error: 'Failed to create account. Please try again.' }),
+        JSON.stringify({ error: 'Crearea contului a eșuat. Încearcă din nou.' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
     if (!data || data.length === 0) {
+      await logActivity({ action: 'auth.signup', status: 'error', email, ipAddress: ip, userAgent, details: { reason: 'empty_response' } });
       return new Response(
-        JSON.stringify({ error: 'Failed to create account. Please try again.' }),
+        JSON.stringify({ error: 'Crearea contului a eșuat. Încearcă din nou.' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
+    await logActivity({ action: 'auth.signup', status: 'success', userId: data[0].id, email, ipAddress: ip, userAgent });
+
     return new Response(
       JSON.stringify({ 
-        message: 'Account created successfully',
+        message: 'Cont creat cu succes.',
         user: {
           id: data[0].id,
           name: data[0].name,
@@ -190,14 +203,16 @@ export async function POST(request) {
     
     // Handle JSON parse errors
     if (error instanceof SyntaxError) {
+      await logActivity({ action: 'auth.signup', status: 'error', ipAddress: ip, userAgent, details: { reason: 'invalid_json' } });
       return new Response(
-        JSON.stringify({ error: 'Invalid request format' }),
+        JSON.stringify({ error: 'Format de cerere invalid.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
+    await logActivity({ action: 'auth.signup', status: 'error', ipAddress: ip, userAgent, details: { reason: 'server_error', message: error.message } });
     return new Response(
-      JSON.stringify({ error: 'Server error. Please try again later.' }),
+      JSON.stringify({ error: 'Eroare de server. Încearcă din nou mai târziu.' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
