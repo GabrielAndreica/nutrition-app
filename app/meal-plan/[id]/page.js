@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
+import AppHeader from '@/app/components/AppHeader';
 import styles from '@/app/generator-plan/generator.module.css';
 
 function MealPlanViewContent() {
@@ -53,18 +54,10 @@ function MealPlanViewContent() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <div className={styles.headerContent}>
-          <div className={styles.headerTitle}>
-            <button className={styles.backBtn} onClick={() => router.push('/clients')}>
-              ← Înapoi la clienți
-            </button>
-            <h1>
-              {mealPlan ? `Plan alimentar — ${mealPlan.clientName}` : 'Plan alimentar'}
-            </h1>
-          </div>
-        </div>
-      </div>
+      <AppHeader
+        title={mealPlan?.clientName || 'Plan alimentar'}
+        backHref="/clients"
+      />
 
       <div className={styles.content}>
         {loading && (

@@ -17,6 +17,12 @@ export const metadata = {
   description: "AI-powered meal plans tailored to your goals and lifestyle",
 };
 
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
+
 export default function RootLayout({ children }) {
   return (
     <html

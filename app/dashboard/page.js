@@ -1,76 +1,72 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
+import AppHeader from '@/app/components/AppHeader';
 import styles from './dashboard.module.css';
 
 function DashboardContent() {
   const router = useRouter();
-  const { user, logout } = useAuth();
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
 
-  const handleLogout = () => {
-    logout();
-    router.push('/');
-  };
+  // Prefetch /clients so navigation is instant on click
+  useEffect(() => {
+    router.prefetch('/clients');
+  }, [router]);
 
+  const firstName = user?.name?.split(' ')[0] || user?.name || '';
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <div className={styles.headerContent}>
-          <h1>Welcome, {user?.name}!</h1>
-          <button onClick={handleLogout} className={styles.logoutBtn}>
-            Logout
-          </button>
-        </div>
-      </div>
+      <AppHeader />
 
       <div className={styles.content}>
-        <div className={styles.card}>
-          <div className={styles.cardIcon}>📊</div>
-          <h2>Meal Plans</h2>
-          <p>Generate personalized nutrition plans</p>
-          <button 
-            className={styles.primaryBtn}
-            onClick={() => router.push('/generator-plan')}
-          >
-            Generate Plan
-          </button>
+        <div className={styles.hero}>
+          <h2 className={styles.heroHeading}>
+            Bună ziua, <span className={styles.accent}>{firstName}</span>.
+          </h2>
+          <p className={styles.heroSub}>
+            Generează și gestionează planuri alimentare personalizate.
+          </p>
         </div>
 
-        <div className={styles.card}>
-          <div className={styles.cardIcon}>�</div>
-          <h2>Clienți</h2>
-          <p>Gestionează datele clienților tăi</p>
-          <button className={styles.primaryBtn} onClick={() => router.push('/clients')}>
-            Vezi Clienți
-          </button>
-        </div>
-
-        <div className={styles.card}>
-          <div className={styles.cardIcon}>⚙️</div>
-          <h2>Settings</h2>
-          <p>Manage your preferences</p>
-          <button className={styles.primaryBtn}>Go to Settings</button>
-        </div>
-      </div>
-
-      <div className={styles.userCard}>
-        <h3>Account Info</h3>
-        <div className={styles.userInfo}>
-          <div>
-            <label>Email</label>
-            <p>{user?.email}</p>
+        <div className={styles.card} onClick={() => router.push('/clients')}>
+          <div className={styles.cardBody}>
+            <div className={styles.cardIcon}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <div>
+              <h2 className={styles.cardTitle}>Clienți</h2>
+              <p className={styles.cardDesc}>Profiluri, planuri alimentare și export PDF</p>
+            </div>
           </div>
-          <div>
-            <label>Member Since</label>
-            <p>March 2026</p>
+          <div className={styles.cardActions}>
+            <button
+              className={styles.cardBtn}
+              onClick={e => { e.stopPropagation(); router.push('/clients'); }}
+            >
+              Deschide
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
+
+      <footer className={styles.footer}>
+        <span>© {new Date().getFullYear()} NutritionApp</span>
+        <span className={styles.footerDot} />
+        <span>v1.0</span>
+      </footer>
     </div>
   );
 }

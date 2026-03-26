@@ -6,6 +6,7 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import ClientForm from '@/app/components/MealPlanGenerator/ClientForm';
 import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
+import AppHeader from '@/app/components/AppHeader';
 import styles from './generator.module.css';
 
 function GeneratorContent() {
@@ -131,20 +132,10 @@ function GeneratorContent() {
 
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <div className={styles.headerContent}>
-          <div className={styles.headerTitle}>
-            <button className={styles.backBtn} onClick={() => router.push(backTarget)}>
-              ← Înapoi
-            </button>
-            <h1>
-              {clientId && clientData
-                ? `Plan alimentar — ${clientData.name}`
-                : 'Generator Plan Alimentar'}
-            </h1>
-          </div>
-        </div>
-      </div>
+      <AppHeader
+        title={clientId && clientData ? clientData.name : 'Generator Plan'}
+        backHref={backTarget}
+      />
 
       <div className={styles.content}>
         {!mealPlan ? (
