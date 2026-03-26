@@ -2,7 +2,7 @@
 export const ValidationRules = {
   email: {
     pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-    message: 'Invalid email address',
+    message: 'Format de email invalid',
     minLength: 5,
     maxLength: 254,
   },
@@ -18,7 +18,7 @@ export const ValidationRules = {
     minLength: 2,
     maxLength: 100,
     pattern: /^[a-zA-Z\s'-]*$/,
-    message: 'Name can only contain letters, spaces, hyphens, and apostrophes',
+    message: 'Numele poate conține doar litere, spații, cratime și apostroafe',
   },
 };
 
@@ -26,20 +26,20 @@ export const validateEmail = (email) => {
   const errors = [];
 
   if (!email) {
-    errors.push('Email is required');
+    errors.push('Adresa de email este obligatorie');
     return errors;
   }
 
   if (email.length < ValidationRules.email.minLength) {
-    errors.push('Email is too short');
+    errors.push('Adresa de email este prea scurtă');
   }
 
   if (email.length > ValidationRules.email.maxLength) {
-    errors.push('Email is too long');
+    errors.push('Adresa de email este prea lungă');
   }
 
   if (!ValidationRules.email.pattern.test(email)) {
-    errors.push('Invalid email format');
+    errors.push('Format de email invalid');
   }
 
   // Check for common typos
@@ -48,7 +48,7 @@ export const validateEmail = (email) => {
   if (domain) {
     const typos = ['gmial.com', 'gmai.com', 'yahooo.com', 'outlo0k.com'];
     if (typos.includes(domain)) {
-      errors.push('Did you mean ' + domain.replace(/0/, 'o') + '?');
+      errors.push('Ai vrut să spui ' + domain.replace(/0/, 'o') + '?');
     }
   }
 
@@ -60,38 +60,38 @@ export const validatePassword = (password) => {
   const warnings = [];
 
   if (!password) {
-    errors.push('Password is required');
+    errors.push('Parola este obligatorie');
     return { errors, warnings };
   }
 
   if (password.length < ValidationRules.password.minLength) {
-    errors.push(`Password must be at least ${ValidationRules.password.minLength} characters`);
+    errors.push(`Parola trebuie să aibă cel puțin ${ValidationRules.password.minLength} caractere`);
   }
 
   if (password.length > ValidationRules.password.maxLength) {
-    errors.push('Password is too long');
+    errors.push('Parola este prea lungă');
   }
 
   if (!ValidationRules.password.hasUpperCase.test(password)) {
-    warnings.push('Add uppercase letters for better security');
+    warnings.push('Adaugă litere mari pentru mai multă securitate');
   }
 
   if (!ValidationRules.password.hasLowerCase.test(password)) {
-    warnings.push('Add lowercase letters for better security');
+    warnings.push('Adaugă litere mici pentru mai multă securitate');
   }
 
   if (!ValidationRules.password.hasNumber.test(password)) {
-    warnings.push('Add numbers for better security');
+    warnings.push('Adaugă cifre pentru mai multă securitate');
   }
 
   if (!ValidationRules.password.hasSpecialChar.test(password)) {
-    warnings.push('Add special characters for better security');
+    warnings.push('Adaugă caractere speciale pentru mai multă securitate');
   }
 
   // Check for common passwords
   const commonPasswords = ['password', '12345678', 'qwerty123', 'abc123456', 'password123'];
   if (commonPasswords.some(common => password.toLowerCase().includes(common))) {
-    errors.push('This password is too common. Please choose a stronger password');
+    errors.push('Această parolă este prea comună. Alege o parolă mai puternică');
   }
 
   return { errors, warnings };
@@ -101,16 +101,16 @@ export const validateName = (name) => {
   const errors = [];
 
   if (!name) {
-    errors.push('Name is required');
+    errors.push('Numele este obligatoriu');
     return errors;
   }
 
   if (name.trim().length < ValidationRules.name.minLength) {
-    errors.push(`Name must be at least ${ValidationRules.name.minLength} characters`);
+    errors.push(`Numele trebuie să aibă cel puțin ${ValidationRules.name.minLength} caractere`);
   }
 
   if (name.length > ValidationRules.name.maxLength) {
-    errors.push('Name is too long');
+    errors.push('Numele este prea lung');
   }
 
   if (!ValidationRules.name.pattern.test(name)) {
@@ -136,12 +136,12 @@ export const getPasswordStrength = (password) => {
 };
 
 export const getPasswordStrengthLabel = (strength) => {
-  if (strength === 0) return 'Very Weak';
-  if (strength === 1) return 'Weak';
-  if (strength === 2) return 'Fair';
-  if (strength === 3) return 'Good';
-  if (strength === 4) return 'Strong';
-  if (strength === 5) return 'Very Strong';
+  if (strength === 0) return 'Foarte slabă';
+  if (strength === 1) return 'Slabă';
+  if (strength === 2) return 'Acceptabilă';
+  if (strength === 3) return 'Bună';
+  if (strength === 4) return 'Puternică';
+  if (strength === 5) return 'Foarte puternică';
 };
 
 export const sanitizeInput = (input) => {

@@ -1,26 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import jwt from 'jsonwebtoken';
+import { verifyToken } from '@/app/lib/verifyToken';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-function verifyToken(request) {
-  const authHeader = request.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return { error: 'Token JWT lipsă.', status: 401 };
-  }
-  try {
-    const decoded = jwt.verify(authHeader.substring(7), JWT_SECRET);
-    return { userId: String(decoded.userId || decoded.id || decoded.sub) };
-  } catch (err) {
-    return { error: `Token JWT invalid sau expirat: ${err.message}`, status: 401 };
-  }
-}
 
 // GET /api/meal-plans — returnează cel mai recent plan per client pentru trainerul autentificat
 export async function GET(request) {

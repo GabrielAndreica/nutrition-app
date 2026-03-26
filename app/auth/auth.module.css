@@ -1,76 +1,153 @@
-.container {
+﻿/* ── Page shell — split layout ────────────────────────────── */
+.page {
   min-height: 100vh;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+/* ── Left panel — branding ────────────────────────────────── */
+.leftPanel {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--bg-primary);
-  padding: var(--spacing-lg);
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 48px 56px;
+  background:
+    radial-gradient(ellipse 80% 60% at 30% 40%, rgba(183,255,0,0.15) 0%, transparent 70%),
+    #0a0a0a;
   position: relative;
   overflow: hidden;
 }
 
-/* Subtle background decoration */
-.container::before {
+.leftPanel::after {
   content: '';
   position: absolute;
-  top: -50%;
-  right: -50%;
-  width: 500px;
-  height: 500px;
-  background: radial-gradient(circle, rgba(183, 255, 0, 0.07) 0%, transparent 70%);
-  border-radius: 50%;
+  bottom: -120px;
+  right: -80px;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(183,255,0,0.08) 0%, transparent 70%);
   pointer-events: none;
 }
 
-.container::after {
-  content: '';
-  position: absolute;
-  bottom: -50%;
-  left: -50%;
-  width: 400px;
-  height: 400px;
-  background: radial-gradient(circle, rgba(183, 255, 0, 0.05) 0%, transparent 70%);
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logoMark {
+  width: 34px;
+  height: 34px;
+  background: #b7ff00;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  font-weight: 900;
+  color: #000;
+  flex-shrink: 0;
+  letter-spacing: -1px;
+}
+
+.logoText {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.4px;
+}
+
+/* ── Tagline block ────────────────────────────────────────── */
+.tagline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.taglineHeading {
+  margin: 0;
+  font-size: clamp(32px, 3.5vw, 48px);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -2px;
+  color: #fff;
+}
+
+.taglineSub {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.6;
+  color: rgba(255,255,255,0.55);
+  max-width: 340px;
+}
+
+/* ── AI badge ─────────────────────────────────────────────── */
+.aiBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid rgba(183,255,0,0.3);
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.8);
+  background: rgba(183,255,0,0.07);
+  width: fit-content;
+  letter-spacing: 0.2px;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  pointer-events: none;
+  background: #b7ff00;
+  animation: pulse 2.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.4; transform: scale(0.75); }
+}
+
+/* ── Right panel — form ───────────────────────────────────── */
+.rightPanel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 40px;
+  background: var(--bg-primary, #fff);
 }
 
 .card {
-  position: relative;
-  z-index: 1;
-  background: var(--bg-primary);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(10px);
-  padding: var(--spacing-3xl);
   width: 100%;
-  max-width: 420px;
+  max-width: 400px;
 }
 
-.card h1 {
-  margin: 0 0 var(--spacing-sm);
-  text-align: center;
-  color: var(--text-primary);
-  font-size: 32px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
+.cardTitle {
+  margin: 0 0 6px;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -1px;
+  color: var(--text-primary, #0a0a0a);
 }
 
-.card > p {
-  text-align: center;
-  color: var(--text-secondary);
-  margin: 0 0 var(--spacing-2xl);
-  font-size: 14px;
+.cardSub {
+  margin: 0 0 28px;
+  font-size: 15px;
+  color: var(--text-secondary, #666);
 }
 
+/* ── Form groups ──────────────────────────────────────────── */
 .formGroup {
-  margin-bottom: var(--spacing-xl);
+  margin-bottom: 20px;
 }
 
 .formGroup label {
   display: block;
-  margin-bottom: var(--spacing-md);
-  color: var(--text-primary);
+  margin-bottom: 8px;
+  color: var(--text-primary, #0a0a0a);
   font-weight: 600;
   font-size: 14px;
   letter-spacing: -0.2px;
@@ -78,235 +155,182 @@
 
 .formGroup input {
   width: 100%;
-  padding: var(--spacing-md) var(--spacing-lg);
-  border: 1px solid var(--gray-300);
-  border-radius: var(--radius-sm);
-  font-size: 16px;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  transition: all 0.3s ease;
+  padding: 12px 16px;
+  border: 1.5px solid var(--gray-200, #e5e5e5);
+  border-radius: 10px;
+  font-size: 15px;
+  background: var(--bg-secondary, #fafafa);
+  color: var(--text-primary, #0a0a0a);
+  transition: border-color 0.2s, box-shadow 0.2s;
   font-family: inherit;
+  box-sizing: border-box;
 }
 
 .formGroup input::placeholder {
-  color: var(--text-tertiary);
+  color: var(--text-tertiary, #aaa);
 }
 
 .formGroup input:focus {
   outline: none;
-  border-color: var(--primary-orange);
-  background: var(--bg-primary);
-  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
+  border-color: #b7ff00;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(183,255,0,0.18);
 }
 
 .formGroup input:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-/* Error styles */
-.error {
-  color: var(--error);
-  font-size: 14px;
-  margin: var(--spacing-lg) 0;
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: rgba(255, 59, 48, 0.08);
-  border: 1px solid rgba(255, 59, 48, 0.2);
-  border-radius: var(--radius-sm);
-  text-align: center;
-  font-weight: 500;
-}
-
-/* Success styles */
-.success {
-  color: var(--success);
-  font-size: 14px;
-  margin: var(--spacing-lg) 0;
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: rgba(52, 199, 89, 0.08);
-  border: 1px solid rgba(52, 199, 89, 0.2);
-  border-radius: var(--radius-sm);
-  text-align: center;
-  font-weight: 500;
-  animation: slideDown 0.3s ease-out;
-}
-
-@keyframes slideDown {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Field-specific errors */
-.fieldError {
-  color: var(--error);
-  font-size: 13px;
-  margin-top: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: rgba(255, 59, 48, 0.06);
-  border-left: 2px solid var(--error);
-  border-radius: 2px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.fieldError p {
-  margin: 0;
-  color: var(--error);
-}
-
-/* Field warnings */
-.fieldWarning {
-  color: var(--warning);
-  font-size: 13px;
-  margin-top: var(--spacing-sm);
-  padding: var(--spacing-sm) var(--spacing-md);
-  background: rgba(255, 149, 0, 0.06);
-  border-left: 2px solid var(--warning);
-  border-radius: 2px;
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-xs);
-}
-
-.fieldWarning p {
-  margin: 0;
-  color: var(--text-secondary);
-}
-
-/* Password strength indicator */
-.passwordStrength {
-  margin-top: var(--spacing-md);
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.strengthBar {
-  width: 100%;
-  height: 4px;
-  background: var(--gray-300);
-  border-radius: var(--radius-full);
-  overflow: hidden;
-}
-
-.strengthFill {
-  height: 100%;
-  border-radius: var(--radius-full);
-  transition: width 0.3s ease, background-color 0.3s ease;
-}
-
-.strength0 {
-  background: var(--error);
-}
-
-.strength1 {
-  background: #FF6B35;
-}
-
-.strength2 {
-  background: var(--warning);
-}
-
-.strength3 {
-  background: #4ADE80;
-}
-
-.strength4 {
-  background: var(--success);
-}
-
-.strength5 {
-  background: #16A34A;
-}
-
-.strengthLabel {
-  font-size: 12px;
-  color: var(--text-secondary);
-  font-weight: 500;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
+/* ── Submit button ────────────────────────────────────────── */
 .submitBtn {
   width: 100%;
-  padding: var(--spacing-md) var(--spacing-lg);
-  background: var(--primary-orange);
-  color: #000;
+  padding: 14px 24px;
+  background: #0a0a0a;
+  color: #b7ff00;
   border: none;
-  border-radius: var(--radius-md);
-  font-size: 16px;
+  border-radius: 10px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.2px;
   cursor: pointer;
-  transition: all 0.3s ease;
-  margin-top: var(--spacing-lg);
-  box-shadow: 0 2px 14px rgba(183, 255, 0, 0.3);
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .submitBtn:hover:not(:disabled) {
-  background: var(--primary-orange-light);
-  box-shadow: 0 4px 22px rgba(183, 255, 0, 0.4);
-  transform: translateY(-2px);
+  background: #1a1a1a;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.18);
+  transform: translateY(-1px);
 }
 
 .submitBtn:active:not(:disabled) {
   transform: translateY(0);
-  box-shadow: var(--shadow-md);
+  box-shadow: none;
 }
 
 .submitBtn:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: not-allowed;
 }
 
-.toggle {
-  text-align: center;
-  margin-top: var(--spacing-2xl);
-  color: var(--text-secondary);
+/* ── Inline spinner ───────────────────────────────────────── */
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(183,255,0,0.3);
+  border-top-color: #b7ff00;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Fullscreen loading spinner ───────────────────────────── */
+.loadingSpinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(183,255,0,0.2);
+  border-top-color: #b7ff00;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* ── Error / success banners ──────────────────────────────── */
+.error {
+  color: var(--error, #dc2626);
   font-size: 14px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: rgba(220,38,38,0.07);
+  border: 1px solid rgba(220,38,38,0.18);
+  border-radius: 8px;
+  font-weight: 500;
 }
 
-.toggleBtn {
-  background: none;
-  border: none;
-  color: var(--text-primary);
-  cursor: pointer;
-  font-weight: 700;
-  padding: 0;
-  margin-left: 4px;
-  transition: opacity 0.2s ease;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+.success {
+  color: #16a34a;
   font-size: 14px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: rgba(22,163,74,0.07);
+  border: 1px solid rgba(22,163,74,0.18);
+  border-radius: 8px;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease;
 }
 
-.toggleBtn:hover:not(:disabled) {
-  opacity: 0.8;
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.toggleBtn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+/* ── Field-level errors ───────────────────────────────────── */
+.fieldError {
+  color: var(--error, #dc2626);
+  font-size: 13px;
+  margin-top: 6px;
+  padding: 6px 10px;
+  background: rgba(220,38,38,0.05);
+  border-left: 2px solid var(--error, #dc2626);
+  border-radius: 2px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
-/* Responsive */
+.fieldError p {
+  margin: 0;
+}
+
+/* ── Responsive: tablet ───────────────────────────────────── */
+@media (max-width: 860px) {
+  .page {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  .leftPanel {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding: 24px 28px;
+    min-height: unset;
+  }
+
+  .leftPanel::after { display: none; }
+
+  .tagline { display: none; }
+
+  .rightPanel {
+    padding: 40px 24px;
+    align-items: flex-start;
+  }
+}
+
+/* ── Responsive: mobile ───────────────────────────────────── */
 @media (max-width: 480px) {
-  .card {
-    padding: var(--spacing-2xl);
+  .leftPanel {
+    padding: 20px;
   }
 
-  .card h1 {
-    font-size: 28px;
+  .rightPanel {
+    padding: 32px 20px;
   }
 
-  .formGroup {
-    margin-bottom: var(--spacing-lg);
-  }
+  .cardTitle { font-size: 24px; }
 }

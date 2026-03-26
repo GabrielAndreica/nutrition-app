@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -15,13 +16,13 @@ const MAX_ATTEMPTS = 100;
 const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutes in milliseconds
 
 const validateEmail = (email) => {
-  if (!email) return 'Email is required';
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Invalid email format';
+  if (!email) return 'Adresa de email este obligatorie';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Format de email invalid';
   return null;
 };
 
 const validatePassword = (password) => {
-  if (!password) return 'Password is required';
+  if (!password) return 'Parola este obligatorie';
   return null;
 };
 
@@ -40,7 +41,7 @@ const checkRateLimit = (email) => {
         const remainingTime = Math.ceil((LOCKOUT_TIME - timePassed) / 1000);
         return {
           limited: true,
-          message: `Too many failed attempts. Please try again in ${remainingTime} seconds.`,
+          message: `Prea multe încercări eșuate. Încearcă din nou în ${remainingTime} secunde.`,
         };
       } else {
         // Reset after lockout period
@@ -72,6 +73,8 @@ const recordSuccessfulLogin = (email) => {
 };
 
 export async function POST(request) {
+  const { ip, userAgent } = getRequestMeta(request);
+
   try {
     const body = await request.json();
 
@@ -84,6 +87,7 @@ export async function POST(request) {
     // Validate email
     const emailError = validateEmail(email);
     if (emailError) {
+      await logActivity({ action: 'auth.signin', status: 'failure', email, ipAddress: ip, userAgent, details: { reason: 'validation_error', field: 'email' } });
       return new Response(
         JSON.stringify({ error: emailError }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -93,6 +97,7 @@ export async function POST(request) {
     // Validate password
     const passwordError = validatePassword(password);
     if (passwordError) {
+      await logActivity({ action: 'auth.signin', status: 'failure', email, ipAddress: ip, userAgent, details: { reason: 'validation_error', field: 'password' } });
       return new Response(
         JSON.stringify({ error: passwordError }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
@@ -102,6 +107,7 @@ export async function POST(request) {
     // Check rate limiting
     const rateLimit = checkRateLimit(email.toLowerCase());
     if (rateLimit.limited) {
+      await logActivity({ action: 'auth.signin', status: 'blocked', email, ipAddress: ip, userAgent, details: { reason: 'rate_limited' } });
       return new Response(
         JSON.stringify({ 
           error: rateLimit.message,
@@ -120,10 +126,10 @@ export async function POST(request) {
 
     if (dbError || !user) {
       recordFailedAttempt(email.toLowerCase());
-      
+      await logActivity({ action: 'auth.signin', status: 'failure', email, ipAddress: ip, userAgent, details: { reason: 'user_not_found' } });
       return new Response(
         JSON.stringify({ 
-          error: 'Invalid email or password',
+          error: 'Email sau parolă incorectă.',
           code: 'INVALID_CREDENTIALS'
         }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
@@ -136,18 +142,19 @@ export async function POST(request) {
       passwordMatch = await bcrypt.compare(password, user.password);
     } catch (compareError) {
       console.error('Password comparison error:', compareError);
+      await logActivity({ action: 'auth.signin', status: 'error', userId: user.id, email, ipAddress: ip, userAgent, details: { reason: 'bcrypt_error' } });
       return new Response(
-        JSON.stringify({ error: 'Authentication failed. Please try again.' }),
+        JSON.stringify({ error: 'Autentificare eșuată. Încearcă din nou.' }),
         { status: 500, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
     if (!passwordMatch) {
       recordFailedAttempt(email.toLowerCase());
-      
+      await logActivity({ action: 'auth.signin', status: 'failure', userId: user.id, email, ipAddress: ip, userAgent, details: { reason: 'wrong_password' } });
       return new Response(
         JSON.stringify({ 
-          error: 'Invalid email or password',
+          error: 'Email sau parolă incorectă.',
           code: 'INVALID_CREDENTIALS'
         }),
         { status: 401, headers: { 'Content-Type': 'application/json' } }
@@ -168,9 +175,11 @@ export async function POST(request) {
       { expiresIn: '7d' }
     );
 
+    await logActivity({ action: 'auth.signin', status: 'success', userId: user.id, email, ipAddress: ip, userAgent });
+
     return new Response(
       JSON.stringify({ 
-        message: 'Login successful',
+        message: 'Autentificare reușită.',
         token,
         user: { 
           id: user.id, 
@@ -185,14 +194,16 @@ export async function POST(request) {
 
     // Handle JSON parse errors
     if (error instanceof SyntaxError) {
+      await logActivity({ action: 'auth.signin', status: 'error', ipAddress: ip, userAgent, details: { reason: 'invalid_json' } });
       return new Response(
-        JSON.stringify({ error: 'Invalid request format' }),
+        JSON.stringify({ error: 'Format de cerere invalid.' }),
         { status: 400, headers: { 'Content-Type': 'application/json' } }
       );
     }
 
+    await logActivity({ action: 'auth.signin', status: 'error', ipAddress: ip, userAgent, details: { reason: 'server_error', message: error.message } });
     return new Response(
-      JSON.stringify({ error: 'Server error. Please try again later.' }),
+      JSON.stringify({ error: 'Eroare de server. Încearcă din nou mai târziu.' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
