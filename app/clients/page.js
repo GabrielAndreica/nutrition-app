@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
+import AppHeader from '@/app/components/AppHeader';
 import styles from './clients.module.css';
 
 const EMPTY_FORM = {
@@ -147,15 +148,7 @@ function ClientsContent() {
 
   return (
     <div className={styles.container}>
-      {/* Header */}
-      <div className={styles.header}>
-        <div className={styles.headerContent}>
-          <div className={styles.headerLeft}>
-            <button className={styles.backBtn} onClick={() => router.push('/dashboard')}>← Înapoi</button>
-            <h1>Clienți</h1>
-          </div>
-        </div>
-      </div>
+      <AppHeader title="Clienți" backHref="/dashboard" />
 
       <div className={styles.content}>
         {/* Search */}
