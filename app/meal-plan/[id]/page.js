@@ -5,7 +5,49 @@ import { useRouter, useParams } from 'next/navigation';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
 import AppHeader from '@/app/components/AppHeader';
-import styles from '@/app/generator-plan/generator.module.css';
+import styles from '../meal-plan-view.module.css';
+
+function SkeletonMealPlan() {
+  return (
+    <div className={styles.skeletonWrap}>
+      {/* Client header skeleton */}
+      <div className={styles.skeletonClientHeader}>
+        <div className={styles.skeletonNameBlock}>
+          <div className={`${styles.shimmer} ${styles.skeletonName}`} />
+          <div className={`${styles.shimmer} ${styles.skeletonSub}`} />
+        </div>
+        <div className={styles.skeletonStats}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className={`${styles.shimmer} ${styles.skeletonStat}`} />
+          ))}
+        </div>
+      </div>
+
+      {/* Right column */}
+      <div className={styles.skeletonRightColumn}>
+        {/* Tabs row */}
+        <div className={styles.skeletonTabsRow}>
+          <div className={styles.skeletonTabGroup}>
+            {[1, 2, 3, 4, 5, 6, 7].map(i => (
+              <div key={i} className={`${styles.shimmer} ${styles.skeletonTab}`} />
+            ))}
+          </div>
+          <div className={`${styles.shimmer} ${styles.skeletonDownload}`} />
+        </div>
+
+        {/* Day totals bar */}
+        <div className={styles.skeletonBar} />
+
+        {/* Meal cards grid */}
+        <div className={styles.skeletonMealsGrid}>
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className={`${styles.shimmer} ${styles.skeletonMealCard}`} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function MealPlanViewContent() {
   const router = useRouter();
@@ -63,13 +105,7 @@ function MealPlanViewContent() {
       />
 
       <div className={styles.content}>
-        {loading && (
-          <div className={styles.loadingWrapper}>
-            <div className={styles.loadingBox}>
-              <p className={styles.loadingTitle}>Se încarcă planul...</p>
-            </div>
-          </div>
-        )}
+        {loading && <SkeletonMealPlan />}
 
         {!loading && error && (
           <div className={styles.error}>

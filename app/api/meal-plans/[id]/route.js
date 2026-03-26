@@ -16,7 +16,7 @@ export async function GET(request, { params }) {
 
   const { data, error } = await supabase
     .from('meal_plans')
-    .select('*')
+    .select('id, client_id, plan_data, daily_targets, created_at')
     .eq('id', id)
     .eq('trainer_id', auth.userId)
     .single();
@@ -50,28 +50,34 @@ export async function GET(request, { params }) {
       clientName: client?.name || data.plan_data?.clientName || null,
     },
   });
-  return NextResponse.json({ mealPlan: data, client });
+
+  // Cache per-user: same trainer navigating back = instant load; stale-while-revalidate
+  // serves stale content immediately while fetching fresh in background (fewer DB hits at scale)
+  const res = NextResponse.json({ mealPlan: data, client });
+  res.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=300');
+  res.headers.set('Vary', 'Authorization');
+  return res;
 }
 
-// DELETE /api/meal-plans/[id] — șterge un plan
+// DELETE /api/meal-plans/[id] — șterge un plan (un singur round-trip: ownership check + delete combinate)
 export async function DELETE(request, { params }) {
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const { data: existing, error: fetchError } = await supabase
+  // .eq('trainer_id') serveşte şi ca ownership check — dacă count=0 înseamnă not found / no access
+  const { error, count } = await supabase
     .from('meal_plans')
-    .select('id')
+    .delete({ count: 'exact' })
     .eq('id', id)
-    .eq('trainer_id', auth.userId)
-    .single();
+    .eq('trainer_id', auth.userId);
 
-  if (fetchError || !existing) {
+  const { ip, userAgent } = getRequestMeta(request);
+
+  if (!error && count === 0) {
     return NextResponse.json({ error: 'Planul nu a fost găsit sau nu ai acces.' }, { status: 404 });
   }
 
-  const { error } = await supabase.from('meal_plans').delete().eq('id', id);
-  const { ip, userAgent } = getRequestMeta(request);
   if (error) {
     logActivity({
       action: 'meal_plan.delete',

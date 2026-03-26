@@ -274,12 +274,6 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
             );
           })}
         </div>
-
-        {onReset && (
-          <button className={styles.resetBtnInner} onClick={onReset}>
-            Generează Alt Plan
-          </button>
-        )}
       </div>
     </div>
   );
