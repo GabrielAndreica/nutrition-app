@@ -1,0 +1,203 @@
+/* ── Container ──────────────────────────────────────────────── */
+.container {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse 80% 40% at 50% -5%, rgba(183, 255, 0, 0.09) 0%, transparent 65%),
+    #ffffff;
+  display: flex;
+  flex-direction: column;
+}
+
+.content {
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ── Shimmer animation ──────────────────────────────────────── */
+@keyframes shimmer {
+  0%   { background-position: -800px 0; }
+  100% { background-position:  800px 0; }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, #f0f0f5 25%, #fafafa 50%, #f0f0f5 75%);
+  background-size: 800px 100%;
+  animation: shimmer 1.5s ease infinite;
+  border-radius: 8px;
+}
+
+/* ── Skeleton wrapper ───────────────────────────────────────── */
+.skeletonWrap {
+  padding: 40px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ── Client header skeleton ─────────────────────────────────── */
+.skeletonClientHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 16px;
+  padding: 20px 24px;
+  flex-wrap: wrap;
+}
+
+.skeletonNameBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.skeletonName {
+  height: 22px;
+  width: 180px;
+}
+
+.skeletonSub {
+  height: 13px;
+  width: 120px;
+}
+
+.skeletonStats {
+  display: flex;
+  gap: 20px;
+}
+
+.skeletonStat {
+  height: 44px;
+  width: 50px;
+  border-radius: 10px;
+}
+
+/* ── Right column skeleton ──────────────────────────────────── */
+.skeletonRightColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+/* ── Tabs row skeleton ──────────────────────────────────────── */
+.skeletonTabsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.skeletonTabGroup {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.skeletonTab {
+  height: 36px;
+  width: 70px;
+  border-radius: 20px;
+}
+
+.skeletonDownload {
+  height: 36px;
+  width: 132px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+/* ── Day totals bar skeleton ────────────────────────────────── */
+.skeletonBar {
+  height: 46px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #2c2c2e 25%, #3a3a3c 50%, #2c2c2e 75%) !important;
+  background-size: 800px 100% !important;
+  animation: shimmer 1.5s ease infinite;
+}
+
+/* ── Meal cards grid skeleton ───────────────────────────────── */
+.skeletonMealsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.skeletonMealCard {
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 16px;
+  height: 260px;
+}
+
+/* ── Error state ────────────────────────────────────────────── */
+.error {
+  margin: 40px 24px;
+  background: #fff;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: 14px;
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #dc2626;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.errorIcon {
+  flex-shrink: 0;
+  font-size: 18px;
+}
+
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .skeletonWrap {
+    padding: 16px;
+    gap: 18px;
+  }
+
+  .skeletonClientHeader {
+    padding: 14px 16px;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+
+  .skeletonName  { width: 130px; height: 18px; }
+  .skeletonSub   { width: 90px;  height: 12px; }
+
+  .skeletonStats { gap: 12px; }
+  .skeletonStat  { height: 38px; width: 44px; }
+
+  .skeletonTabsRow { gap: 8px; }
+
+  .skeletonTabGroup { gap: 5px; }
+
+  .skeletonTab {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .skeletonDownload {
+    width: 40px;
+    border-radius: 12px;
+  }
+
+  .skeletonRightColumn { gap: 18px; }
+
+  .skeletonMealsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .skeletonMealCard { height: 220px; }
+
+  .error { margin: 16px; }
+}

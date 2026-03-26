@@ -172,46 +172,6 @@
   font-size: 11px;
 }
 
-/* Day Totals Bar */
-.dayTotalsBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: #1d1d1f;
-  border-radius: 12px;
-  padding: 12px 20px;
-  flex-wrap: wrap;
-}
-
-.dayTotalsLabel {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.45);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
-
-.dayTotalsValues {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 13px;
-  color: rgba(255,255,255,0.7);
-}
-
-.dayTotalsValues strong {
-  color: #fff;
-  font-weight: 600;
-}
-
-.dotLight {
-  color: rgba(255,255,255,0.2);
-  font-size: 11px;
-}
-
 /* Right Column - Main Content */
 .rightColumn {
   display: flex;
@@ -244,28 +204,30 @@
   justify-content: center;
   gap: 7px;
   padding: 9px 18px;
-  background: #1d1d1f;
-  color: #fff;
+  background: #0a0a0a;
+  color: #b7ff00;
   border: none;
   border-radius: 20px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  transition: background 0.18s ease, transform 0.18s ease, opacity 0.18s ease;
+  transition: background 0.18s ease, transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
   flex-shrink: 0;
   letter-spacing: 0.1px;
   min-width: 130px;
 }
 
 .downloadBtn:hover {
-  background: #3a3a3c;
+  background: #1a1a1a;
   transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
 .downloadBtn:active {
   transform: translateY(0);
-  background: #1d1d1f;
+  background: #0a0a0a;
+  box-shadow: none;
 }
 
 .downloadBtnLoading {
@@ -302,24 +264,25 @@
 .resetBtnInner {
   display: block;
   width: 100%;
-  padding: 16px;
+  padding: 15px;
   margin-top: 8px;
   background: #b7ff00;
   color: #000;
   border: none;
   border-radius: 12px;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 800;
   cursor: pointer;
   transition: all 0.2s ease;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.8px;
   box-shadow: 0 2px 14px rgba(183, 255, 0, 0.3);
 }
 
 .resetBtnInner:hover {
   background: #c8ff33;
-  box-shadow: 0 4px 22px rgba(183, 255, 0, 0.4);
+  box-shadow: 0 6px 24px rgba(183, 255, 0, 0.45);
+  transform: translateY(-1px);
 }
 
 .dayTab {
@@ -336,22 +299,24 @@
 }
 
 .dayTab:hover {
-  border-color: #1d1d1f;
+  border-color: #b7ff00;
   color: #1d1d1f;
+  background: rgba(183, 255, 0, 0.06);
 }
 
 .dayTabActive {
-  background: #1d1d1f;
-  border-color: #1d1d1f;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background: #b7ff00;
+  border-color: #b7ff00;
+  color: #000;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(183, 255, 0, 0.35);
 }
 
 .dayTabActive:hover {
-  background: #1d1d1f;
-  border-color: #1d1d1f;
-  color: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  background: #c8ff33;
+  border-color: #c8ff33;
+  color: #000;
+  box-shadow: 0 2px 10px rgba(183, 255, 0, 0.35);
 }
 
 /* Client Macros Row */
@@ -401,9 +366,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  background: #1d1d1f;
+  background: #0a0a0a;
   border-radius: 12px;
-  padding: 12px 20px;
+  padding: 13px 20px;
   flex-wrap: wrap;
 }
 
@@ -426,8 +391,8 @@
 }
 
 .dayTotalsValues strong {
-  color: #fff;
-  font-weight: 600;
+  color: #b7ff00;
+  font-weight: 700;
 }
 
 .dotLight {
@@ -454,7 +419,8 @@
 }
 
 .mealCard:hover {
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  border-color: rgba(183, 255, 0, 0.5);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.07), 0 0 0 3px rgba(183, 255, 0, 0.12);
   transform: translateY(-2px);
 }
 
@@ -531,7 +497,8 @@
 /* Preparation */
 .preparation {
   padding: 16px 24px;
-  background: #f5f5f7;
+  background: rgba(183, 255, 0, 0.06);
+  border-top: 1px solid rgba(183, 255, 0, 0.18);
   font-size: 14px;
   color: #1d1d1f;
   line-height: 1.5;
@@ -545,11 +512,12 @@
 .mealTotals {
   display: flex;
   gap: 24px;
-  padding: 16px 24px;
-  background: #f5f5f7;
+  padding: 12px 24px;
+  background: rgba(183, 255, 0, 0.05);
+  border-top: 1px solid rgba(183, 255, 0, 0.14);
   font-size: 13px;
-  font-weight: 500;
-  color: #86868b;
+  font-weight: 600;
+  color: #3c3c43;
 }
 
 /* Daily Totals */
@@ -697,6 +665,7 @@
   .mealCard:hover {
     transform: none;
     box-shadow: none;
+    border-color: #e8e8ed;
   }
 
   .mealCard:active {

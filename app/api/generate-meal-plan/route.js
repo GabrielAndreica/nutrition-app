@@ -102,12 +102,36 @@ export async function POST(request) {
       async start(controller) {
         const sendEvent = (obj) =>
           controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
+        let streamClosed = false;
+        const closeStream = () => {
+          if (!streamClosed) { streamClosed = true; controller.close(); }
+        };
+        let loggedCancelled = false;
+        const logCancelled = (details) => {
+          if (loggedCancelled) return;
+          loggedCancelled = true;
+          logActivity({
+            action: 'meal_plan.generate',
+            status: 'cancelled',
+            userId: auth.userId,
+            email: auth.email,
+            ipAddress: ip,
+            userAgent,
+            details,
+          });
+        };
         try {
     const days = [];
     // Stochează mesele anterioare ca combinații complete pentru anti-repetiție
     const previousMeals = [];
 
     for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      if (request.signal.aborted) {
+        console.log(`Generare întreruptă de client după ziua ${dayIndex}.`);
+        logCancelled({ clientId: clientData.clientId || null, clientName: clientData.name, daysCompleted: dayIndex, reason: 'user_aborted' });
+        closeStream();
+        return;
+      }
       const dayNumber = dayIndex + 1;
       const dayName = dayNames[dayIndex];
       console.log(`Generare ziua ${dayNumber}/7 (${dayName})...`);
@@ -322,6 +346,12 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
     });
     sendEvent({ type: 'complete', plan, nutritionalNeeds: targets });
         } catch (err) {
+          if (request.signal.aborted || err.name === 'AbortError') {
+            console.log('Generare anulată de client.');
+            logCancelled({ clientId: clientData.clientId || null, clientName: clientData.name, reason: 'user_aborted' });
+            closeStream();
+            return;
+          }
           logActivity({
             action: 'meal_plan.generate',
             status: 'failure',
@@ -333,7 +363,7 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
           });
           sendEvent({ type: 'error', message: err.message });
         } finally {
-          controller.close();
+          closeStream();
         }
       },
     });
