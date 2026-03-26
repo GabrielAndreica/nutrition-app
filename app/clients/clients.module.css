@@ -287,18 +287,22 @@
 
 .editBtn {
   padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12.5px;
+  font-weight: 500;
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s;
-  background: transparent;
-  border: 1.5px solid var(--gray-200);
-  color: var(--text-primary);
+  background: var(--gray-100);
+  border: 1.5px solid transparent;
+  color: var(--text-secondary);
   white-space: nowrap;
   font-family: inherit;
+  letter-spacing: 0.1px;
 }
-.editBtn:hover { border-color: var(--gray-400); background: var(--gray-50); }
+.editBtn:hover {
+  background: var(--gray-200);
+  color: var(--text-primary);
+}
 
 .generateBtn,
 .viewPlanBtn {
