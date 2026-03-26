@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import jwt from 'jsonwebtoken';
 import { createClient } from '@supabase/supabase-js';
+import { verifyToken } from '@/app/lib/verifyToken';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -12,33 +12,11 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
 export async function POST(request) {
   try {
-    const authHeader = request.headers.get('authorization');
-
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('Missing auth header or Bearer prefix');
-      return NextResponse.json(
-        { error: 'Token JWT lipsă. Autentificare necesară.' },
-        { status: 401 }
-      );
-    }
-
-    const token = authHeader.substring(7);
-    console.log('Token received, attempting to verify...');
-
-    let decoded;
-    try {
-      decoded = jwt.verify(token, JWT_SECRET);
-      console.log('Token verified successfully:', decoded);
-    } catch (error) {
-      console.log('Token verification failed:', error.message);
-      return NextResponse.json(
-        { error: `Token JWT invalid sau expirat. ${error.message}` },
-        { status: 401 }
-      );
+    const auth = verifyToken(request);
+    if (auth.error) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
     let clientData;
@@ -319,7 +297,7 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
         .from('meal_plans')
         .insert({
           client_id: clientData.clientId,
-          trainer_id: String(decoded.userId || decoded.id || decoded.sub),
+          trainer_id: auth.userId,
           plan_data: plan,
           daily_targets: targets,
         });
