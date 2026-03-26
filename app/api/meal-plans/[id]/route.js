@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyToken } from '@/app/lib/verifyToken';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -35,6 +36,20 @@ export async function GET(request, { params }) {
     client = clientData || null;
   }
 
+  const { ip, userAgent } = getRequestMeta(request);
+  logActivity({
+    action: 'meal_plan.view',
+    status: 'success',
+    userId: auth.userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+    details: {
+      planId: id,
+      clientId: data.client_id || null,
+      clientName: client?.name || data.plan_data?.clientName || null,
+    },
+  });
   return NextResponse.json({ mealPlan: data, client });
 }
 
@@ -56,9 +71,28 @@ export async function DELETE(request, { params }) {
   }
 
   const { error } = await supabase.from('meal_plans').delete().eq('id', id);
+  const { ip, userAgent } = getRequestMeta(request);
   if (error) {
+    logActivity({
+      action: 'meal_plan.delete',
+      status: 'failure',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: { planId: id, error: error.message },
+    });
     return NextResponse.json({ error: 'Eroare la ștergerea planului.' }, { status: 500 });
   }
 
+  logActivity({
+    action: 'meal_plan.delete',
+    status: 'success',
+    userId: auth.userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+    details: { planId: id },
+  });
   return NextResponse.json({ success: true });
 }

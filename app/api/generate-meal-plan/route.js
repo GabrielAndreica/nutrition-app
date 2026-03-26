@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { verifyToken } from '@/app/lib/verifyToken';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -18,6 +19,8 @@ export async function POST(request) {
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
+
+    const { ip, userAgent } = getRequestMeta(request);
 
     let clientData;
     try {
@@ -308,8 +311,26 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
       }
     }
 
+    logActivity({
+      action: 'meal_plan.generate',
+      status: 'success',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: { clientId: clientData.clientId || null, clientName: clientData.name },
+    });
     sendEvent({ type: 'complete', plan, nutritionalNeeds: targets });
         } catch (err) {
+          logActivity({
+            action: 'meal_plan.generate',
+            status: 'failure',
+            userId: auth.userId,
+            email: auth.email,
+            ipAddress: ip,
+            userAgent,
+            details: { clientId: clientData.clientId || null, clientName: clientData.name, error: err.message },
+          });
           sendEvent({ type: 'error', message: err.message });
         } finally {
           controller.close();
@@ -325,6 +346,16 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
     });
   } catch (error) {
     console.error('Error generating meal plan:', error);
+    const { ip: errIp, userAgent: errUA } = getRequestMeta(request);
+    logActivity({
+      action: 'meal_plan.generate',
+      status: 'failure',
+      userId: null,
+      email: null,
+      ipAddress: errIp,
+      userAgent: errUA,
+      details: { error: error.message },
+    });
     return NextResponse.json(
       {
         error: 'Eroare la generarea planului alimentar. Vă rog încercați din nou.',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
@@ -15,9 +15,12 @@ function MealPlanViewContent() {
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
     if (!id) return;
+    if (fetchedRef.current) return; // previne dubla execuție din React Strict Mode
+    fetchedRef.current = true;
     const token = localStorage.getItem('token');
     if (!token) {
       setError('Token de autentificare lipsă.');

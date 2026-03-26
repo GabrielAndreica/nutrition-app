@@ -11,9 +11,18 @@ function DashboardContent() {
   const router = useRouter();
   const { user } = useAuth();
 
-  // Prefetch /clients so navigation is instant on click
+  // Prefetch page bundle + warm up API cache so /clients feels instant
   useEffect(() => {
     router.prefetch('/clients');
+
+    // Fire the clients API request now so the browser HTTP cache is already populated
+    // by the time the user navigates. Fire-and-forget — errors are intentionally ignored.
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('/api/clients?page=1&limit=20', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
   }, [router]);
 
   const firstName = user?.name?.split(' ')[0] || user?.name || '';
