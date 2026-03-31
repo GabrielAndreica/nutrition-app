@@ -143,6 +143,18 @@ function GeneratorContent() {
     }
   };
 
+  const handleRegenerate = (progressData) => {
+    // Regenerate with progress data included
+    const regenerateData = {
+      ...clientData,
+      progress: progressData,
+    };
+    setMealPlan(null);
+    setNutritionalNeeds(null);
+    setError(null);
+    handleGeneratePlan(regenerateData);
+  };
+
   const backTarget = clientId ? '/clients' : '/dashboard';
 
   return (
@@ -193,7 +205,7 @@ function GeneratorContent() {
           </>
         ) : (
           <>
-            <MealPlan plan={mealPlan} clientData={clientData} nutritionalNeeds={nutritionalNeeds} onReset={handleReset} />
+            <MealPlan plan={mealPlan} clientData={clientData} nutritionalNeeds={nutritionalNeeds} onReset={handleReset} onRegenerate={handleRegenerate} />
           </>
         )}
       </div>

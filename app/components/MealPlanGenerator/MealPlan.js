@@ -1,11 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import styles from './meal-plan.module.css';
 
-export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }) {
+export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, onRegenerate }) {
   const [activeDay, setActiveDay] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
+  const [weightHistory, setWeightHistory] = useState([]);
+  const [stagnationWeeks, setStagnationWeeks] = useState(0);
+  const [stagnationInfo, setStagnationInfo] = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [progressData, setProgressData] = useState({
+    currentWeight: clientData?.weight || '',
+    adherence: '',
+    energyLevel: '',
+    hungerLevel: '',
+    notes: '',
+  });
 
   const goalLabels = {
     weight_loss: 'Slăbit',
@@ -24,18 +36,21 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
   const dayNamesShort = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
 
   const mealTypeLabels = {
-    'Breakfast': { name: 'Mic Dejun', emoji: '🌅' },
-    'Lunch': { name: 'Prânz', emoji: '☀️' },
-    'Dinner': { name: 'Cină', emoji: '🌙' },
-    'Snack': { name: 'Gustare', emoji: '🍎' },
-    'Snack 1': { name: 'Gustare 1', emoji: '🍎' },
-    'Snack 2': { name: 'Gustare 2', emoji: '🥗' },
-    'Mic Dejun': { name: 'Mic Dejun', emoji: '🌅' },
-    'Prânz': { name: 'Prânz', emoji: '☀️' },
-    'Cină': { name: 'Cină', emoji: '🌙' },
+    'Masa 1': { name: 'Masa 1', emoji: '🍽️' },
+    'Masa 2': { name: 'Masa 2', emoji: '🍽️' },
+    'Masa 3': { name: 'Masa 3', emoji: '🍽️' },
     'Gustare': { name: 'Gustare', emoji: '🍎' },
     'Gustare 1': { name: 'Gustare 1', emoji: '🍎' },
     'Gustare 2': { name: 'Gustare 2', emoji: '🥗' },
+    'Breakfast': { name: 'Masa 1', emoji: '🍽️' },
+    'Lunch': { name: 'Masa 2', emoji: '🍽️' },
+    'Dinner': { name: 'Masa 3', emoji: '🍽️' },
+    'Snack': { name: 'Gustare', emoji: '🍎' },
+    'Snack 1': { name: 'Gustare 1', emoji: '🍎' },
+    'Snack 2': { name: 'Gustare 2', emoji: '🥗' },
+    'Mic Dejun': { name: 'Masa 1', emoji: '🍽️' },
+    'Prânz': { name: 'Masa 2', emoji: '🍽️' },
+    'Cină': { name: 'Masa 3', emoji: '🍽️' },
   };
 
   const getMealLabel = (mealType) => {
@@ -51,6 +66,88 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
     } finally {
       setPdfLoading(false);
     }
+  };
+
+  const handleProgressChange = (e) => {
+    const { name, value } = e.target;
+    setProgressData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Încarcă istoricul greutății când se deschide modalul
+  const loadWeightHistory = async () => {
+    if (!clientData?.clientId) return;
+    
+    setLoadingHistory(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/clients/${clientData.clientId}/weight-history`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setWeightHistory(data.weightHistory || []);
+        setStagnationWeeks(data.stagnationWeeks || 0);
+        setStagnationInfo(data.stagnationInfo || null);
+      }
+    } catch (err) {
+      console.error('Eroare la încărcarea istoricului:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Deschide modalul și încarcă istoricul
+  const handleOpenProgress = () => {
+    setShowProgress(true);
+    loadWeightHistory();
+  };
+
+  const handleProgressSubmit = async () => {
+    if (!progressData.currentWeight) return;
+    
+    const newWeight = parseFloat(progressData.currentWeight);
+    const token = localStorage.getItem('token');
+    
+    // ÎNTÂI salvează greutatea în Supabase, apoi regenerează
+    if (clientData?.clientId) {
+      try {
+        const response = await fetch(`/api/clients/${clientData.clientId}/weight-history`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            weight: newWeight,
+            notes: 'Actualizare progres din planul alimentar'
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+          console.error('Eroare la salvarea greutății:', result.error);
+          alert('Eroare la salvarea greutății: ' + (result.error || 'Eroare necunoscută'));
+          return; // Nu continua cu regenerarea dacă salvarea a eșuat
+        }
+        
+        console.log('Greutate salvată cu succes:', result);
+      } catch (err) {
+        console.error('Eroare la salvarea greutății în istoric:', err);
+        alert('Eroare de conexiune la salvarea greutății');
+        return; // Nu continua cu regenerarea
+      }
+    }
+    
+    // DUPĂ ce greutatea e salvată, pornește regenerarea
+    if (onRegenerate) {
+      onRegenerate({
+        ...progressData,
+        weeksNoChange: String(stagnationWeeks),
+      });
+    }
+    setShowProgress(false);
   };
 
   if (!plan || !plan.days || plan.days.length === 0) {
@@ -190,28 +287,44 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
               </button>
             ))}
           </div>
-          <button
-            className={`${styles.downloadBtn} ${pdfLoading ? styles.downloadBtnLoading : ''}`}
-            onClick={handleDownload}
-            disabled={pdfLoading}
-            title="Descarcă plan PDF"
-          >
-            {pdfLoading ? (
-              <>
-                <span className={styles.pdfSpinner} />
-                <span className={styles.downloadBtnLabel}>Se generează...</span>
-              </>
-            ) : (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
+          <div className={styles.tabsActions}>
+            {onRegenerate && (
+              <button
+                className={styles.updateProgressBtn}
+                onClick={handleOpenProgress}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                  <path d="M16 16h5v5"/>
                 </svg>
-                <span className={styles.downloadBtnLabel}>Export PDF</span>
-              </>
+                Actualizează progres
+              </button>
             )}
-          </button>
+            <button
+              className={`${styles.downloadBtn} ${pdfLoading ? styles.downloadBtnLoading : ''}`}
+              onClick={handleDownload}
+              disabled={pdfLoading}
+              title="Descarcă plan PDF"
+            >
+              {pdfLoading ? (
+                <>
+                  <span className={styles.pdfSpinner} />
+                  <span className={styles.downloadBtnLabel}>Se generează...</span>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span className={styles.downloadBtnLabel}>PDF</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Day Totals */}
@@ -275,6 +388,126 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
           })}
         </div>
       </div>
+
+      {/* Modal Progres */}
+      {showProgress && (
+        <div className={styles.modalOverlay} onClick={() => setShowProgress(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>Actualizare progres client</h3>
+              <button className={styles.modalClose} onClick={() => setShowProgress(false)}>✕</button>
+            </div>
+
+            <div className={styles.modalBody}>
+              {/* Afișează obiectivul curent */}
+              {clientData?.goal && (
+                <div className={styles.modalGoalInfo}>
+                  <span className={styles.modalGoalLabel}>Obiectiv curent:</span>
+                  <span className={styles.modalGoalValue}>{goalLabels[clientData.goal] || clientData.goal}</span>
+                </div>
+              )}
+
+              <div className={styles.modalField}>
+                <label>Greutate curentă (kg) *</label>
+                <input
+                  type="number"
+                  name="currentWeight"
+                  value={progressData.currentWeight}
+                  onChange={handleProgressChange}
+                  step="0.1" min="30" max="300"
+                  placeholder="ex: 73.5"
+                />
+                {clientData?.weight && progressData.currentWeight && (
+                  <span className={styles.weightDiff}>
+                    Diferență: {(parseFloat(progressData.currentWeight) - parseFloat(clientData.weight)).toFixed(1)} kg
+                  </span>
+                )}
+              </div>
+
+              <div className={styles.modalRow}>
+                <div className={styles.modalField}>
+                  <label>Respectare plan *</label>
+                  <select name="adherence" value={progressData.adherence} onChange={handleProgressChange}>
+                    <option value="">Selectează</option>
+                    <option value="complet">Complet</option>
+                    <option value="partial">Parțial</option>
+                    <option value="deloc">Deloc</option>
+                  </select>
+                </div>
+
+                <div className={styles.modalField}>
+                  <label>Nivel energie *</label>
+                  <select name="energyLevel" value={progressData.energyLevel} onChange={handleProgressChange}>
+                    <option value="">Selectează</option>
+                    <option value="scazut">Scăzut</option>
+                    <option value="normal">Normal</option>
+                    <option value="ridicat">Ridicat</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className={styles.modalRow}>
+                <div className={styles.modalField}>
+                  <label>Nivel foame *</label>
+                  <select name="hungerLevel" value={progressData.hungerLevel} onChange={handleProgressChange}>
+                    <option value="">Selectează</option>
+                    <option value="normal">Normal</option>
+                    <option value="crescut">Crescut (foame constantă)</option>
+                    <option value="extrem">Extrem (foame + oboseală)</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Afișare istoric greutate (ultimele înregistrări) */}
+              {weightHistory.length > 0 && (
+                <div className={styles.weightHistoryPreview}>
+                  <label>Istoric greutate (ultimele {Math.min(weightHistory.length, 5)} înregistrări)</label>
+                  <div className={styles.weightHistoryList}>
+                    {weightHistory.slice(0, 5).map((entry, idx) => (
+                      <div key={entry.id || idx} className={styles.weightHistoryItem}>
+                        <span className={styles.weightHistoryDate}>
+                          {new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
+                        </span>
+                        <span className={styles.weightHistoryValue}>{entry.weight} kg</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className={styles.modalField}>
+                <label>Observații antrenor (opțional)</label>
+                <textarea
+                  name="notes"
+                  value={progressData.notes}
+                  onChange={handleProgressChange}
+                  placeholder="Notează observații relevante pentru noul plan..."
+                  rows="3"
+                />
+              </div>
+            </div>
+
+            <div className={styles.modalFooter}>
+              <button className={styles.modalCancelBtn} onClick={() => setShowProgress(false)}>
+                Anulează
+              </button>
+              <button
+                className={styles.modalSubmitBtn}
+                onClick={handleProgressSubmit}
+                disabled={!progressData.currentWeight || !progressData.adherence || !progressData.energyLevel || !progressData.hungerLevel}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                  <path d="M3 3v5h5"/>
+                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                  <path d="M16 16h5v5"/>
+                </svg>
+                Regenerează plan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

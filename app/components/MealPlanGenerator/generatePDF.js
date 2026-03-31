@@ -56,10 +56,11 @@ const ACTIVITY_LABELS = {
 };
 
 const MEAL_LABELS = {
-  'Breakfast': 'Mic Dejun', 'Lunch': 'Pranz', 'Dinner': 'Cina',
-  'Snack': 'Gustare', 'Snack 1': 'Gustare 1', 'Snack 2': 'Gustare 2',
-  'Mic Dejun': 'Mic Dejun', 'Pranz': 'Pranz', 'Cina': 'Cina',
+  'Masa 1': 'Masa 1', 'Masa 2': 'Masa 2', 'Masa 3': 'Masa 3',
   'Gustare': 'Gustare', 'Gustare 1': 'Gustare 1', 'Gustare 2': 'Gustare 2',
+  'Breakfast': 'Masa 1', 'Lunch': 'Masa 2', 'Dinner': 'Masa 3',
+  'Snack': 'Gustare', 'Snack 1': 'Gustare 1', 'Snack 2': 'Gustare 2',
+  'Mic Dejun': 'Masa 1', 'Pranz': 'Masa 2', 'Cina': 'Masa 3',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
