@@ -159,11 +159,16 @@ export async function POST(request) {
         if (goal === 'weight_loss') {
           stagnationAdjustment = -175; // scade 150-200 kcal
           stagnationMessage = 'Stagnare 2+ săptămâni pe cut - se scad 175 kcal pentru a relansa progresul.';
+          console.log(stagnationMessage);
         } else if (goal === 'muscle_gain') {
           stagnationAdjustment = 175; // adaugă 150-200 kcal
           stagnationMessage = 'Stagnare 2+ săptămâni pe masă - se adaugă 175 kcal pentru a relansa creșterea.';
+          console.log(stagnationMessage);
+        } else if (goal === 'maintenance') {
+          // Menținere: stagnarea e de fapt SUCCESUL — greutatea e stabilă, exact cum trebuie
+          // Nu facem nicio ajustare — planul funcționează perfect
+          console.log('Menținere cu greutate stabilă — planul funcționează, nu se regenerează.');
         }
-        console.log(stagnationMessage);
       }
 
       let isOptimalProgress = false;
@@ -172,7 +177,13 @@ export async function POST(request) {
       // Verifică intervalele optime DOAR dacă nu avem cazuri speciale de foame/stagnare
       const hasSpecialCase = hungerAdjustment !== 0 || stagnationAdjustment !== 0;
 
-      if (!hasSpecialCase) {
+      // Menținere cu greutate stabilă = succes mereu, indiferent de stagnare
+      if (goal === 'maintenance' && isWeightStable) {
+        isOptimalProgress = true;
+        progressMessage = `Greutate stabilă! Variație de doar ${weightChangePercent >= 0 ? '+' : ''}${weightChangePercent.toFixed(2)}% — perfect pentru menținere${weeksNoChange >= 2 ? ' (greutate menținută constant, planul funcționează excelent)' : ''}.`;
+      }
+
+      if (!isOptimalProgress && !hasSpecialCase) {
         if (goal === 'weight_loss') {
           // Cut: -0.2% până la -1.0% pe săptămână e progres bun (0.16kg - 0.8kg pentru 80kg)
           if (weightChangePercent >= -1.0 && weightChangePercent <= -0.2) {
@@ -180,7 +191,7 @@ export async function POST(request) {
             progressMessage = `Progres excelent! Ai slăbit ${Math.abs(weightChangePercent).toFixed(2)}% (${(newWeight - oldWeight).toFixed(1)} kg) - planul funcționează, continuă!`;
           }
         } else if (goal === 'maintenance') {
-          // Menținere: ±0.3% e stabil
+          // Menținere: ±0.3% e stabil (deja tratat mai sus, dar păstrat pentru compatibilitate)
           if (weightChangePercent >= -0.3 && weightChangePercent <= 0.3) {
             isOptimalProgress = true;
             progressMessage = `Greutate stabilă! Variație de doar ${weightChangePercent >= 0 ? '+' : ''}${weightChangePercent.toFixed(2)}% - perfect pentru menținere.`;
@@ -317,13 +328,18 @@ export async function POST(request) {
     const effectiveWeight = progress?.currentWeight ? parseFloat(progress.currentWeight) : parseFloat(clientData.weight);
     const effectiveClientData = progress?.currentWeight ? { ...clientData, weight: String(effectiveWeight) } : clientData;
     
-    // Folosește cache pentru calcule (optimizare scalabilitate)
-    targetCalories = cachedCalculateCalories(effectiveClientData, calculateTargetCalories);
-    
-    // Aplică ajustarea de calorii dacă există
-    if (clientData._calorieAdjustment) {
-      targetCalories += clientData._calorieAdjustment;
-      console.log(`Calorii ajustate: ${targetCalories} kcal`);
+    // Dacă avem o ajustare de calorii și știm caloriile planului curent,
+    // aplicăm ajustarea față de planul curent (nu față de recalculul pentru greutatea nouă)
+    if (clientData._calorieAdjustment && clientData.currentPlanCalories) {
+      targetCalories = clientData.currentPlanCalories + clientData._calorieAdjustment;
+      console.log(`Calorii ajustate față de planul curent: ${clientData.currentPlanCalories} + (${clientData._calorieAdjustment}) = ${targetCalories} kcal`);
+    } else {
+      // Fără ajustare sau fără plan curent — calculează normal
+      targetCalories = cachedCalculateCalories(effectiveClientData, calculateTargetCalories);
+      if (clientData._calorieAdjustment) {
+        targetCalories += clientData._calorieAdjustment;
+        console.log(`Calorii ajustate față de TDEE recalculat: ${targetCalories} kcal`);
+      }
     }
     
     // Folosește cache pentru macros
@@ -631,6 +647,7 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
 
     // Salvează planul în Supabase dacă există clientId
     console.log('Verificare salvare plan - clientId:', clientData.clientId);
+    let savedPlanId = null;
     if (clientData.clientId) {
       const { data: savedPlan, error: saveError } = await supabase
         .from('meal_plans')
@@ -645,10 +662,11 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
       if (saveError) {
         console.error('Eroare la salvarea planului în Supabase:', saveError.message);
       } else {
-        console.log('Plan salvat cu succes în Supabase cu ID:', savedPlan?.id, 'pentru clientul', clientData.clientId);
+        savedPlanId = savedPlan?.id || null;
+        console.log('Plan salvat cu succes în Supabase cu ID:', savedPlanId, 'pentru clientul', clientData.clientId);
       }
 
-      // Actualizează greutatea clientului dacă avem progres cu greutate nouă
+      // Actualizează greutatea clientului și salvează în weight_history dacă avem progres cu greutate nouă
       if (progress?.currentWeight) {
         const newWeight = parseFloat(progress.currentWeight);
         const { error: weightUpdateError } = await supabase
@@ -659,6 +677,20 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
           console.error('Eroare la actualizarea greutății clientului:', weightUpdateError.message);
         } else {
           console.log('Greutate actualizată pentru client:', clientData.clientId, '→', newWeight, 'kg');
+        }
+
+        // Salvează în weight_history DOAR după ce planul a fost generat și salvat cu succes
+        const { error: whErr } = await supabase
+          .from('weight_history')
+          .insert({
+            client_id: clientData.clientId,
+            weight: newWeight,
+            notes: 'Actualizare progres din planul alimentar',
+          });
+        if (whErr) {
+          console.error('[weight_history] Eroare la inserare (progres plan):', whErr.message, whErr);
+        } else {
+          console.log('[weight_history] Greutate salvată după generare plan:', newWeight, 'kg');
         }
       }
     } else {
@@ -674,7 +706,7 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
       userAgent,
       details: { clientId: clientData.clientId || null, clientName: clientData.name },
     });
-    sendEvent({ type: 'complete', plan, nutritionalNeeds: targets });
+    sendEvent({ type: 'complete', plan, nutritionalNeeds: targets, planId: savedPlanId });
         } catch (err) {
           if (request.signal.aborted || err.name === 'AbortError') {
             console.log('Generare anulată de client.');

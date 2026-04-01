@@ -112,14 +112,16 @@ export async function PUT(request, { params }) {
   }
 
   // Dacă greutatea s-a schimbat, adaugă în istoric
-  if (oldWeight !== newWeight) {
-    await supabase
+  // Folosim toleranță de 0.01 pentru a evita probleme de precizie floating-point
+  if (Math.abs(oldWeight - newWeight) > 0.001) {
+    const { error: wErr } = await supabase
       .from('weight_history')
       .insert([{
         client_id: id,
         weight: newWeight,
         notes: 'Actualizare manuală din editare client'
       }]);
+    if (wErr) console.error('[weight_history] Eroare la inserare (editare client):', wErr.message, wErr);
   }
 
   logActivity({

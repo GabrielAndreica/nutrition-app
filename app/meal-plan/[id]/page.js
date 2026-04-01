@@ -129,6 +129,7 @@ function MealPlanViewContent() {
       const body = {
         ...clientData,
         progress: progressData,
+        currentPlanCalories: nutritionalNeeds?.calories ?? null,
       };
 
       console.log('Regenerare plan - date trimise:', { clientId: body.clientId, progress: body.progress });
@@ -195,6 +196,14 @@ function MealPlanViewContent() {
             setRegenProgress(100);
             setMealPlan(event.plan);
             setNutritionalNeeds(event.nutritionalNeeds);
+            // Actualizează greutatea afișată dacă a fost trimisă ca progres
+            if (progressData?.currentWeight) {
+              setClientData(prev => ({ ...prev, weight: String(parseFloat(progressData.currentWeight)) }));
+            }
+            // Navighează la noul plan dacă ID-ul s-a schimbat
+            if (event.planId && event.planId !== id) {
+              router.replace(`/meal-plan/${event.planId}`);
+            }
           } else if (event.type === 'error') {
             throw new Error(event.message);
           }

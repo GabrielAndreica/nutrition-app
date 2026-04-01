@@ -11,6 +11,7 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
   const [stagnationWeeks, setStagnationWeeks] = useState(0);
   const [stagnationInfo, setStagnationInfo] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [progressErrors, setProgressErrors] = useState({});
   const [progressData, setProgressData] = useState({
     currentWeight: clientData?.weight || '',
     adherence: '',
@@ -99,48 +100,43 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
 
   // Deschide modalul și încarcă istoricul
   const handleOpenProgress = () => {
+    setProgressErrors({});
     setShowProgress(true);
     loadWeightHistory();
   };
 
-  const handleProgressSubmit = async () => {
-    if (!progressData.currentWeight) return;
-    
-    const newWeight = parseFloat(progressData.currentWeight);
-    const token = localStorage.getItem('token');
-    
-    // ÎNTÂI salvează greutatea în Supabase, apoi regenerează
-    if (clientData?.clientId) {
-      try {
-        const response = await fetch(`/api/clients/${clientData.clientId}/weight-history`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            weight: newWeight,
-            notes: 'Actualizare progres din planul alimentar'
-          })
-        });
-        
-        const result = await response.json();
-        
-        if (!response.ok) {
-          console.error('Eroare la salvarea greutății:', result.error);
-          alert('Eroare la salvarea greutății: ' + (result.error || 'Eroare necunoscută'));
-          return; // Nu continua cu regenerarea dacă salvarea a eșuat
-        }
-        
-        console.log('Greutate salvată cu succes:', result);
-      } catch (err) {
-        console.error('Eroare la salvarea greutății în istoric:', err);
-        alert('Eroare de conexiune la salvarea greutății');
-        return; // Nu continua cu regenerarea
+  const validateProgressForm = () => {
+    const errors = {};
+    const w = progressData.currentWeight;
+
+    if (!w && w !== 0) {
+      errors.currentWeight = 'Greutatea este obligatorie.';
+    } else {
+      const num = parseFloat(w);
+      if (isNaN(num)) {
+        errors.currentWeight = 'Introdu o valoare numerică validă (ex: 73.5).';
+      } else if (num <= 0) {
+        errors.currentWeight = 'Greutatea trebuie să fie un număr pozitiv.';
+      } else if (num < 30) {
+        errors.currentWeight = 'Greutatea nu poate fi mai mică de 30 kg.';
+      } else if (num > 300) {
+        errors.currentWeight = 'Greutatea nu poate depăși 300 kg.';
       }
     }
-    
-    // DUPĂ ce greutatea e salvată, pornește regenerarea
+
+    if (!progressData.adherence) errors.adherence = 'Selectează respectarea planului.';
+    if (!progressData.energyLevel) errors.energyLevel = 'Selectează nivelul de energie.';
+    if (!progressData.hungerLevel) errors.hungerLevel = 'Selectează nivelul de foame.';
+
+    setProgressErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleProgressSubmit = () => {
+    if (!validateProgressForm()) return;
+
+    // Salvarea în weight_history se face în API-ul generate-meal-plan,
+    // DUPĂ ce planul a fost generat și salvat cu succes.
     if (onRegenerate) {
       onRegenerate({
         ...progressData,
@@ -416,8 +412,12 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
                   onChange={handleProgressChange}
                   step="0.1" min="30" max="300"
                   placeholder="ex: 73.5"
+                  className={progressErrors.currentWeight ? styles.inputError : ''}
                 />
-                {clientData?.weight && progressData.currentWeight && (
+                {progressErrors.currentWeight && (
+                  <span className={styles.fieldError}>{progressErrors.currentWeight}</span>
+                )}
+                {!progressErrors.currentWeight && clientData?.weight && progressData.currentWeight && (
                   <span className={styles.weightDiff}>
                     Diferență: {(parseFloat(progressData.currentWeight) - parseFloat(clientData.weight)).toFixed(1)} kg
                   </span>
@@ -427,34 +427,46 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
               <div className={styles.modalRow}>
                 <div className={styles.modalField}>
                   <label>Respectare plan *</label>
-                  <select name="adherence" value={progressData.adherence} onChange={handleProgressChange}>
+                  <select name="adherence" value={progressData.adherence} onChange={handleProgressChange}
+                    className={progressErrors.adherence ? styles.inputError : ''}>
                     <option value="">Selectează</option>
                     <option value="complet">Complet</option>
                     <option value="partial">Parțial</option>
                     <option value="deloc">Deloc</option>
                   </select>
+                  {progressErrors.adherence && (
+                    <span className={styles.fieldError}>{progressErrors.adherence}</span>
+                  )}
                 </div>
 
                 <div className={styles.modalField}>
                   <label>Nivel energie *</label>
-                  <select name="energyLevel" value={progressData.energyLevel} onChange={handleProgressChange}>
+                  <select name="energyLevel" value={progressData.energyLevel} onChange={handleProgressChange}
+                    className={progressErrors.energyLevel ? styles.inputError : ''}>
                     <option value="">Selectează</option>
                     <option value="scazut">Scăzut</option>
                     <option value="normal">Normal</option>
                     <option value="ridicat">Ridicat</option>
                   </select>
+                  {progressErrors.energyLevel && (
+                    <span className={styles.fieldError}>{progressErrors.energyLevel}</span>
+                  )}
                 </div>
               </div>
 
               <div className={styles.modalRow}>
                 <div className={styles.modalField}>
                   <label>Nivel foame *</label>
-                  <select name="hungerLevel" value={progressData.hungerLevel} onChange={handleProgressChange}>
+                  <select name="hungerLevel" value={progressData.hungerLevel} onChange={handleProgressChange}
+                    className={progressErrors.hungerLevel ? styles.inputError : ''}>
                     <option value="">Selectează</option>
                     <option value="normal">Normal</option>
                     <option value="crescut">Crescut (foame constantă)</option>
                     <option value="extrem">Extrem (foame + oboseală)</option>
                   </select>
+                  {progressErrors.hungerLevel && (
+                    <span className={styles.fieldError}>{progressErrors.hungerLevel}</span>
+                  )}
                 </div>
               </div>
 
@@ -494,7 +506,6 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
               <button
                 className={styles.modalSubmitBtn}
                 onClick={handleProgressSubmit}
-                disabled={!progressData.currentWeight || !progressData.adherence || !progressData.energyLevel || !progressData.hungerLevel}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
