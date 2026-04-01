@@ -62,10 +62,10 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ error: `Câmpuri obligatorii lipsă: ${missing.join(', ')}.` }, { status: 400 });
   }
 
-  // Ensure client belongs to the logged-in user
+  // Ensure client belongs to the logged-in user și ia greutatea actuală
   const { data: existing, error: fetchError } = await supabase
     .from('clients')
-    .select('id')
+    .select('id, weight')
     .eq('id', id)
     .eq('trainer_id', auth.userId)
     .single();
@@ -73,6 +73,9 @@ export async function PUT(request, { params }) {
   if (fetchError || !existing) {
     return NextResponse.json({ error: 'Clientul nu a fost găsit sau nu ai acces.' }, { status: 404 });
   }
+
+  const oldWeight = existing.weight;
+  const newWeight = parseFloat(weight);
 
   const { data, error } = await supabase
     .from('clients')
@@ -106,6 +109,19 @@ export async function PUT(request, { params }) {
       details: { clientId: id, error: error.message },
     });
     return NextResponse.json({ error: 'Eroare la actualizarea clientului.' }, { status: 500 });
+  }
+
+  // Dacă greutatea s-a schimbat, adaugă în istoric
+  // Folosim toleranță de 0.01 pentru a evita probleme de precizie floating-point
+  if (Math.abs(oldWeight - newWeight) > 0.001) {
+    const { error: wErr } = await supabase
+      .from('weight_history')
+      .insert([{
+        client_id: id,
+        weight: newWeight,
+        notes: 'Actualizare manuală din editare client'
+      }]);
+    if (wErr) console.error('[weight_history] Eroare la inserare (editare client):', wErr.message, wErr);
   }
 
   logActivity({

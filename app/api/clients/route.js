@@ -157,6 +157,16 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Eroare la salvarea clientului.' }, { status: 500 });
   }
 
+  // Adaugă greutatea inițială în istoricul de greutate
+  const { error: wErr } = await supabase
+    .from('weight_history')
+    .insert([{
+      client_id: data.id,
+      weight: parseFloat(weight),
+      notes: 'Greutate inițială la înregistrare'
+    }]);
+  if (wErr) console.error('[weight_history] Eroare la inserare (client nou):', wErr.message, wErr);
+
   logActivity({
     action: 'client.create',
     status: 'success',

@@ -56,8 +56,13 @@ function MealPlanViewContent() {
   const [clientData, setClientData] = useState(null);
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenProgress, setRegenProgress] = useState(0);
+  const [regenStep, setRegenStep] = useState(0);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
   const fetchedRef = useRef(false);
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
     if (!id) return;
@@ -75,12 +80,15 @@ function MealPlanViewContent() {
     })
       .then(res => res.json())
       .then(data => {
+        console.log('Date primite de la API:', data);
+        console.log('client_id din mealPlan:', data.mealPlan?.client_id);
         if (!data.mealPlan) throw new Error(data.error || 'Planul nu a fost găsit.');
-        const { plan_data, daily_targets } = data.mealPlan;
+        const { plan_data, daily_targets, client_id } = data.mealPlan;
         setMealPlan(plan_data);
         setNutritionalNeeds(daily_targets);
         const c = data.client || {};
         setClientData({
+          clientId: client_id,
           name: c.name || plan_data.clientName,
           age: c.age ? String(c.age) : undefined,
           weight: c.weight ? String(c.weight) : undefined,
@@ -97,6 +105,118 @@ function MealPlanViewContent() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Oprește regenerarea dacă utilizatorul navighează
+  useEffect(() => {
+    return () => { abortControllerRef.current?.abort(); };
+  }, []);
+
+  const handleRegenerate = async (progressData) => {
+    if (!clientData) return;
+    abortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    setRegenerating(true);
+    setRegenStep(0);
+    setRegenProgress(0);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Token de autentificare lipsă.');
+
+      const body = {
+        ...clientData,
+        progress: progressData,
+        currentPlanCalories: nutritionalNeeds?.calories ?? null,
+      };
+
+      console.log('Regenerare plan - date trimise:', { clientId: body.clientId, progress: body.progress });
+
+      const response = await fetch('/api/generate-meal-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        signal: abortController.signal,
+      });
+
+      // Verifică dacă e răspuns JSON normal (progres optim, rate limit, eroare) sau streaming
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        if (data.type === 'optimal_progress') {
+          // Progres optim - doar actualizăm greutatea, nu regenerăm
+          setClientData(prev => ({ ...prev, weight: String(data.newWeight) }));
+          setSuccessMessage(data.message);
+          setRegenerating(false);
+          return;
+        }
+        if (data.error) {
+          // Rate limit sau alte erori
+          if (response.status === 429) {
+            const retryAfter = response.headers.get('Retry-After');
+            throw new Error(`${data.error}${retryAfter ? ` (${retryAfter}s)` : ''}`);
+          }
+          throw new Error(data.error);
+        }
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 429) {
+          throw new Error('Prea multe cereri. Te rog așteaptă câteva secunde și încearcă din nou.');
+        }
+        if (response.status === 503) {
+          throw new Error('Serverul este ocupat. Te rog încearcă din nou în câteva minute.');
+        }
+        throw new Error(errorData.error || 'Eroare la regenerarea planului alimentar');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.type === 'progress') {
+            setRegenStep(event.day);
+            setRegenProgress(Math.round((event.day / event.total) * 90));
+          } else if (event.type === 'complete') {
+            setRegenProgress(100);
+            setMealPlan(event.plan);
+            setNutritionalNeeds(event.nutritionalNeeds);
+            // Actualizează greutatea afișată dacă a fost trimisă ca progres
+            if (progressData?.currentWeight) {
+              setClientData(prev => ({ ...prev, weight: String(parseFloat(progressData.currentWeight)) }));
+            }
+            // Navighează la noul plan dacă ID-ul s-a schimbat
+            if (event.planId && event.planId !== id) {
+              router.replace(`/meal-plan/${event.planId}`);
+            }
+          } else if (event.type === 'error') {
+            throw new Error(event.message);
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      setError(err.message);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
   return (
     <div className={styles.container}>
       <AppHeader
@@ -105,21 +225,58 @@ function MealPlanViewContent() {
       />
 
       <div className={styles.content}>
-        {loading && <SkeletonMealPlan />}
+        {loading && !regenerating && <SkeletonMealPlan />}
 
-        {!loading && error && (
+        {regenerating && (
+          <div className={styles.loadingWrapper}>
+            <div className={styles.loadingBox}>
+              <p className={styles.loadingTitle}>Se regenerează planul alimentar</p>
+              <p className={styles.loadingStep}>
+                {regenStep > 0 ? `Ziua ${regenStep} din 7...` : 'Se pregătește...'}
+              </p>
+              <div className={styles.progressTrack}>
+                <div
+                  className={styles.progressFill}
+                  style={{ width: `${regenProgress}%` }}
+                />
+              </div>
+              <div className={styles.progressDots}>
+                {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                  <div
+                    key={d}
+                    className={`${styles.progressDot} ${
+                      d < regenStep ? styles.progressDotDone :
+                      d === regenStep ? styles.progressDotActive : ''
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!loading && !regenerating && error && (
           <div className={styles.error}>
             <span className={styles.errorIcon}>⚠️</span>
             <span>{error}</span>
           </div>
         )}
 
-        {!loading && mealPlan && (
+        {!loading && !regenerating && successMessage && (
+          <div className={styles.success}>
+            <span className={styles.successIcon}>✓</span>
+            <span>{successMessage}</span>
+            <button className={styles.successClose} onClick={() => setSuccessMessage(null)}>✕</button>
+          </div>
+        )}
+
+        {!loading && !regenerating && mealPlan && (
           <MealPlan
             plan={mealPlan}
             clientData={clientData}
             nutritionalNeeds={nutritionalNeeds}
             onReset={() => router.push('/clients')}
+            onRegenerate={handleRegenerate}
           />
         )}
       </div>

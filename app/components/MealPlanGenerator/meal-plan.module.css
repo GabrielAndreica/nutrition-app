@@ -1,10 +1,11 @@
 /* Apple/Nike Inspired Minimalist Design */
 
 .container {
-  max-width: 100%;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 40px 24px;
+  padding: 24px 20px;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  position: relative;
 }
 
 /* Left Column - Sidebar (hidden, kept for legacy JSX) */
@@ -28,9 +29,9 @@
   gap: 20px;
   background: #fff;
   border: 1px solid #e8e8ed;
-  border-radius: 16px;
-  padding: 20px 24px;
-  margin-bottom: 28px;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
@@ -176,7 +177,7 @@
 .rightColumn {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 14px;
 }
 
 /* Day Tabs */
@@ -188,22 +189,374 @@
   background: transparent;
   border-radius: 0;
   flex: 1;
+  min-width: 0;
 }
 
-/* Tabs row - tabs + download button side by side */
+/* Tabs row - tabs + action buttons side by side (desktop: 1 rând) */
 .tabsRow {
   display: flex;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+
+.tabsActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Buton Actualizare Progres - stilul site-ului */
+.updateProgressBtn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 18px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.18s, transform 0.15s, box-shadow 0.18s;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+}
+
+.updateProgressBtn:hover {
+  background: #1a1a1a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.updateProgressBtn:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+/* Modal Popup - stilul site-ului */
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 24px;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  padding: 24px 28px 16px;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  border-bottom: 1px solid var(--gray-100, #f0f0f0);
+  z-index: 1;
+}
+
+.modalHeader h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary, #1d1d1f);
+  letter-spacing: -0.4px;
+}
+
+.modalClose {
+  width: 30px;
+  height: 30px;
+  background: var(--gray-100, #f5f5f5);
+  border: none;
+  color: var(--text-secondary, #666);
+  border-radius: 50%;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  font-weight: 700;
+  font-family: inherit;
+}
+
+.modalClose:hover {
+  background: var(--gray-200, #e5e5e5);
+  color: var(--text-primary, #1d1d1f);
+}
+
+.modalBody {
+  padding: 20px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modalField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modalField label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.modalField input,
+.modalField select,
+.modalField textarea {
+  padding: 10px 13px;
+  border: 1.5px solid var(--gray-200, #e0e0e0);
+  border-radius: 9px;
+  font-size: 14px;
+  color: var(--text-primary, #1d1d1f);
+  background: var(--gray-50, #fafafa);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.modalField input:focus,
+.modalField select:focus,
+.modalField textarea:focus {
+  border-color: #b7ff00;
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
+  background: #fff;
+}
+
+.modalField textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
+.modalRow {
+  display: flex;
+  gap: 14px;
+}
+
+.modalRow .modalField {
+  flex: 1;
+}
+
+.weightDiff {
+  font-size: 12px;
+  color: #22c55e;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.fieldError {
+  display: block;
+  margin-top: 5px;
+  font-size: 12px;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.inputError {
+  border-color: #dc2626 !important;
+  background: rgba(239, 68, 68, 0.04) !important;
+  outline: none;
+}
+
+.inputError:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15) !important;
+}
+
+/* Stagnare Badge */
+.stagnationLoading {
+  padding: 10px 13px;
+  background: var(--gray-50, #fafafa);
+  border: 1.5px solid var(--gray-200, #e0e0e0);
+  border-radius: 9px;
+  font-size: 13px;
+  color: var(--text-secondary, #666);
+  font-style: italic;
+}
+
+.stagnationBadge {
+  padding: 10px 13px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.stagnationprogressing {
+  background: rgba(34, 197, 94, 0.1);
+  border: 1.5px solid rgba(34, 197, 94, 0.3);
+  color: #166534;
+}
+
+.stagnationmonitoring {
+  background: rgba(234, 179, 8, 0.1);
+  border: 1.5px solid rgba(234, 179, 8, 0.3);
+  color: #a16207;
+}
+
+.stagnationstagnation {
+  background: rgba(239, 68, 68, 0.1);
+  border: 1.5px solid rgba(239, 68, 68, 0.3);
+  color: #dc2626;
+}
+
+.stagnationunknown {
+  background: var(--gray-50, #fafafa);
+  border: 1.5px solid var(--gray-200, #e0e0e0);
+  color: var(--text-secondary, #666);
+}
+
+/* Istoric greutate preview */
+.weightHistoryPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.weightHistoryPreview label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.weightHistoryList {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.weightHistoryItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 12px;
+  background: var(--gray-50, #fafafa);
+  border: 1px solid var(--gray-200, #e0e0e0);
+  border-radius: 8px;
+  min-width: 60px;
+}
+
+.weightHistoryDate {
+  font-size: 10px;
+  color: var(--text-secondary, #666);
+  text-transform: uppercase;
+}
+
+.weightHistoryValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary, #1d1d1f);
+}
+
+.modalGoalInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--gray-50, #fafafa);
+  border: 1.5px solid var(--gray-200, #e0e0e0);
+  border-radius: 9px;
+  margin-bottom: 4px;
+}
+
+.modalGoalLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #666);
+}
+
+.modalGoalValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary, #1d1d1f);
+}
+
+.modalFooter {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 0 28px 24px;
+}
+
+.modalCancelBtn {
+  padding: 10px 18px;
+  background: var(--gray-100, #f5f5f5);
+  border: none;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary, #1d1d1f);
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+
+.modalCancelBtn:hover {
+  background: var(--gray-200, #e5e5e5);
+}
+
+.modalSubmitBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.15s, box-shadow 0.18s;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+}
+
+.modalSubmitBtn:hover:not(:disabled) {
+  background: #1a1a1a;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+.modalSubmitBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .downloadBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  padding: 9px 18px;
+  gap: 6px;
+  padding: 9px 14px;
   background: #0a0a0a;
   color: #b7ff00;
   border: none;
@@ -215,7 +568,6 @@
   transition: background 0.18s ease, transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
   flex-shrink: 0;
   letter-spacing: 0.1px;
-  min-width: 130px;
 }
 
 .downloadBtn:hover {
@@ -404,7 +756,7 @@
 .mealsGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  gap: 12px;
 }
 
 /* Meal Card */
@@ -576,6 +928,33 @@
     display: none;
   }
 
+  .updateProgressBtn {
+    padding: 9px 14px;
+    font-size: 12px;
+  }
+
+  .modal {
+    max-height: 95vh;
+    border-radius: 16px;
+  }
+
+  .modalHeader {
+    padding: 20px 20px 14px;
+  }
+
+  .modalBody {
+    padding: 16px 20px 20px;
+  }
+
+  .modalRow {
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .modalFooter {
+    padding: 0 20px 20px;
+  }
+
   .clientHeader {
     padding: 14px 16px;
     margin-bottom: 16px;
@@ -621,15 +1000,45 @@
     display: inline;
   }
 
+  /* Tabs row pe mobil - 2 rânduri separate */
+  .tabsRow {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
   .dayTabs {
-    gap: 6px;
+    display: flex;
+    gap: 5px;
+    order: 2; /* Zilele jos */
+    width: 100%;
+  }
+
+  .tabsActions {
+    display: flex;
+    gap: 8px;
+    order: 1; /* Butoanele sus */
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .updateProgressBtn {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .downloadBtn {
+    flex: 0 0 auto;
+    padding: 10px 14px;
   }
 
   .dayTab {
     flex: 1;
     min-width: 0;
     text-align: center;
-    padding: 8px 4px;
+    padding: 9px 4px;
     font-size: 12px;
     border-radius: 10px;
   }
@@ -745,11 +1154,11 @@
   }
 
   .rightColumn {
-    gap: 16px;
+    gap: 12px;
   }
 
   .mealsGrid {
-    gap: 12px;
+    gap: 10px;
   }
 }
 
@@ -785,6 +1194,182 @@
 
   .foodMacros {
     font-size: 10px;
+  }
+}
+
+/* ─── Progress & Regeneration Section ─────────────────────────────────────── */
+
+.progressSection {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #e8e8ed;
+}
+
+.progressToggleBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 16px 24px;
+  background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+  border: 2px dashed #86efac;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #166534;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.progressToggleBtn:hover {
+  background: linear-gradient(135deg, #dcfce7, #d1fae5);
+  border-color: #4ade80;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(74, 222, 128, 0.2);
+}
+
+.progressToggleIcon {
+  font-size: 20px;
+}
+
+.progressForm {
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.progressFormHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.progressFormTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1d1d1f;
+  margin: 0;
+}
+
+.progressCloseBtn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f5f7;
+  border: none;
+  border-radius: 50%;
+  font-size: 14px;
+  color: #86868b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.progressCloseBtn:hover {
+  background: #e8e8ed;
+  color: #1d1d1f;
+}
+
+.progressFormDesc {
+  font-size: 14px;
+  color: #86868b;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
+}
+
+.progressGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.progressField {
+  margin-bottom: 8px;
+}
+
+.progressField label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #1d1d1f;
+  font-size: 13px;
+}
+
+.progressField input,
+.progressField select,
+.progressField textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #d1d1d6;
+  border-radius: 10px;
+  font-size: 15px;
+  font-family: inherit;
+  color: #1d1d1f;
+  background: #fff;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.progressField input:focus,
+.progressField select:focus,
+.progressField textarea:focus {
+  outline: none;
+  border-color: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15);
+}
+
+.progressField textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.progressHint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #86868b;
+}
+
+.progressSubmitBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 14px 24px;
+  margin-top: 8px;
+  background: #166534;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.progressSubmitBtn:hover:not(:disabled) {
+  background: #15803d;
+  box-shadow: 0 4px 18px rgba(22, 101, 52, 0.3);
+  transform: translateY(-1px);
+}
+
+.progressSubmitBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .progressGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .progressForm {
+    padding: 18px;
   }
 }
 
