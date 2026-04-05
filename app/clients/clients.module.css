@@ -546,7 +546,8 @@
 }
 
 .formGroup input,
-.formGroup select {
+.formGroup select,
+.formGroup textarea {
   padding: 10px 13px;
   border: 1.5px solid var(--gray-200);
   border-radius: 9px;
@@ -557,8 +558,15 @@
   transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
   font-family: inherit;
 }
+
+.formGroup textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
 .formGroup input:focus,
-.formGroup select:focus {
+.formGroup select:focus,
+.formGroup textarea:focus {
   border-color: #b7ff00;
   box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
   background: #fff;

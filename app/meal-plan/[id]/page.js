@@ -99,6 +99,7 @@ function MealPlanViewContent() {
           dietType: c.diet_type,
           allergies: c.allergies,
           mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
+          foodPreferences: c.food_preferences || '',
         });
       })
       .catch(err => setError(err.message))
