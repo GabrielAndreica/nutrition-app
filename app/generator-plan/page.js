@@ -65,6 +65,21 @@ function GeneratorContent() {
         throw new Error(errorData.error || 'Eroare la generarea planului alimentar');
       }
 
+      // Verifică dacă răspunsul e JSON simplu (optimal_progress) sau stream
+      const contentType = response.headers.get('Content-Type') || '';
+      if (contentType.includes('application/json')) {
+        // Răspuns JSON simplu (de ex. optimal_progress)
+        const data = await response.json();
+        if (data.type === 'optimal_progress') {
+          // Progres optim - navighează înapoi cu un mesaj de succes
+          alert(`${data.message}\n\nGreutate: ${data.oldWeight} kg → ${data.newWeight} kg`);
+          if (clientId) {
+            router.push('/clients');
+          }
+          return;
+        }
+      }
+
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
