@@ -243,6 +243,7 @@ export async function POST(request) {
       const hungerLevel = progress.hungerLevel || 'normal';
       const energyLevel = progress.energyLevel || 'normal';
       const weeksNoChange = parseInt(progress.weeksNoChange) || 0;
+      const adherence = progress.adherence || 'complet'; // 'complet', 'partial', 'deloc'
       
       // ─── Cazuri speciale de foame și energie ───────────────────
       let hungerAdjustment = 0;
@@ -291,6 +292,55 @@ export async function POST(request) {
       // Verifică intervalele optime DOAR dacă nu avem cazuri speciale de foame/stagnare
       const hasSpecialCase = hungerAdjustment !== 0 || stagnationAdjustment !== 0;
 
+      // ─── CAZ SPECIAL: Adherență DELOC - nu se regenerează planul dacă obiectivul nu e îndeplinit ───
+      if (adherence === 'deloc') {
+        // Dacă clientul nu a respectat planul deloc, problema nu e planul, ci respectarea lui
+        // Actualizăm doar greutatea și returnăm mesaj că trebuie să respecte planul
+        const { error: updateError } = await supabase
+          .from('clients')
+          .update({ weight: newWeight })
+          .eq('id', clientData.clientId);
+
+        if (updateError) {
+          console.error('Eroare la actualizarea greutății clientului:', updateError.message);
+        }
+
+        logActivity({
+          action: 'client.weight_update',
+          status: 'success',
+          userId: auth.userId,
+          email: auth.email,
+          ipAddress: ip,
+          userAgent,
+          details: { 
+            clientId: clientData.clientId, 
+            clientName: name,
+            oldWeight,
+            newWeight,
+            changePercent: weightChangePercent.toFixed(2),
+            goal,
+            adherence: 'deloc',
+            noRegeneration: true
+          },
+        });
+
+        return NextResponse.json({
+          type: 'optimal_progress',
+          message: 'Planul nu a fost respectat. Pentru rezultate, te rog respectă planul alimentar actual înainte de a genera unul nou.',
+          weightUpdated: true,
+          oldWeight,
+          newWeight,
+          changePercent: weightChangePercent.toFixed(2)
+        });
+      }
+
+      // ─── CAZ SPECIAL: Adherență PARȚIALĂ - marja mai permisivă ───
+      let weightToleranceMultiplier = 1.0; // Factor de multiplicare pentru toleranță
+      if (adherence === 'partial') {
+        weightToleranceMultiplier = 1.5; // Marja cu 50% mai permisivă
+        console.log('Adherență parțială detectată - se folosește marja de variație mai permisivă (×1.5)');
+      }
+
       // Menținere cu greutate stabilă = succes mereu, indiferent de stagnare
       if (goal === 'maintenance' && isWeightStable) {
         isOptimalProgress = true;
@@ -299,22 +349,27 @@ export async function POST(request) {
 
       if (!isOptimalProgress && !hasSpecialCase) {
         if (goal === 'weight_loss') {
-          // Cut: -0.2% până la -1.0% pe săptămână e progres bun (0.16kg - 0.8kg pentru 80kg)
-          if (weightChangePercent >= -1.0 && weightChangePercent <= -0.2) {
+          // Cut: -0.2% până la -1.0% pe săptămână e progres bun (cu ajustare pentru adherență)
+          const minLoss = -1.0 * weightToleranceMultiplier; // poate fi -1.5% dacă adherență parțială
+          const maxLoss = -0.2 / weightToleranceMultiplier; // poate fi -0.13% dacă adherență parțială
+          if (weightChangePercent >= minLoss && weightChangePercent <= maxLoss) {
             isOptimalProgress = true;
-            progressMessage = `Progres excelent! Ai slăbit ${Math.abs(weightChangePercent).toFixed(2)}% (${(newWeight - oldWeight).toFixed(1)} kg) - planul funcționează, continuă!`;
+            progressMessage = `Progres excelent! Ai slăbit ${Math.abs(weightChangePercent).toFixed(2)}% (${(newWeight - oldWeight).toFixed(1)} kg) - planul funcționează, continuă!${adherence === 'partial' ? ' Încearcă să respecți mai bine planul pentru rezultate mai constante.' : ''}`;
           }
         } else if (goal === 'maintenance') {
-          // Menținere: ±0.3% e stabil (deja tratat mai sus, dar păstrat pentru compatibilitate)
-          if (weightChangePercent >= -0.3 && weightChangePercent <= 0.3) {
+          // Menținere: ±0.3% e stabil (cu ajustare pentru adherență)
+          const tolerance = 0.3 * weightToleranceMultiplier; // poate fi ±0.45% dacă adherență parțială
+          if (weightChangePercent >= -tolerance && weightChangePercent <= tolerance) {
             isOptimalProgress = true;
-            progressMessage = `Greutate stabilă! Variație de doar ${weightChangePercent >= 0 ? '+' : ''}${weightChangePercent.toFixed(2)}% - perfect pentru menținere.`;
+            progressMessage = `Greutate stabilă! Variație de doar ${weightChangePercent >= 0 ? '+' : ''}${weightChangePercent.toFixed(2)}% - perfect pentru menținere.${adherence === 'partial' ? ' Încearcă să respecți mai bine planul pentru menținere mai ușoară.' : ''}`;
           }
         } else if (goal === 'muscle_gain') {
-          // Masă musculară: +0.25% până la +0.50% pe săptămână e optim
-          if (weightChangePercent >= 0.25 && weightChangePercent <= 0.50) {
+          // Masă musculară: +0.25% până la +0.50% pe săptămână e optim (cu ajustare pentru adherență)
+          const minGain = 0.25 / weightToleranceMultiplier; // poate fi +0.17% dacă adherență parțială
+          const maxGain = 0.50 * weightToleranceMultiplier; // poate fi +0.75% dacă adherență parțială
+          if (weightChangePercent >= minGain && weightChangePercent <= maxGain) {
             isOptimalProgress = true;
-            progressMessage = `Progres excelent! Ai luat ${weightChangePercent.toFixed(2)}% (${(newWeight - oldWeight).toFixed(1)} kg) - în intervalul optim pentru creștere musculară.`;
+            progressMessage = `Progres excelent! Ai luat ${weightChangePercent.toFixed(2)}% (${(newWeight - oldWeight).toFixed(1)} kg) - în intervalul optim pentru creștere musculară.${adherence === 'partial' ? ' Încearcă să respecți mai bine planul pentru creștere mai controlată.' : ''}`;
           }
         }
       }
