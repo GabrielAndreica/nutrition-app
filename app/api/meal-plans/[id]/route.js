@@ -30,7 +30,7 @@ export async function GET(request, { params }) {
   if (data.client_id) {
     const { data: clientData } = await supabase
       .from('clients')
-      .select('name, age, weight, height, gender, goal, activity_level, diet_type, allergies, meals_per_day')
+      .select('name, age, weight, height, gender, goal, activity_level, diet_type, allergies, meals_per_day, food_preferences')
       .eq('id', data.client_id)
       .single();
     client = clientData || null;

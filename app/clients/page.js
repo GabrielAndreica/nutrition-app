@@ -12,6 +12,7 @@ const EMPTY_FORM = {
   name: '', age: '', weight: '', height: '',
   gender: 'M', goal: 'maintenance', activityLevel: 'moderate',
   dietType: 'omnivore', allergies: '', mealsPerDay: '3',
+  foodPreferences: '',
 };
 
 const goalLabels = {
@@ -149,6 +150,7 @@ function ClientsContent() {
       dietType:      client.diet_type      || 'omnivore',
       allergies:     client.allergies      || '',
       mealsPerDay:   String(client.meals_per_day || '3'),
+      foodPreferences: client.food_preferences || '',
     });
     setFormError(null);
     setModalOpen(true);
@@ -425,6 +427,17 @@ function ClientsContent() {
               <div className={styles.formGroup}>
                 <label>Alergii / intolerante</label>
                 <input name="allergies" value={form.allergies} onChange={handleFormChange} placeholder="ex. gluten, lactate, nuci" />
+              </div>
+              <div className={styles.formGroup}>
+                <label>Preferințe alimentare</label>
+                <textarea 
+                  name="foodPreferences" 
+                  value={form.foodPreferences} 
+                  onChange={handleFormChange} 
+                  placeholder="ex. Îmi place puiul, orezul, broccoliul. Prefer mâncăruri simple. Nu îmi plac ciupercile."
+                  rows="3"
+                  className={styles.textarea}
+                />
               </div>
               {formError && <div className={styles.formError}>{formError}</div>}
               <div className={styles.modalFooter}>

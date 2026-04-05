@@ -539,4 +539,63 @@
   }
 }
 
+/* ── Success Message ─────────────────────────────────────────────── */
+.success {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(183, 255, 0, 0.15), rgba(183, 255, 0, 0.08));
+  border: 1px solid rgba(183, 255, 0, 0.4);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin: 20px 0;
+  color: var(--text-primary, #1d1d1f);
+  font-size: 14px;
+  font-weight: 500;
+  animation: successSlideIn 0.3s ease;
+}
+
+@keyframes successSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.successIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #b7ff00;
+  border-radius: 50%;
+  color: #0a0a0a;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.successClose {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #86868b);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.successClose:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary, #1d1d1f);
+}
+
 

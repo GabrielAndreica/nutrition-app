@@ -51,7 +51,7 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }
 
-  const { name, age, weight, height, goal, gender, activityLevel, dietType, allergies, mealsPerDay } = body;
+  const { name, age, weight, height, goal, gender, activityLevel, dietType, allergies, mealsPerDay, foodPreferences } = body;
 
   const missing = [];
   if (!name)   missing.push('nume');
@@ -90,6 +90,7 @@ export async function PUT(request, { params }) {
       diet_type: dietType || 'omnivore',
       allergies: allergies || null,
       meals_per_day: parseInt(mealsPerDay) || 3,
+      food_preferences: foodPreferences || null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)

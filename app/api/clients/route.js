@@ -23,7 +23,7 @@ export async function GET(request) {
   let clientsQuery = supabase
     .from('clients')
     .select(
-      'id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, created_at',
+      'id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences, created_at',
       { count: 'exact' }
     )
     .eq('trainer_id', auth.userId)
@@ -113,7 +113,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }
 
-  const { name, age, weight, height, goal, gender, activityLevel, dietType, allergies, mealsPerDay } = body;
+  const { name, age, weight, height, goal, gender, activityLevel, dietType, allergies, mealsPerDay, foodPreferences } = body;
 
   const missing = [];
   if (!name)          missing.push('nume');
@@ -138,6 +138,7 @@ export async function POST(request) {
       diet_type: dietType || 'omnivore',
       allergies: allergies || null,
       meals_per_day: parseInt(mealsPerDay) || 3,
+      food_preferences: foodPreferences || null,
     }])
     .select()
     .single();

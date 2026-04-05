@@ -210,7 +210,7 @@ export async function POST(request) {
 
     // Progresul clientului (dacă e regenerare pe baza progresului)
     const progress = clientData.progress || null;
-    const { name, age, weight, height, goal, activityLevel, allergies, mealsPerDay, dietType } = clientData;
+    const { name, age, weight, height, goal, activityLevel, allergies, mealsPerDay, dietType, foodPreferences } = clientData;
 
     // Verifică dacă progresul e în intervalul optim pentru obiectiv (nu necesită regenerare)
     if (progress?.currentWeight && clientData.clientId) {
@@ -594,7 +594,14 @@ CLIENT: ${name}, ${age} ani, ${sex}, ${weight}kg, ${height}cm
 Ziua ${dayNumber} (${dayName}) | Dietă: ${getDietLabel(dietType)}${
   dietType === 'vegetarian' ? ' (ATENTIE CRITICA: FARA carne, fără pește)' :
   dietType === 'vegan'      ? ' (ATENTIE CRITICA: FARA carne, pește, ouă, lactate, miere)' : ''
-} | Atentie CRITICA LA ALERGII: ${sanitizeForPrompt(allergies) || 'Niciuna'}
+} | Atentie CRITICA LA ALERGII: ${sanitizeForPrompt(allergies) || 'Niciuna'}${foodPreferences ? `
+
+═══ PREFERINȚE ALIMENTARE ALE CLIENTULUI (FOARTE IMPORTANT) ═══
+Clinetul a specificat următoarele preferințe: ${sanitizeForPrompt(foodPreferences)}
+- Dă PRIORITATE alimentelor pe care clientul le preferă
+- EVITĂ alimentele pe care clientul a menționat că nu îi plac
+- Folosește alimentele preferate cât mai des posibil în planul alimentar
+═══ SFÂRȘIT PREFERINȚE ═══` : ''}
 ${progress ? `
 CONTEXT IMPORTANT — REGENERARE PE BAZA PROGRESULUI CLIENTULUI:
 - Obiectiv client: ${goal === 'weight_loss' ? 'Slăbit' : goal === 'muscle_gain' ? 'Creștere masă musculară' : goal === 'maintenance' ? 'Menținere' : goal === 'recomposition' ? 'Recompoziție corporală' : goal}
