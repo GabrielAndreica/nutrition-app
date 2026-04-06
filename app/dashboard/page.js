@@ -1,81 +1,124 @@
-'use client';
+﻿'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
-import AppHeader from '@/app/components/AppHeader';
 import styles from './dashboard.module.css';
+import ClientsList from '@/app/components/ClientsList';
+import InlineMealPlanView from '@/app/components/InlineMealPlanView';
+import InlinePlanGenerator from '@/app/components/InlinePlanGenerator';
 
 function DashboardContent() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { logout } = useAuth();
+  const [user, setUser] = useState(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [view, setView] = useState({ screen: 'clients' });
 
-  // Prefetch page bundle + warm up API cache so /clients feels instant
   useEffect(() => {
-    router.prefetch('/clients');
-
-    // Fire the clients API request now so the browser HTTP cache is already populated
-    // by the time the user navigates. Fire-and-forget — errors are intentionally ignored.
-    const token = localStorage.getItem('token');
-    if (token) {
-      fetch('/api/clients?page=1&limit=20', {
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
-    }
-  }, [router]);
+    const userData = localStorage.getItem('user');
+    if (userData) setUser(JSON.parse(userData));
+  }, []);
 
   const firstName = user?.name?.split(' ')[0] || user?.name || '';
+  const handleLogout = () => { logout(); router.push('/'); };
+  const handleNav = (path) => { setSidebarOpen(false); router.push(path); };
 
   return (
     <div className={styles.container}>
-      <AppHeader />
-
-      <div className={styles.content}>
-        <div className={styles.hero}>
-          <h2 className={styles.heroHeading}>
-            Bună ziua, <span className={styles.accent}>{firstName}</span>.
-          </h2>
-          <p className={styles.heroSub}>
-            Generează și gestionează planuri alimentare personalizate.
-          </p>
+      <div className={styles.mobileTopbar}>
+        <button className={styles.hamburger} onClick={() => setSidebarOpen(v => !v)} aria-label="Meniu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+        <div className={styles.mobileLogo}>
+          <div className={styles.sidebarLogoMark}>N</div>
+          <span className={styles.sidebarLogoText}>NutriApp</span>
         </div>
+      </div>
 
-        <div className={styles.card} onClick={() => router.push('/clients')}>
-          <div className={styles.cardBody}>
-            <div className={styles.cardIcon}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
+
+      <div className={styles.pageLayout}>
+        <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
+          <div className={styles.sidebarLogo}>
+            <div className={styles.sidebarLogoMark}>N</div>
+            <span className={styles.sidebarLogoText}>NutriApp</span>
+            <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Inchide meniu">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+
+          <div className={styles.sidebarSection}>Meniu</div>
+
+          <div
+            className={`${styles.sidebarItem} ${view.screen === 'clients' ? styles.sidebarItemActive : ''}`}
+            onClick={() => { setSidebarOpen(false); setView({ screen: 'clients' }); }}
+          >
+            <div className={styles.sidebarIcon}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                 <circle cx="9" cy="7" r="4"/>
                 <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
             </div>
-            <div>
-              <h2 className={styles.cardTitle}>Clienți</h2>
-              <p className={styles.cardDesc}>Profiluri, planuri alimentare și export PDF</p>
-            </div>
+            <span className={styles.sidebarLabel}>Clienti</span>
           </div>
-          <div className={styles.cardActions}>
-            <button
-              className={styles.cardBtn}
-              onClick={e => { e.stopPropagation(); router.push('/clients'); }}
-            >
-              Deschide
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="5" y1="12" x2="19" y2="12"/>
-                <polyline points="12 5 19 12 12 19"/>
+
+          <div className={styles.sidebarFooter}>
+            <button className={styles.sidebarLogoutBtn} onClick={handleLogout}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
               </svg>
+              Iesire
             </button>
           </div>
-        </div>
-      </div>
+        </aside>
 
-      <footer className={styles.footer}>
-        <span>© {new Date().getFullYear()} NutritionApp</span>
-        <span className={styles.footerDot} />
-        <span>v1.0</span>
-      </footer>
+        <main className={styles.main}>
+          {view.screen === 'clients' && (
+            <>
+              <div className={styles.hero}>
+                <h2 className={styles.heroHeading}>
+                  Buna ziua, <span className={styles.accent}>{firstName}</span>.
+                </h2>
+                <p className={styles.heroSub}>
+                  Gestioneaza clientii si genereaza planuri alimentare personalizate.
+                </p>
+              </div>
+              <ClientsList
+                noPadding
+                onViewPlan={(planId) => setView({ screen: 'plan', planId })}
+                onGeneratePlan={(clientId) => setView({ screen: 'generator', clientId })}
+              />
+            </>
+          )}
+
+          {view.screen === 'plan' && (
+            <InlineMealPlanView
+              planId={view.planId}
+              onBack={() => setView({ screen: 'clients' })}
+            />
+          )}
+
+          {view.screen === 'generator' && (
+            <InlinePlanGenerator
+              clientId={view.clientId}
+              onBack={() => setView({ screen: 'clients' })}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 }
