@@ -7,29 +7,56 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_KEY
 );
 
-// GET /api/meal-plans — returnează cel mai recent plan per client pentru trainerul autentificat
+// GET /api/meal-plans — returnează planuri (toate pentru trainer, doar ale sale pentru client)
 export async function GET(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const { data, error } = await supabase
+  // Construiește query-ul bazat pe rol
+  let query = supabase
     .from('meal_plans')
     .select('id, client_id, created_at')
-    .eq('trainer_id', auth.userId)
     .order('created_at', { ascending: false });
+
+  // Dacă e trainer, returnează planurile clienților săi
+  if (auth.role === 'trainer') {
+    query = query.eq('trainer_id', auth.userId);
+  }
+  // Dacă e client, returnează doar planurile sale
+  else if (auth.role === 'client') {
+    // Obține client_id pentru user
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('user_id', auth.userId)
+      .single();
+
+    if (clientError || !client) {
+      return NextResponse.json({ error: 'Client negăsit.' }, { status: 404 });
+    }
+
+    query = query.eq('client_id', client.id);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error('Supabase GET meal_plans error:', error);
     return NextResponse.json({ error: 'Eroare la încărcarea planurilor.' }, { status: 500 });
   }
 
-  // Păstrează doar cel mai recent plan per client
-  const latestPerClient = {};
-  for (const row of data) {
-    if (!latestPerClient[row.client_id]) {
-      latestPerClient[row.client_id] = { planId: row.id, createdAt: row.created_at };
+  // Pentru trainer: păstrează doar cel mai recent plan per client
+  // Pentru client: returnează toate planurile sale
+  if (auth.role === 'trainer') {
+    const latestPerClient = {};
+    for (const row of data) {
+      if (!latestPerClient[row.client_id]) {
+        latestPerClient[row.client_id] = { planId: row.id, createdAt: row.created_at };
+      }
     }
+    return NextResponse.json({ plans: latestPerClient });
+  } else {
+    // Pentru client, returnează array direct
+    return NextResponse.json({ plans: data });
   }
-
-  return NextResponse.json({ plans: latestPerClient });
 }
