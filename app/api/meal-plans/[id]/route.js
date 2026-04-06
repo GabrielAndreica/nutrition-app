@@ -14,12 +14,33 @@ export async function GET(request, { params }) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const { data, error } = await supabase
+  // Construiește query-ul bazat pe rol
+  let query = supabase
     .from('meal_plans')
     .select('id, client_id, plan_data, daily_targets, created_at')
-    .eq('id', id)
-    .eq('trainer_id', auth.userId)
-    .single();
+    .eq('id', id);
+
+  // Dacă e trainer, verifică că planul aparține trainerului
+  if (auth.role === 'trainer') {
+    query = query.eq('trainer_id', auth.userId);
+  }
+  // Dacă e client, verifică că planul aparține clientului
+  else if (auth.role === 'client') {
+    // Obține client_id pentru user
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id')
+      .eq('user_id', auth.userId)
+      .single();
+
+    if (clientError || !client) {
+      return NextResponse.json({ error: 'Client negăsit.' }, { status: 404 });
+    }
+
+    query = query.eq('client_id', client.id);
+  }
+
+  const { data, error } = await query.single();
 
   if (error || !data) {
     return NextResponse.json({ error: 'Planul nu a fost găsit sau nu ai acces.' }, { status: 404 });
@@ -59,13 +80,18 @@ export async function GET(request, { params }) {
   return res;
 }
 
-// DELETE /api/meal-plans/[id] — șterge un plan (un singur round-trip: ownership check + delete combinate)
+// DELETE /api/meal-plans/[id] — șterge un plan (doar traineri)
 export async function DELETE(request, { params }) {
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  // .eq('trainer_id') serveşte şi ca ownership check — dacă count=0 înseamnă not found / no access
+  // Doar trainerii pot șterge planuri
+  if (auth.role !== 'trainer') {
+    return NextResponse.json({ error: 'Nu ai permisiunea să ștergi planuri.' }, { status: 403 });
+  }
+
+  // .eq('trainer_id') servește și ca ownership check — dacă count=0 înseamnă not found / no access
   const { error, count } = await supabase
     .from('meal_plans')
     .delete({ count: 'exact' })

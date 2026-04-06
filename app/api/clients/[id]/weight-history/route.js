@@ -20,13 +20,22 @@ export async function GET(request, { params }) {
 
   const { id: clientId } = await params;
 
-  // Verifică că clientul aparține acestui antrenor (folosim .eq direct ca în alte rute)
-  const { data: client, error: clientError } = await supabase
+  // Construiește query pentru client bazat pe rol
+  let clientQuery = supabase
     .from('clients')
     .select('id, name, weight')
-    .eq('id', clientId)
-    .eq('trainer_id', auth.userId)
-    .single();
+    .eq('id', clientId);
+
+  // Dacă e trainer, verifică că clientul aparține trainerului
+  if (auth.role === 'trainer') {
+    clientQuery = clientQuery.eq('trainer_id', auth.userId);
+  }
+  // Dacă e client, verifică că accesează propriile date
+  else if (auth.role === 'client') {
+    clientQuery = clientQuery.eq('user_id', auth.userId);
+  }
+
+  const { data: client, error: clientError } = await clientQuery.single();
 
   if (clientError || !client) {
     return NextResponse.json({ error: 'Clientul nu a fost găsit sau nu ai acces.' }, { status: 404 });
@@ -106,13 +115,22 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: 'Greutatea este obligatorie.' }, { status: 400 });
   }
 
-  // Verifică că clientul aparține acestui antrenor (folosim .eq direct)
-  const { data: client, error: clientError } = await supabase
+  // Construiește query pentru client bazat pe rol
+  let clientQuery = supabase
     .from('clients')
     .select('id')
-    .eq('id', clientId)
-    .eq('trainer_id', auth.userId)
-    .single();
+    .eq('id', clientId);
+
+  // Dacă e trainer, verifică că clientul aparține trainerului
+  if (auth.role === 'trainer') {
+    clientQuery = clientQuery.eq('trainer_id', auth.userId);
+  }
+  // Dacă e client, verifică că modifică propriile date
+  else if (auth.role === 'client') {
+    clientQuery = clientQuery.eq('user_id', auth.userId);
+  }
+
+  const { data: client, error: clientError } = await clientQuery.single();
 
   if (clientError || !client) {
     return NextResponse.json({ error: 'Clientul nu a fost găsit sau nu ai acces.' }, { status: 404 });

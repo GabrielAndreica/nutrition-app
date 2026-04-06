@@ -14,12 +14,22 @@ export async function GET(request, { params }) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const { data, error } = await supabase
+  // Construiește query-ul bazat pe rol
+  let query = supabase
     .from('clients')
     .select('*')
-    .eq('id', id)
-    .eq('trainer_id', auth.userId)
-    .single();
+    .eq('id', id);
+
+  // Dacă e trainer, verifică că clientul aparține trainerului
+  if (auth.role === 'trainer') {
+    query = query.eq('trainer_id', auth.userId);
+  }
+  // Dacă e client, verifică că accesează propriile date
+  else if (auth.role === 'client') {
+    query = query.eq('user_id', auth.userId);
+  }
+
+  const { data, error } = await query.single();
 
   if (error || !data) {
     return NextResponse.json({ error: 'Clientul nu a fost găsit sau nu ai acces.' }, { status: 404 });
