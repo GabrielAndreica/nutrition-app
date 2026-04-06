@@ -89,6 +89,13 @@ function ClientsContent() {
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [inviteClientId, setInviteClientId] = useState(null);
+  const [inviteEmail, setInviteEmail] = useState('');
+  const [inviting, setInviting] = useState(false);
+  const [inviteError, setInviteError] = useState(null);
+  const [inviteSuccess, setInviteSuccess] = useState(false);
+
   const authHeaders = useCallback(() => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -156,7 +163,72 @@ function ClientsContent() {
     setModalOpen(true);
   };
 
-  const closeModal = () => { setModalOpen(false); setEditingClient(null); };
+  const closeModal = () => {
+    setModalOpen(false);
+    setEditingClient(null);
+    setForm(EMPTY_FORM);
+    setFormError(null);
+  };
+
+  const openInviteModal = (client) => {
+    setInviteClientId(client.id);
+    // Pre-populează cu emailul curent dacă există invitație pending
+    setInviteEmail(client.invitation_email || '');
+    setInviteError(null);
+    setInviteSuccess(false);
+    setInviteModalOpen(true);
+  };
+
+  const closeInviteModal = () => {
+    setInviteModalOpen(false);
+    setInviteClientId(null);
+    setInviteEmail('');
+    setInviteError(null);
+    setInviteSuccess(false);
+  };
+
+  const handleSendInvite = async (e) => {
+    e.preventDefault();
+    setInviteError(null);
+    setInviting(true);
+
+    try {
+      const res = await fetch(`/api/clients/${inviteClientId}/invite`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ email: inviteEmail }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setInviteError(data.error || 'Eroare la trimiterea invitației.');
+        setInviting(false);
+        return;
+      }
+
+      setInviteSuccess(true);
+      
+      // Actualizează starea clientului în listă (pentru a schimba butonul instant)
+      setClients(prevClients => 
+        prevClients.map(c => 
+          c.id === inviteClientId 
+            ? { ...c, invitation_status: 'pending', invitation_email: inviteEmail }
+            : c
+        )
+      );
+      
+      setTimeout(() => {
+        closeInviteModal();
+      }, 2000);
+    } catch (err) {
+      console.error('Eroare la trimiterea invitației:', err);
+      setInviteError('Eroare la trimiterea invitației.');
+    } finally {
+      setInviting(false);
+    }
+  };
+
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
@@ -316,7 +388,18 @@ function ClientsContent() {
                   <span className={styles.tag}>{client.meals_per_day} mese/zi</span>
                 </div>
                 <div className={styles.clientActions}>
-                  <button className={styles.editBtn} onClick={() => openEdit(client)}>Editeaza</button>
+                  <div className={styles.secondaryActions}>
+                    <button className={styles.editBtn} onClick={() => openEdit(client)}>Editeaza</button>
+                    {!client.user_id && (
+                      <button 
+                        className={client.invitation_status === 'pending' ? styles.inviteBtnPending : styles.inviteBtn} 
+                        onClick={() => openInviteModal(client)}
+                        title={client.invitation_status === 'pending' ? `Trimisă la ${client.invitation_email}. Click pentru a retrimite.` : ''}
+                      >
+                        {client.invitation_status === 'pending' ? 'Retrimite' : 'Invitație'}
+                      </button>
+                    )}
+                  </div>
                   {planMap[client.id] ? (
                     <button className={styles.viewPlanBtn}
                       onClick={() => router.push(`/meal-plan/${planMap[client.id].planId}`)}>
@@ -466,13 +549,58 @@ function ClientsContent() {
           </div>
         </div>
       )}
+
+      {inviteModalOpen && (
+        <div className={styles.modalOverlay} onClick={closeInviteModal}>
+          <div className={styles.inviteModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>Trimite invitație client</h2>
+              <button className={styles.modalClose} onClick={closeInviteModal} aria-label="Inchide">x</button>
+            </div>
+            {inviteSuccess ? (
+              <div className={styles.successBox}>
+                <div className={styles.successIcon}>✓</div>
+                <p className={styles.successText}>Invitația a fost trimisă cu succes!</p>
+                <p className={styles.successSubtext}>Clientul va primi un email cu linkul de activare.</p>
+                <button className={styles.successBtn} onClick={closeInviteModal}>
+                  Inchide
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSendInvite} className={styles.inviteForm}>
+                <div className={styles.formGroup}>
+                  <label>Adresa de email a clientului *</label>
+                  <input
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    required
+                    placeholder="client@exemplu.ro"
+                    disabled={inviting}
+                  />
+                  <p className={styles.helperText}>
+                    Clientul va primi un email cu un link de activare a contului.
+                  </p>
+                </div>
+                {inviteError && <div className={styles.formError}>{inviteError}</div>}
+                <div className={styles.modalFooter}>
+                  <button type="button" className={styles.cancelBtn} onClick={closeInviteModal}>Anuleaza</button>
+                  <button type="submit" className={styles.saveBtn} disabled={inviting}>
+                    {inviting ? <><span className={styles.savingSpinner} />Se trimite...</> : 'Trimite invitația'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function ClientsPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRole="trainer">
       <ClientsContent />
     </ProtectedRoute>
   );

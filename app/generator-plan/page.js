@@ -342,7 +342,7 @@ function GeneratorContent() {
 
 export default function GeneratorPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRole="trainer">
       <GeneratorContent />
     </ProtectedRoute>
   );

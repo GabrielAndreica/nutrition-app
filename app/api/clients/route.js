@@ -19,11 +19,17 @@ export async function GET(request) {
   const limit  = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
   const offset = (page - 1) * limit;
 
-  // Build clients query
+  // Build clients query with invitation status
   let clientsQuery = supabase
     .from('clients')
     .select(
-      'id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences, created_at',
+      `id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences, created_at, user_id,
+       client_invitations!client_invitations_client_id_fkey(
+         id,
+         status,
+         client_email,
+         created_at
+       )`,
       { count: 'exact' }
     )
     .eq('trainer_id', auth.userId)
@@ -71,6 +77,17 @@ export async function GET(request) {
     }
   }
 
+  // Process clients and add invitation status
+  const processedClients = (clientsResult.data || []).map(client => {
+    const pendingInvite = client.client_invitations?.find(inv => inv.status === 'pending');
+    return {
+      ...client,
+      invitation_status: client.user_id ? 'accepted' : (pendingInvite ? 'pending' : null),
+      invitation_email: pendingInvite?.client_email || null,
+      client_invitations: undefined, // Remove array from response
+    };
+  });
+
   const total      = clientsResult.count || 0;
   const totalPages = Math.ceil(total / limit);
 
@@ -86,7 +103,7 @@ export async function GET(request) {
   });
 
   const res = NextResponse.json({
-    clients: clientsResult.data || [],
+    clients: processedClients,
     plans: planMap,
     total,
     page,
