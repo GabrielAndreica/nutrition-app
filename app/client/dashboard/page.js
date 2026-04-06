@@ -1,29 +1,31 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/app/contexts/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import AppHeader from '@/app/components/AppHeader';
 import styles from './dashboard.module.css';
 
-function DashboardContent() {
+function ClientDashboardContent() {
   const router = useRouter();
-  const { user } = useAuth();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Prefetch page bundle + warm up API cache so /clients feels instant
   useEffect(() => {
-    router.prefetch('/clients');
-
-    // Fire the clients API request now so the browser HTTP cache is already populated
-    // by the time the user navigates. Fire-and-forget — errors are intentionally ignored.
-    const token = localStorage.getItem('token');
-    if (token) {
-      fetch('/api/clients?page=1&limit=20', {
-        headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      setUser(JSON.parse(userData));
     }
-  }, [router]);
+    setLoading(false);
+  }, []);
+
+  if (loading) {
+    return (
+      <div className={styles.container}>
+        <div className={styles.loadingSpinner}></div>
+      </div>
+    );
+  }
 
   const firstName = user?.name?.split(' ')[0] || user?.name || '';
 
@@ -37,29 +39,27 @@ function DashboardContent() {
             Bună ziua, <span className={styles.accent}>{firstName}</span>.
           </h2>
           <p className={styles.heroSub}>
-            Generează și gestionează planuri alimentare personalizate.
+            Vizualizează planurile tale alimentare și progresul.
           </p>
         </div>
 
-        <div className={styles.card} onClick={() => router.push('/clients')}>
+        <div className={styles.card} onClick={() => router.push('/client/plans')}>
           <div className={styles.cardBody}>
             <div className={styles.cardIcon}>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                <polyline points="9 22 9 12 15 12 15 22"/>
               </svg>
             </div>
             <div>
-              <h2 className={styles.cardTitle}>Clienți</h2>
-              <p className={styles.cardDesc}>Profiluri, planuri alimentare și export PDF</p>
+              <h2 className={styles.cardTitle}>Planurile mele</h2>
+              <p className={styles.cardDesc}>Planuri alimentare personalizate și progres</p>
             </div>
           </div>
           <div className={styles.cardActions}>
             <button
               className={styles.cardBtn}
-              onClick={e => { e.stopPropagation(); router.push('/clients'); }}
+              onClick={e => { e.stopPropagation(); router.push('/client/plans'); }}
             >
               Deschide
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -80,10 +80,10 @@ function DashboardContent() {
   );
 }
 
-export default function DashboardPage() {
+export default function ClientDashboard() {
   return (
-    <ProtectedRoute requiredRole="trainer">
-      <DashboardContent />
+    <ProtectedRoute requiredRole="client">
+      <ClientDashboardContent />
     </ProtectedRoute>
   );
 }

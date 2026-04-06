@@ -17,7 +17,13 @@ export default function AuthPage() {
   const [generalError, setGeneralError] = useState('');
 
   useEffect(() => {
-    if (!loading && user) router.push('/dashboard');
+    if (!loading && user) {
+      if (user.role === 'client') {
+        router.push('/client/dashboard');
+      } else {
+        router.push('/dashboard');
+      }
+    }
   }, [user, loading, router]);
 
   const handleInputChange = (e) => {
@@ -69,7 +75,13 @@ export default function AuthPage() {
 
       setSuccessMessage('Autentificat cu succes!');
       login(data.user, data.token);
-      router.push('/dashboard');
+      
+      // Redirect în funcție de rol
+      if (data.user.role === 'client') {
+        router.push('/client/dashboard');
+      } else {
+        router.push('/dashboard');
+      }
     } catch {
       setGeneralError('Eroare de retea. Verifica conexiunea si incearca din nou.');
     } finally {

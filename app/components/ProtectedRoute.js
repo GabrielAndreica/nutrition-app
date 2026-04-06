@@ -4,15 +4,24 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/contexts/AuthContext';
 
-export function ProtectedRoute({ children }) {
+export function ProtectedRoute({ children, requiredRole = 'trainer' }) {
   const router = useRouter();
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth');
+    if (!loading) {
+      if (!user) {
+        router.push('/auth');
+      } else if (user.role !== requiredRole) {
+        // Redirect to correct dashboard based on role
+        if (user.role === 'client') {
+          router.push('/client/dashboard');
+        } else {
+          router.push('/dashboard');
+        }
+      }
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, requiredRole]);
 
   if (loading) {
     return (
@@ -49,6 +58,9 @@ export function ProtectedRoute({ children }) {
   if (!user) {
     return null;
   }
-
+  // Check if user has the required role
+  if (user.role !== requiredRole) {
+    return null;
+  }
   return children;
 }

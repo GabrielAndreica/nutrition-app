@@ -120,7 +120,7 @@ export async function POST(request) {
     // Get user from database
     const { data: user, error: dbError } = await supabase
       .from('users')
-      .select('id, name, email, password')
+      .select('id, name, email, password, role')
       .eq('email', email.toLowerCase())
       .single();
 
@@ -169,7 +169,8 @@ export async function POST(request) {
       { 
         id: user.id, 
         email: user.email,
-        name: user.name 
+        name: user.name,
+        role: user.role
       },
       JWT_SECRET,
       { expiresIn: '7d' }
@@ -184,7 +185,8 @@ export async function POST(request) {
         user: { 
           id: user.id, 
           name: user.name, 
-          email: user.email 
+          email: user.email,
+          role: user.role
         }
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
