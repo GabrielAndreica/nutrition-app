@@ -5,8 +5,6 @@ import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import crypto from 'crypto';
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
@@ -141,6 +139,7 @@ export async function POST(request, { params }) {
   let emailError = null;
 
   try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
     const { data: emailData, error: sendError } = await resend.emails.send({
       from: 'mail@gabrielandreica.com',
       to: email.toLowerCase(),
