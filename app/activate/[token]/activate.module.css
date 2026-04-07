@@ -147,8 +147,9 @@
   font-size: 28px;
   font-weight: 800;
   color: #0a0a0a;
-  margin-bottom: 6px;
+  margin-bottom: 28px;
   letter-spacing: -1px;
+  text-align: center;
 }
 
 .subtitle {

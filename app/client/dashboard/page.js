@@ -9,8 +9,7 @@ import styles from './dashboard.module.css';
 
 function ClientDashboardContent() {
   const router = useRouter();
-  const { logout } = useAuth();
-  const [user, setUser] = useState(null);
+  const { logout, user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [mealPlan, setMealPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
@@ -19,13 +18,6 @@ function ClientDashboardContent() {
   const [activeTab, setActiveTab] = useState('plan');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const fetchedRef = useRef(false);
-
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-  }, []);
 
   useEffect(() => {
     if (fetchedRef.current) return;
@@ -242,27 +234,20 @@ function ClientDashboardContent() {
             </p>
           </div>
 
+          {!loading && !mealPlan && !error && activeTab === 'plan' && (
+            <div className={styles.noPlanEmpty}>
+              <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="12" x2="12" y2="16"/>
+                <line x1="10" y1="14" x2="14" y2="14"/>
+              </svg>
+              <p>Antrenorul tău nu ți-a creat încă un plan alimentar.</p>
+            </div>
+          )}
+
           {activeTab === 'plan' && (
             <>
-              {!mealPlan && !error && (
-                <div className={styles.emptyState}>
-                  <div className={styles.emptyIcon}>📋</div>
-                  <h2 className={styles.emptyTitle}>Planul tău alimentar</h2>
-                  <p className={styles.emptyDesc}>
-                    Antrenorul tău lucrează la planul tău personalizat.<br />
-                    Vei fi notificat când va fi gata!
-                  </p>
-                  <div className={styles.emptyTips}>
-                    <h3 className={styles.emptyTipsTitle}>💡 Între timp, poți:</h3>
-                    <ul className={styles.emptyTipsList}>
-                      <li>Verifica obiectivul tău nutritional</li>
-                      <li>Actualiza greutatea curentă</li>
-                      <li>Pregăti alimente pentru viitorul plan</li>
-                    </ul>
-                  </div>
-                </div>
-              )}
-
               {error && (
                 <div className={styles.error}>
                   <span className={styles.errorIcon}>⚠️</span>

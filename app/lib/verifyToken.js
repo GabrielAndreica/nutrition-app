@@ -25,6 +25,7 @@ export function verifyToken(request) {
     return {
       userId: String(decoded.userId || decoded.id || decoded.sub),
       email: decoded.email || null,
+      role: decoded.role || null,
     };
   } catch (err) {
     if (err.name === 'TokenExpiredError') {

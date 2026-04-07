@@ -80,8 +80,6 @@ function MealPlanViewContent() {
     })
       .then(res => res.json())
       .then(data => {
-        console.log('Date primite de la API:', data);
-        console.log('client_id din mealPlan:', data.mealPlan?.client_id);
         if (!data.mealPlan) throw new Error(data.error || 'Planul nu a fost găsit.');
         const { plan_data, daily_targets, client_id } = data.mealPlan;
         setMealPlan(plan_data);
@@ -287,7 +285,7 @@ function MealPlanViewContent() {
 
 export default function MealPlanViewPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRole="trainer">
       <MealPlanViewContent />
     </ProtectedRoute>
   );

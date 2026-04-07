@@ -158,6 +158,10 @@ export async function POST(request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
+    if (auth.role !== 'trainer') {
+      return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+    }
+
     // ─── Rate Limiting ───────────────────────────────────────────
     const rateCheck = checkRateLimit(auth.userId);
     if (!rateCheck.allowed) {

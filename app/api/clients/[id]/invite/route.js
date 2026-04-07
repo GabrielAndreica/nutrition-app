@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import crypto from 'crypto';
+import { Resend } from 'resend';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -14,6 +15,7 @@ export async function POST(request, { params }) {
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (auth.role !== 'trainer') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
   let body;
   try {
@@ -132,13 +134,34 @@ export async function POST(request, { params }) {
 
   // Trimite email (TODO: integrare cu serviciu de email)
   const activationLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/activate/${token}`;
-  
-  // PLACEHOLDER - în producție, trimite email real
-  console.log('=== INVITAȚIE CLIENT ===');
-  console.log('Către:', email);
-  console.log('Link activare:', activationLink);
-  console.log('Expiră:', invitation.expires_at);
-  console.log('=======================');
+
+  let emailSent = false;
+  let emailError = null;
+
+  try {
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const { data: emailData, error: sendError } = await resend.emails.send({
+      from: 'mail@gabrielandreica.com',
+      to: email.toLowerCase(),
+      subject: 'Activează-ți contul NutriApp',
+      html: `
+        <h2>Bine ai venit!</h2>
+        <p>Antrenorul tău te-a invitat să creezi un cont pe NutriApp.</p>
+        <p><a href="${activationLink}" style="background:#b7ff00;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:700;">Activează contul</a></p>
+        <p style="color:#666;font-size:13px;">Linkul expiră în 7 zile.</p>
+      `,
+    });
+    if (sendError) {
+      console.error('[Resend] Eroare la trimitere:', JSON.stringify(sendError));
+      emailError = sendError.message || JSON.stringify(sendError);
+    } else {
+      emailSent = true;
+      console.log('[Resend] Email trimis cu succes, ID:', emailData?.id);
+    }
+  } catch (emailErr) {
+    console.error('[Resend] Excepție:', emailErr?.message || emailErr);
+    emailError = emailErr?.message || 'Eroare necunoscută';
+  }
 
   logActivity({
     action: 'client.invite',
@@ -157,11 +180,13 @@ export async function POST(request, { params }) {
 
   return NextResponse.json({ 
     success: true,
+    emailSent,
+    emailError,
     invitation: {
       id: invitation.id,
       email: email,
       expiresAt: invitation.expires_at,
-      activationLink // Returnăm link-ul pentru testing (în producție, se trimite doar pe email)
+      activationLink
     }
   });
 }

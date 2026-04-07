@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/app/contexts/AuthContext';
 import styles from './activate.module.css';
 
 export default function ActivatePage({ params }) {
   const router = useRouter();
+  const { login } = useAuth();
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [validating, setValidating] = useState(true);
@@ -116,9 +118,8 @@ export default function ActivatePage({ params }) {
 
       setSuccessMessage('Cont activat cu succes!');
 
-      // Salvează token și user în localStorage
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Salvează token, actualizează contextul React și redirecționează
+      login(data.user, data.token);
 
       // Redirecționează către dashboard client
       router.push('/client/dashboard');
@@ -185,7 +186,6 @@ export default function ActivatePage({ params }) {
           <div className={styles.card}>
             <div className={styles.errorIcon}>✕</div>
             <h1 className={styles.title}>Invitație invalidă</h1>
-            <p className={styles.errorMessage}>{error}</p>
             <button
               onClick={() => router.push('/auth')}
               className={styles.button}

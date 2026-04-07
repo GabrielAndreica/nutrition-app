@@ -12,6 +12,7 @@ const supabase = createClient(
 export async function GET(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (auth.role !== 'trainer') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search')?.trim() || '';
@@ -122,6 +123,7 @@ export async function GET(request) {
 export async function POST(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (auth.role !== 'trainer') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
   let body;
   try {
