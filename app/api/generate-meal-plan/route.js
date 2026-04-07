@@ -305,6 +305,18 @@ export async function POST(request) {
           console.error('Eroare la actualizarea greutății clientului:', updateError.message);
         }
 
+        // Salvează în weight_history chiar dacă nu se regenerează planul
+        const { error: whErrDeloc } = await supabase
+          .from('weight_history')
+          .insert({
+            client_id: clientData.clientId,
+            weight: newWeight,
+            notes: 'Actualizare progres - plan neresprectat',
+          });
+        if (whErrDeloc) {
+          console.error('[weight_history] Eroare la inserare (deloc):', whErrDeloc.message);
+        }
+
         logActivity({
           action: 'client.weight_update',
           status: 'success',
@@ -385,6 +397,20 @@ export async function POST(request) {
           console.error('Eroare la actualizarea greutății clientului:', updateError.message);
         } else {
           console.log('Greutate actualizată pentru client:', clientData.clientId, '→', newWeight, 'kg');
+        }
+
+        // Salvează în weight_history chiar dacă nu se regenerează planul
+        const { error: whErrOptimal } = await supabase
+          .from('weight_history')
+          .insert({
+            client_id: clientData.clientId,
+            weight: newWeight,
+            notes: 'Progres optim - plan menținut',
+          });
+        if (whErrOptimal) {
+          console.error('[weight_history] Eroare la inserare (optimal):', whErrOptimal.message);
+        } else {
+          console.log('[weight_history] Greutate salvată (progres optim):', newWeight, 'kg');
         }
 
         logActivity({
