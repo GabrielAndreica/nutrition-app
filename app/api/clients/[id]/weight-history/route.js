@@ -33,6 +33,8 @@ export async function GET(request, { params }) {
   // Dacă e client, verifică că accesează propriile date
   else if (auth.role === 'client') {
     clientQuery = clientQuery.eq('user_id', auth.userId);
+  } else {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
   const { data: client, error: clientError } = await clientQuery.single();
@@ -128,6 +130,8 @@ export async function POST(request, { params }) {
   // Dacă e client, verifică că modifică propriile date
   else if (auth.role === 'client') {
     clientQuery = clientQuery.eq('user_id', auth.userId);
+  } else {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
   const { data: client, error: clientError } = await clientQuery.single();

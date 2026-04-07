@@ -27,6 +27,8 @@ export async function GET(request, { params }) {
   // Dacă e client, verifică că accesează propriile date
   else if (auth.role === 'client') {
     query = query.eq('user_id', auth.userId);
+  } else {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
   const { data, error } = await query.single();
@@ -155,7 +157,7 @@ export async function DELETE(request, { params }) {
 
   const { data: existing, error: fetchError } = await supabase
     .from('clients')
-    .select('id')
+    .select('id, name, user_id')
     .eq('id', id)
     .eq('trainer_id', auth.userId)
     .single();
@@ -164,12 +166,32 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ error: 'Clientul nu a fost găsit sau nu ai acces.' }, { status: 404 });
   }
 
+  const { ip, userAgent } = getRequestMeta(request);
+
+  // 1. Șterge invitațiile clientului (eliberează adresa de email pentru reinvitare)
+  await supabase
+    .from('client_invitations')
+    .delete()
+    .eq('client_id', id);
+
+  // 2. Șterge contul de utilizator dacă există (eliberează emailul din tabela users)
+  if (existing.user_id) {
+    const { error: userDeleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', existing.user_id);
+
+    if (userDeleteError) {
+      console.error('Eroare la ștergerea userului asociat:', userDeleteError.message);
+    }
+  }
+
+  // 3. Șterge clientul
   const { error } = await supabase
     .from('clients')
     .delete()
     .eq('id', id);
 
-  const { ip, userAgent } = getRequestMeta(request);
   if (error) {
     console.error('Supabase DELETE client error:', error);
     logActivity({
@@ -191,7 +213,7 @@ export async function DELETE(request, { params }) {
     email: auth.email,
     ipAddress: ip,
     userAgent,
-    details: { clientId: id },
+    details: { clientId: id, clientName: existing.name, userDeleted: !!existing.user_id },
   });
   return NextResponse.json({ success: true });
 }

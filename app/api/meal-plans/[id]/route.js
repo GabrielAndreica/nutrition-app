@@ -15,6 +15,10 @@ export async function GET(request, { params }) {
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   // Construiește query-ul bazat pe rol
+  if (!auth.role || !['trainer', 'client'].includes(auth.role)) {
+    return NextResponse.json({ error: 'Rol necunoscut. Acces interzis.' }, { status: 403 });
+  }
+
   let query = supabase
     .from('meal_plans')
     .select('id, client_id, plan_data, daily_targets, created_at')
