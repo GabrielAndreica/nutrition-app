@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import styles from './meal-plan.module.css';
 
-export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, onRegenerate }) {
+export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, onRegenerate, onSubmitProgress, onViewProgress, progressCooldownUntil }) {
   const [activeDay, setActiveDay] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
@@ -12,6 +12,10 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
   const [stagnationInfo, setStagnationInfo] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [progressErrors, setProgressErrors] = useState({});
+  const [progressSubmitting, setProgressSubmitting] = useState(false);
+  const [progressSuccess, setProgressSuccess] = useState(false);
+  const [progressSubmitError, setProgressSubmitError] = useState(null);
+  const [progressSentBanner, setProgressSentBanner] = useState(null);
   const [progressData, setProgressData] = useState({
     currentWeight: clientData?.weight || '',
     adherence: '',
@@ -101,9 +105,17 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
   // Deschide modalul și încarcă istoricul
   const handleOpenProgress = () => {
     setProgressErrors({});
+    setProgressSubmitError(null);
     setShowProgress(true);
     loadWeightHistory();
   };
+
+  // Auto-dismiss banner trimis progres după 6 secunde
+  useEffect(() => {
+    if (!progressSentBanner) return;
+    const t = setTimeout(() => setProgressSentBanner(null), 6000);
+    return () => clearTimeout(t);
+  }, [progressSentBanner]);
 
   const validateProgressForm = () => {
     const errors = {};
@@ -132,18 +144,36 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
     return Object.keys(errors).length === 0;
   };
 
-  const handleProgressSubmit = () => {
+  const handleProgressSubmit = async () => {
     if (!validateProgressForm()) return;
 
-    // Salvarea în weight_history se face în API-ul generate-meal-plan,
-    // DUPĂ ce planul a fost generat și salvat cu succes.
-    if (onRegenerate) {
+    if (onSubmitProgress) {
+      // Modul client: trimite progresul antrenorului
+      setProgressSubmitting(true);
+      setProgressSuccess(false);
+      setProgressSubmitError(null);
+      try {
+        const result = await onSubmitProgress({
+          ...progressData,
+          weeksNoChange: String(stagnationWeeks),
+        });
+        if (result?.success) {
+          setShowProgress(false);
+          setProgressSentBanner('Progresul a fost trimis către antrenor. Vei putea trimite din nou peste 7 zile.');
+        }
+      } catch (err) {
+        setProgressSubmitError(err.message || 'Eroare la trimitere. Încearcă din nou.');
+      } finally {
+        setProgressSubmitting(false);
+      }
+    } else if (onRegenerate) {
+      // Modul antrenor: regenerează planul
       onRegenerate({
         ...progressData,
         weeksNoChange: String(stagnationWeeks),
       });
+      setShowProgress(false);
     }
-    setShowProgress(false);
   };
 
   if (!plan || !plan.days || plan.days.length === 0) {
@@ -159,6 +189,12 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
     very_active: 'Foarte activ',
     extra_active: 'Extrem de activ',
   };
+
+  const cooldownDate = progressCooldownUntil ? new Date(progressCooldownUntil) : null;
+  const progressInCooldown = !!(cooldownDate && cooldownDate > new Date());
+  const progressDaysLeft = progressInCooldown
+    ? Math.ceil((cooldownDate - new Date()) / (1000 * 60 * 60 * 24))
+    : 0;
 
   return (
     <div className={styles.container}>
@@ -191,6 +227,15 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Banner progres trimis */}
+      {progressSentBanner && (
+        <div className={styles.progressSentBanner}>
+          <span className={styles.progressSentIcon}>✓</span>
+          <span>{progressSentBanner}</span>
+          <button className={styles.progressSentClose} onClick={() => setProgressSentBanner(null)}>✕</button>
         </div>
       )}
 
@@ -284,18 +329,40 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
             ))}
           </div>
           <div className={styles.tabsActions}>
-            {onRegenerate && (
+            {/* Pentru antrenor: onViewProgress deschide pagina de progres client */}
+            {/* Pentru client: onSubmitProgress deschide formularul de trimitere progres */}
+            {(onViewProgress || onRegenerate || onSubmitProgress) && (
               <button
-                className={styles.updateProgressBtn}
-                onClick={handleOpenProgress}
+                className={`${styles.updateProgressBtn} ${progressInCooldown && onSubmitProgress ? styles.updateProgressBtnLocked : ''}`}
+                onClick={() => {
+                  if (onViewProgress) {
+                    // Antrenor: deschide pagina de progres a clientului
+                    onViewProgress();
+                  } else if (!progressInCooldown) {
+                    // Client sau regenerare: deschide formularul
+                    handleOpenProgress();
+                  }
+                }}
+                disabled={progressInCooldown && onSubmitProgress}
+                title={progressInCooldown && onSubmitProgress ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}` : undefined}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                  <path d="M3 3v5h5"/>
-                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                  <path d="M16 16h5v5"/>
-                </svg>
-                Actualizează progres
+                {progressInCooldown && onSubmitProgress ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                    <path d="M16 16h5v5"/>
+                  </svg>
+                )}
+                {progressInCooldown && onSubmitProgress
+                  ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}`
+                  : onSubmitProgress ? 'Trimite progres' : onViewProgress ? '🔍 PROGRES CLIENT' : 'Actualizează progres'
+                }
               </button>
             )}
             <button
@@ -390,8 +457,8 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
         <div className={styles.modalOverlay} onClick={() => setShowProgress(false)}>
           <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
             <div className={styles.modalHeader}>
-              <h3>Actualizare progres client</h3>
-              <button className={styles.modalClose} onClick={() => setShowProgress(false)}>✕</button>
+              <h3>{onSubmitProgress ? 'Trimite actualizare progres' : 'Actualizare progres client'}</h3>
+              <button className={styles.modalClose} onClick={() => setShowProgress(false)} disabled={progressSubmitting}>✕</button>
             </div>
 
             <div className={styles.modalBody}>
@@ -488,7 +555,7 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
               )}
 
               <div className={styles.modalField}>
-                <label>Observații antrenor (opțional)</label>
+                <label>{onSubmitProgress ? 'Mesaj pentru antrenor (opțional)' : 'Observații antrenor (opțional)'}</label>
                 <textarea
                   name="notes"
                   value={progressData.notes}
@@ -499,21 +566,35 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
               </div>
             </div>
 
+            {progressSubmitError && (
+              <div className={styles.fieldError} style={{ padding: '0 20px 8px' }}>
+                {progressSubmitError}
+              </div>
+            )}
             <div className={styles.modalFooter}>
-              <button className={styles.modalCancelBtn} onClick={() => setShowProgress(false)}>
+              <button className={styles.modalCancelBtn} onClick={() => setShowProgress(false)} disabled={progressSubmitting}>
                 Anulează
               </button>
               <button
                 className={styles.modalSubmitBtn}
                 onClick={handleProgressSubmit}
+                disabled={progressSubmitting}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                  <path d="M3 3v5h5"/>
-                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                  <path d="M16 16h5v5"/>
-                </svg>
-                Regenerează plan
+                {progressSubmitting ? (
+                  'Se trimite...'
+                ) : onSubmitProgress ? (
+                  'Trimite progresul'
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                      <path d="M3 3v5h5"/>
+                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                      <path d="M16 16h5v5"/>
+                    </svg>
+                    Regenerează plan
+                  </>
+                )}
               </button>
             </div>
           </div>

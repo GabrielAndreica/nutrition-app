@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
+import MealPlanTrainer from '@/app/components/MealPlanGenerator/MealPlanTrainer';
 import styles from '@/app/meal-plan/meal-plan-view.module.css';
 
 function SkeletonMealPlan() {
@@ -38,8 +38,9 @@ function SkeletonMealPlan() {
   );
 }
 
-export default function InlineMealPlanView({ planId: initialPlanId, onBack }) {
+export default function InlineMealPlanView({ planId: initialPlanId, onBack, onViewProgress }) {
   const [currentPlanId, setCurrentPlanId] = useState(initialPlanId);
+  const [planTab, setPlanTab] = useState('alimentar');
   const [mealPlan, setMealPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
@@ -207,28 +208,31 @@ export default function InlineMealPlanView({ planId: initialPlanId, onBack }) {
 
   return (
     <div className={styles.content}>
-      <div style={{ padding: '24px 0 20px' }}>
+      <div className={styles.navRow}>
         <button
+          className={styles.navBackBtn}
           onClick={onBack}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '7px',
-            background: 'transparent',
-            border: '1px solid #e5e5e5',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            fontSize: '13px', fontWeight: '500', color: '#666',
-            padding: '6px 12px 6px 9px',
-            transition: 'background 0.14s, border-color 0.14s, color 0.14s',
-            fontFamily: 'inherit',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f5'; e.currentTarget.style.borderColor = '#d4d4d4'; e.currentTarget.style.color = '#111'; }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = '#e5e5e5'; e.currentTarget.style.color = '#666'; }}
+          aria-label="Înapoi la clienți"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6"/>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
           </svg>
-          Înapoi la clienți
         </button>
+        <div className={styles.planTabsToggle}>
+          <button
+            className={`${styles.planTab} ${planTab === 'alimentar' ? styles.planTabActive : ''}`}
+            onClick={() => setPlanTab('alimentar')}
+          >
+            Plan alimentar
+          </button>
+          <button
+            className={styles.planTab}
+            disabled
+            title="Va fi disponibil în curând"
+          >
+            Plan de antrenament
+          </button>
+        </div>
       </div>
 
       {loading && !regenerating && <SkeletonMealPlan />}
@@ -274,12 +278,17 @@ export default function InlineMealPlanView({ planId: initialPlanId, onBack }) {
       )}
 
       {!loading && !regenerating && mealPlan && (
-        <MealPlan
+        <MealPlanTrainer
           plan={mealPlan}
           clientData={clientData}
           nutritionalNeeds={nutritionalNeeds}
           onReset={onBack}
           onRegenerate={handleRegenerate}
+          onViewProgress={onViewProgress ? () => {
+            if (clientData?.clientId) {
+              onViewProgress(clientData.clientId);
+            }
+          } : null}
         />
       )}
     </div>

@@ -238,6 +238,74 @@
   box-shadow: none;
 }
 
+.updateProgressBtnLocked {
+  background: #1e1e1e;
+  color: #555;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+  border: 1px solid #2a2a2a;
+}
+
+.updateProgressBtnLocked:hover {
+  background: #1e1e1e;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Banner progres trimis */
+.progressSentBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(183, 255, 0, 0.08);
+  border: 1px solid rgba(183, 255, 0, 0.3);
+  border-radius: 12px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+  grid-column: 1 / -1;
+  font-size: 14px;
+  font-weight: 500;
+  color: #3a5a00;
+}
+
+.progressSentIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(183, 255, 0, 0.22);
+  border: 1.5px solid rgba(183, 255, 0, 0.5);
+  color: #3a6000;
+  font-size: 14px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.progressSentBanner > span:nth-child(2) {
+  flex: 1;
+}
+
+.progressSentClose {
+  background: transparent;
+  border: none;
+  color: #5a7a00;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  transition: background 0.14s, color 0.14s;
+}
+
+.progressSentClose:hover {
+  background: rgba(183, 255, 0, 0.15);
+  color: #2a4a00;
+}
+
 /* Modal Popup - stilul site-ului */
 .modalOverlay {
   position: fixed;

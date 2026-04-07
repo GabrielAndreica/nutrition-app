@@ -64,7 +64,7 @@ function ArrowIcon() {
   );
 }
 
-export default function ClientsList({ noPadding = false, onViewPlan, onGeneratePlan }) {
+export default function ClientsList({ noPadding = false, onViewPlan, onGeneratePlan, onViewProgress }) {
   const router = useRouter();
 
   const [clients,    setClients]    = useState([]);
@@ -93,6 +93,16 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
   const [inviting, setInviting] = useState(false);
   const [inviteError, setInviteError] = useState(null);
   const [inviteSuccess, setInviteSuccess] = useState(false);
+
+  const [progressModalClient,    setProgressModalClient]    = useState(null);
+  const [progressModalData,      setProgressModalData]      = useState(null);
+  const [progressModalLoading,   setProgressModalLoading]   = useState(false);
+  const [progressModalError,     setProgressModalError]     = useState(null);
+  const [progressModalNewWeight,     setProgressModalNewWeight]     = useState('');
+  const [progressModalSaving,        setProgressModalSaving]        = useState(false);
+  const [progressModalWeightHistory, setProgressModalWeightHistory] = useState([]);
+  const [progressModalStagnation,    setProgressModalStagnation]    = useState(0);
+  const [progressModalNutritionalNeeds, setProgressModalNutritionalNeeds] = useState(null);
 
   const authHeaders = useCallback(() => ({
     'Content-Type': 'application/json',
@@ -134,6 +144,17 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
     fetchClients(page, debouncedSearch, controller.signal);
     return () => controller.abort();
   }, [page, debouncedSearch, fetchClients]);
+
+  // Auto-open progress view when navigated from meal plan page
+  useEffect(() => {
+    if (loading || clients.length === 0) return;
+    const storedId = sessionStorage.getItem('openProgressClientId');
+    if (!storedId) return;
+    const client = clients.find(c => String(c.id) === storedId);
+    if (!client) return;
+    sessionStorage.removeItem('openProgressClientId');
+    openProgressModal(client);
+  }, [loading, clients]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openAdd = () => {
     setEditingClient(null);
@@ -217,6 +238,194 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
     }
   };
 
+  // Calculează recomandarea AI pe baza datelor de progres
+  const computeAiRecommendation = (data, stagnationWeeks, client, nutritionalNeeds) => {
+    const goal = client?.goal || 'maintenance';
+    const adherence = data.respectare?.toLowerCase();
+    const energy    = data.energie?.toLowerCase();
+    const hunger    = data.foame?.toLowerCase();
+    const currentCal = nutritionalNeeds?.calories || null;
+
+    let action = 'continue'; // 'continue' | 'regenerate'
+    let calChange = 0;       // kcal delta
+    let reason = '';
+
+    // --- Foame extremă sau energie scăzută → creşte calorii ---
+    if (hunger === 'extrem' || (hunger === 'crescut' && energy === 'scazut')) {
+      action = 'regenerate';
+      calChange = goal === 'weight_loss' ? +100 : +150;
+      reason = hunger === 'extrem'
+        ? 'Foame extremă — deficit prea agresiv'
+        : 'Foame crescută + energie scăzută — necesită ajustare';
+    }
+    // --- Stagnare 2+ săptămâni ---
+    else if (stagnationWeeks >= 2) {
+      action = 'regenerate';
+      if (goal === 'weight_loss') {
+        calChange = adherence === 'complet' ? -100 : -150;
+        reason = `Stagnare ${stagnationWeeks} săptămâni — reducere deficit`;
+      } else if (goal === 'muscle_gain') {
+        calChange = +100;
+        reason = `Stagnare ${stagnationWeeks} săptămâni — creştere surplus`;
+      } else {
+        calChange = 0;
+        reason = `Stagnare ${stagnationWeeks} săptămâni — reechilibrare macronutrienți`;
+      }
+    }
+    // --- Stagnare 1 săptămână ---
+    else if (stagnationWeeks === 1 && adherence === 'complet') {
+      action = 'continue';
+      reason = 'O săptămână fără schimbare — este prea devreme pentru ajustare';
+    }
+    // --- Totul bine ---
+    else {
+      action = 'continue';
+      reason = 'Progres conform aşteptărilor — plană funcționează';
+    }
+
+    const targetCal = currentCal ? currentCal + calChange : null;
+    return { action, calChange, reason, targetCal, currentCal };
+  };
+
+  const openProgressModal = async (client) => {
+    setProgressModalClient(client);
+    setProgressModalData(null);
+    setProgressModalWeightHistory([]);
+    setProgressModalStagnation(0);
+    setProgressModalNutritionalNeeds(null);
+    setProgressModalLoading(true);
+    setProgressModalError(null);
+    setProgressModalNewWeight('');
+    try {
+      // Fetch weight history + current plan daily_targets in parallel
+      const planId = planMap[client.id]?.planId;
+      const [whRes, planRes] = await Promise.all([
+        fetch(`/api/clients/${client.id}/weight-history`, { headers: authHeaders() }),
+        planId ? fetch(`/api/meal-plans/${planId}`, { headers: authHeaders() }) : Promise.resolve(null),
+      ]);
+      const whData = await whRes.json();
+      if (!whRes.ok) throw new Error(whData.error || 'Eroare la incarcare');
+      setProgressModalWeightHistory(whData.weightHistory || []);
+      setProgressModalStagnation(whData.stagnationWeeks || 0);
+      if (planRes?.ok) {
+        const planData = await planRes.json();
+        if (planData.mealPlan?.daily_targets) {
+          setProgressModalNutritionalNeeds(planData.mealPlan.daily_targets);
+        }
+      }
+      const clientEntry = (whData.weightHistory || [])
+        .filter(e => e.notes?.startsWith('[CLIENT]'))
+        .sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at))[0];
+      if (clientEntry) {
+        const notesBody = clientEntry.notes.slice('[CLIENT] '.length);
+        const parsed = {};
+        notesBody.split(' | ').forEach(part => {
+          const colonIdx = part.indexOf(': ');
+          if (colonIdx !== -1) parsed[part.slice(0, colonIdx)] = part.slice(colonIdx + 2);
+        });
+        setProgressModalData({
+          weight:     clientEntry.weight,
+          recordedAt: clientEntry.recorded_at,
+          respectare: parsed['Respectare'] || '-',
+          energie:    parsed['Energie']    || '-',
+          foame:      parsed['Foame']      || '-',
+          mesaj:      parsed['Mesaj']      || '',
+        });
+        setProgressModalNewWeight(String(clientEntry.weight));
+      }
+    } catch (err) {
+      setProgressModalError(err.message);
+    } finally {
+      setProgressModalLoading(false);
+    }
+  };
+
+  const closeProgressModal = () => {
+    setProgressModalClient(null);
+    setProgressModalData(null);
+    setProgressModalWeightHistory([]);
+    setProgressModalStagnation(0);
+    setProgressModalNutritionalNeeds(null);
+    setProgressModalNewWeight('');
+    setProgressModalError(null);
+    setProgressModalSaving(false);
+  };
+
+  const handleProgressContinue = () => {
+    setClients(prev => prev.map(c =>
+      c.id === progressModalClient.id ? { ...c, has_new_progress: false } : c
+    ));
+    closeProgressModal();
+  };
+
+  const handleProgressGenerate = async () => {
+    if (!progressModalClient || !progressModalData) return;
+    setProgressModalSaving(true);
+    const c = progressModalClient;
+    const newWeight = parseFloat(progressModalNewWeight);
+    const hasNewWeight = progressModalNewWeight.trim() !== '' && !isNaN(newWeight) && newWeight >= 30 && newWeight <= 300;
+
+    try {
+      if (hasNewWeight) {
+        const res = await fetch(`/api/clients/${c.id}`, {
+          method: 'PUT',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            name: c.name, age: String(c.age), weight: String(newWeight),
+            height: String(c.height), gender: c.gender, goal: c.goal,
+            activityLevel: c.activity_level, dietType: c.diet_type,
+            allergies: c.allergies || '', mealsPerDay: String(c.meals_per_day),
+            foodPreferences: c.food_preferences || '',
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Eroare la actualizare');
+        setClients(prev => prev.map(cl =>
+          cl.id === c.id ? { ...data.client, has_new_progress: false } : cl
+        ));
+      } else {
+        setClients(prev => prev.map(cl =>
+          cl.id === c.id ? { ...cl, has_new_progress: false } : cl
+        ));
+      }
+
+      // Stochează datele de progres pentru generator
+      sessionStorage.setItem('clientProgress', JSON.stringify({
+        currentWeight: String(hasNewWeight ? newWeight : progressModalData.weight),
+        adherence:     progressModalData.respectare,
+        energyLevel:   progressModalData.energie,
+        hungerLevel:   progressModalData.foame,
+        notes:         progressModalData.mesaj || '',
+        weeksNoChange: String(progressModalStagnation),
+      }));
+
+      // Stochează necesarul nutrițional curent pentru diff-ul macro după generare
+      const planId = planMap[c.id]?.planId;
+      if (planId) {
+        try {
+          const planRes = await fetch(`/api/meal-plans/${planId}`, { headers: authHeaders() });
+          if (planRes.ok) {
+            const planData = await planRes.json();
+            if (planData.mealPlan?.daily_targets) {
+              sessionStorage.setItem('clientPreviousNeeds', JSON.stringify(planData.mealPlan.daily_targets));
+            }
+          }
+        } catch { /* non-critical */ }
+      }
+
+      setProgressModalClient(null);
+      setProgressModalData(null);
+      setProgressModalWeightHistory([]);
+      setProgressModalStagnation(0);
+      setProgressModalNewWeight('');
+      setProgressModalSaving(false);
+      router.push(`/generator-plan?clientId=${c.id}&fromProgress=true`);
+    } catch (err) {
+      setProgressModalError(err.message);
+      setProgressModalSaving(false);
+    }
+  };
+
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
@@ -275,6 +484,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
 
   return (
     <>
+      {!progressModalClient && (
       <div className={styles.content} style={noPadding ? { padding: 0 } : undefined}>
 
         <div className={styles.toolbar}>
@@ -360,7 +570,17 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
                 </button>
                 <div className={styles.clientCardHeader}>
                   <div className={styles.clientInfo}>
-                    <h3 className={styles.clientName}>{client.name}</h3>
+                    <div className={styles.clientNameRow}>
+                      <h3 className={styles.clientName}>{client.name}</h3>
+                      {client.has_new_progress && (
+                        <button 
+                          className={styles.progressBadge} 
+                          onClick={() => onViewProgress ? onViewProgress(client.id) : openProgressModal(client)}
+                        >
+                          Progres nou
+                        </button>
+                      )}
+                    </div>
                     <p className={styles.clientMeta}>
                       {client.age} ani &middot; {client.weight} kg &middot; {client.height} cm
                     </p>
@@ -419,6 +639,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
           </div>
         )}
       </div>
+      )}
 
       {modalOpen && (
         <div className={styles.modalOverlay} onClick={closeModal}>
@@ -580,6 +801,167 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
           </div>
         </div>
       )}
+
+      {progressModalClient && (() => {
+        const aiRec = progressModalData
+          ? computeAiRecommendation(
+              progressModalData,
+              progressModalStagnation,
+              progressModalClient,
+              progressModalNutritionalNeeds
+            )
+          : null;
+
+        return (
+          <div className={styles.progressInlinePage}>
+            {/* Navigare înapoi */}
+            <button className={styles.progressInlineBack} onClick={closeProgressModal} aria-label="Înapoi la clienți">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+
+            {/* Header client */}
+            <div className={styles.progressInlineHeading}>
+              <div className={styles.progressInlineHeadingLeft}>
+                <div className={styles.progressInlineAvatar}>
+                  {progressModalClient.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <h2 className={styles.progressInlineName}>{progressModalClient.name}</h2>
+                  <p className={styles.progressInlineSub}>
+                    {progressModalData
+                      ? `Progres trimis pe ${new Date(progressModalData.recordedAt).toLocaleString('ro-RO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+                      : 'Fișă progres client'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Card principal */}
+            <div className={styles.progressInlineCard}>
+              {progressModalLoading ? (
+                <div className={styles.progressSheetLoading}>
+                  <span className={styles.savingSpinner} />Se încarcă...
+                </div>
+              ) : !progressModalData ? (
+                <>
+                  <p className={styles.progressSheetEmpty}>Nu există progres trimis recent de acest client.</p>
+                  <div className={styles.progressSheetFooter}>
+                    <button className={styles.cancelBtn} onClick={closeProgressModal}>Înapoi</button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* ── Secțiunea 1: Feedback client ── */}
+                  <div className={styles.progressSheetSection}>
+                    <p className={styles.progressSheetSectionTitle}>Feedback client</p>
+                    <div className={styles.progressSheetRow}>
+                      <div className={styles.progressSheetKv}>
+                        <span className={styles.progressSheetKey}>Greutate raportată</span>
+                        <span className={styles.progressSheetVal}>{progressModalData.weight} kg</span>
+                      </div>
+                      <div className={styles.progressSheetKv}>
+                        <span className={styles.progressSheetKey}>Respectare plan</span>
+                        <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressModalData.respectare}</span>
+                      </div>
+                      <div className={styles.progressSheetKv}>
+                        <span className={styles.progressSheetKey}>Nivel energie</span>
+                        <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressModalData.energie}</span>
+                      </div>
+                      <div className={styles.progressSheetKv}>
+                        <span className={styles.progressSheetKey}>Nivel foame</span>
+                        <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressModalData.foame}</span>
+                      </div>
+                    </div>
+                    {progressModalData.mesaj && (
+                      <div className={styles.progressSheetMessage}>
+                        <span className={styles.progressSheetKey}>Mesaj</span>
+                        <p className={styles.progressSheetMessageText}>{progressModalData.mesaj}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── Secțiunea 2: Istoricul greutăților ── */}
+                  {progressModalWeightHistory.length > 0 && (
+                    <div className={styles.progressSheetSection}>
+                      <p className={styles.progressSheetSectionTitle}>
+                        Ultimele {Math.min(5, progressModalWeightHistory.length)} greutăți
+                      </p>
+                      <div className={styles.progressSheetHistoryTable}>
+                        {progressModalWeightHistory.slice(0, 5).map((entry, idx, arr) => {
+                          const diff = idx < arr.length - 1
+                            ? (entry.weight - arr[idx + 1].weight).toFixed(1)
+                            : null;
+                          const isClient = entry.notes?.startsWith('[CLIENT]');
+                          return (
+                            <div key={entry.id || idx} className={styles.progressSheetHistoryRow}>
+                              <span className={styles.progressSheetHistoryDate}>
+                                {new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
+                              </span>
+                              <span className={styles.progressSheetHistoryWeight}>{entry.weight} kg</span>
+                              {diff !== null && (
+                                <span className={parseFloat(diff) < 0 ? styles.progressSheetDiffDown : parseFloat(diff) > 0 ? styles.progressSheetDiffUp : styles.progressSheetDiffNeutral}>
+                                  {parseFloat(diff) > 0 ? '+' : ''}{diff} kg
+                                </span>
+                              )}
+                              {isClient && <span className={styles.weightHistoryClientBadge}>client</span>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Secțiunea 3: Recomandare AI ── */}
+                  {aiRec && (
+                    <div className={aiRec.action === 'regenerate' ? styles.progressSheetAiRegen : styles.progressSheetAiContinue}>
+                      <div className={styles.progressSheetAiTop}>
+                        <span className={styles.progressSheetAiIcon}>
+                          {aiRec.action === 'regenerate' ? '📊' : '✅'}
+                        </span>
+                        <div>
+                          <p className={styles.progressSheetAiLabel}>
+                            {aiRec.action === 'regenerate' ? 'Recomandare: plan nou' : 'Recomandare: continuă planul'}
+                          </p>
+                          <p className={styles.progressSheetAiReason}>{aiRec.reason}</p>
+                        </div>
+                      </div>
+                      {aiRec.action === 'regenerate' && aiRec.calChange !== 0 && (
+                        <div className={styles.progressSheetAiCalRow}>
+                          {aiRec.currentCal && (
+                            <><span className={styles.progressSheetAiCalOld}>{aiRec.currentCal} kcal</span>
+                            <span className={styles.progressSheetAiArrow}>→</span></>
+                          )}
+                          {aiRec.targetCal && (
+                            <span className={styles.progressSheetAiCalNew}>{aiRec.targetCal} kcal</span>
+                          )}
+                          <span className={aiRec.calChange < 0 ? styles.progressSheetAiCalDiffDown : styles.progressSheetAiCalDiffUp}>
+                            {aiRec.calChange > 0 ? '+' : ''}{aiRec.calChange} kcal
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {progressModalError && <div className={styles.formError} style={{ margin: '0 28px 16px' }}>{progressModalError}</div>}
+
+                  <div className={styles.progressSheetFooter}>
+                    <button className={styles.cancelBtn} onClick={handleProgressContinue} disabled={progressModalSaving}>
+                      Continuă planul
+                    </button>
+                    <button className={styles.saveBtn} onClick={handleProgressGenerate} disabled={progressModalSaving}>
+                      {progressModalSaving
+                        ? <><span className={styles.savingSpinner} />Se pregătește...</>
+                        : 'Generează plan nou'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }

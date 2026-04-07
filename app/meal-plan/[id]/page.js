@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
 import AppHeader from '@/app/components/AppHeader';
+import InlineProgressView from '@/app/components/InlineProgressView';
 import styles from '../meal-plan-view.module.css';
 
 function SkeletonMealPlan() {
@@ -61,6 +62,8 @@ function MealPlanViewContent() {
   const [regenStep, setRegenStep] = useState(0);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [planTab, setPlanTab] = useState('alimentar');
+  const [viewingProgressClientId, setViewingProgressClientId] = useState(null);
   const fetchedRef = useRef(false);
   const abortControllerRef = useRef(null);
 
@@ -220,10 +223,37 @@ function MealPlanViewContent() {
     <div className={styles.container}>
       <AppHeader
         title={mealPlan?.clientName || 'Plan alimentar'}
-        backHref="/clients"
       />
 
       <div className={styles.content}>
+        {/* Nav row: back button + plan tabs */}
+        <div className={styles.navRow}>
+          <button
+            className={styles.navBackBtn}
+            onClick={() => router.push('/clients')}
+            aria-label="Înapoi la clienți"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <div className={styles.planTabsToggle}>
+            <button
+              className={`${styles.planTab} ${planTab === 'alimentar' ? styles.planTabActive : ''}`}
+              onClick={() => setPlanTab('alimentar')}
+            >
+              Plan alimentar
+            </button>
+            <button
+              className={styles.planTab}
+              disabled
+              title="Va fi disponibil în curând"
+            >
+              Plan de antrenament
+            </button>
+          </div>
+        </div>
+
         {loading && !regenerating && <SkeletonMealPlan />}
 
         {regenerating && (
@@ -269,13 +299,29 @@ function MealPlanViewContent() {
           </div>
         )}
 
-        {!loading && !regenerating && mealPlan && (
+        {!loading && !regenerating && mealPlan && !viewingProgressClientId && (
           <MealPlan
             plan={mealPlan}
             clientData={clientData}
             nutritionalNeeds={nutritionalNeeds}
             onReset={() => router.push('/clients')}
             onRegenerate={handleRegenerate}
+            onViewProgress={() => {
+              if (clientData?.clientId) {
+                setViewingProgressClientId(clientData.clientId);
+              }
+            }}
+          />
+        )}
+
+        {viewingProgressClientId && (
+          <InlineProgressView
+            clientId={viewingProgressClientId}
+            onBack={() => setViewingProgressClientId(null)}
+            onGeneratePlan={(clientId) => {
+              setViewingProgressClientId(null);
+              router.push(`/generator-plan?clientId=${clientId}&fromProgress=true`);
+            }}
           />
         )}
       </div>

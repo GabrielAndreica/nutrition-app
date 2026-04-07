@@ -17,7 +17,9 @@ function ClientDashboardContent() {
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('plan');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState(null);
   const fetchedRef = useRef(false);
+  const COOLDOWN_MS = 1 * 60 * 1000; 
 
   useEffect(() => {
     if (fetchedRef.current) return;
@@ -77,6 +79,23 @@ function ClientDashboardContent() {
           mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
           foodPreferences: c.food_preferences || '',
         });
+
+        // Fetch cooldown în același lanț — loading rămâne true până știm răspunsul
+        return fetch(`/api/clients/${client_id}/weight-history`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+      })
+      .then(res => res ? res.json() : null)
+      .then(data => {
+        if (data?.weightHistory) {
+          const lastClientEntry = data.weightHistory.find(h => h.notes?.startsWith('[CLIENT]'));
+          if (lastClientEntry) {
+            const nextDate = new Date(new Date(lastClientEntry.recorded_at).getTime() + COOLDOWN_MS);
+            if (nextDate > new Date()) {
+              setCooldownUntil(nextDate.toISOString());
+            }
+          }
+        }
         setLoading(false);
       })
       .catch(err => {
@@ -85,6 +104,34 @@ function ClientDashboardContent() {
         setLoading(false);
       });
   }, []);
+
+  const handleProgressSubmit = async (progressData) => {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Token de autentificare lipsă.');
+
+    const notesFormatted = `[CLIENT] Respectare: ${progressData.adherence} | Energie: ${progressData.energyLevel} | Foame: ${progressData.hungerLevel}${progressData.notes ? ' | Mesaj: ' + progressData.notes : ''}`;
+
+    const response = await fetch(`/api/clients/${clientData.clientId}/weight-history`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        weight: progressData.currentWeight,
+        notes: notesFormatted,
+      }),
+    });
+
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(data.error || 'Eroare la trimiterea progresului.');
+    }
+
+    const nextDate = new Date(Date.now() + COOLDOWN_MS);
+    setCooldownUntil(nextDate.toISOString());
+    return { success: true };
+  };
 
   const firstName = user?.name?.split(' ')[0] || user?.name || '';
 
@@ -234,6 +281,24 @@ function ClientDashboardContent() {
             </p>
           </div>
 
+          {/* Inline plan tab toggle */}
+          <div className={styles.planTabsRow}>
+            <div className={styles.planTabsToggle}>
+              <button
+                className={`${styles.planTab} ${activeTab === 'plan' ? styles.planTabActive : ''}`}
+                onClick={() => handleTabChange('plan')}
+              >
+                Plan alimentar
+              </button>
+              <button
+                className={`${styles.planTab} ${activeTab === 'workout' ? styles.planTabActive : ''}`}
+                onClick={() => handleTabChange('workout')}
+              >
+                Plan de antrenament
+              </button>
+            </div>
+          </div>
+
           {!loading && !mealPlan && !error && activeTab === 'plan' && (
             <div className={styles.noPlanEmpty}>
               <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -260,7 +325,8 @@ function ClientDashboardContent() {
                   plan={mealPlan}
                   clientData={clientData}
                   nutritionalNeeds={nutritionalNeeds}
-                  hideRegenerate={true}
+                  onSubmitProgress={handleProgressSubmit}
+                  progressCooldownUntil={cooldownUntil}
                 />
               )}
             </>
