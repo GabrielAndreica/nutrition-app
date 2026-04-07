@@ -106,6 +106,13 @@ export default function InlineMealPlanView({ planId: initialPlanId, onBack }) {
     return () => { abortControllerRef.current?.abort(); };
   }, []);
 
+  // Auto-dismiss mesajul de succes după 4 secunde, ca planul să devină focusul principal
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = setTimeout(() => setSuccessMessage(null), 4000);
+    return () => clearTimeout(timer);
+  }, [successMessage]);
+
   const handleRegenerate = async (progressData) => {
     if (!clientData) return;
     abortControllerRef.current?.abort();
