@@ -172,7 +172,6 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
   }, [clientId, authHeaders]);
 
   const handleContinue = () => {
-    // Marchează progresul ca vizualizat și întoarce-te
     onBack();
   };
 
@@ -247,11 +246,10 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
     : null;
 
   const handleBackToPlan = () => {
-    // Navighează înapoi la planul alimentar
     if (planId) {
-      onBack(planId); // Trimite planId la dashboard pentru a afișa planul
+      onBack(planId);
     } else {
-      onBack(); // Dacă nu există plan, închide doar view-ul
+      onBack();
     }
   };
 

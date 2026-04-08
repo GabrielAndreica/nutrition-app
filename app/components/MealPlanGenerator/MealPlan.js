@@ -16,6 +16,7 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
   const [progressSuccess, setProgressSuccess] = useState(false);
   const [progressSubmitError, setProgressSubmitError] = useState(null);
   const [progressSentBanner, setProgressSentBanner] = useState(null);
+  const [currentWeight, setCurrentWeight] = useState(clientData?.weight || '');
   const [progressData, setProgressData] = useState({
     currentWeight: clientData?.weight || '',
     adherence: '',
@@ -23,6 +24,36 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
     hungerLevel: '',
     notes: '',
   });
+
+  // Fetch ultima greutate din baza de date când componenta se montează
+  useEffect(() => {
+    const fetchLatestWeight = async () => {
+      if (!clientData?.clientId) return;
+      
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const res = await fetch(`/api/clients/${clientData.clientId}/weight-history`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          if (data.weightHistory && data.weightHistory.length > 0) {
+            // Ia ultima greutate înregistrată
+            const latestWeight = data.weightHistory[0].weight;
+            setCurrentWeight(String(latestWeight));
+            setProgressData(prev => ({ ...prev, currentWeight: String(latestWeight) }));
+          }
+        }
+      } catch (err) {
+        console.error('Eroare la încărcarea ultimei greutăți:', err);
+      }
+    };
+
+    fetchLatestWeight();
+  }, [clientData?.clientId]);
 
   const goalLabels = {
     weight_loss: 'Slăbit',
@@ -213,7 +244,7 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
               <span className={styles.clientStatLabel}>ani</span>
             </div>
             <div className={styles.clientStat}>
-              <span className={styles.clientStatValue}>{clientData.weight}</span>
+              <span className={styles.clientStatValue}>{currentWeight}</span>
               <span className={styles.clientStatLabel}>kg</span>
             </div>
             <div className={styles.clientStat}>

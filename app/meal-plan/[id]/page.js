@@ -67,6 +67,40 @@ function MealPlanViewContent() {
   const fetchedRef = useRef(false);
   const abortControllerRef = useRef(null);
 
+  // Funcție pentru a reîncărca datele clientului
+  const refreshClientData = async () => {
+    if (!id) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch(`/api/meal-plans/${id}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.mealPlan) {
+        const { client_id } = data.mealPlan;
+        const c = data.client || {};
+        setClientData({
+          clientId: client_id,
+          name: c.name || clientData?.name,
+          age: c.age ? String(c.age) : clientData?.age,
+          weight: c.weight ? String(c.weight) : clientData?.weight,
+          height: c.height ? String(c.height) : clientData?.height,
+          gender: c.gender || clientData?.gender,
+          goal: c.goal || clientData?.goal,
+          activityLevel: c.activity_level || clientData?.activityLevel,
+          dietType: c.diet_type || clientData?.dietType,
+          allergies: c.allergies || clientData?.allergies,
+          mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : clientData?.mealsPerDay,
+          foodPreferences: c.food_preferences || clientData?.foodPreferences || '',
+        });
+      }
+    } catch (err) {
+      console.error('Eroare la reîncărcarea datelor clientului:', err);
+    }
+  };
+
   useEffect(() => {
     if (!id) return;
     if (fetchedRef.current) return; // previne dubla execuție din React Strict Mode
@@ -317,7 +351,11 @@ function MealPlanViewContent() {
         {viewingProgressClientId && (
           <InlineProgressView
             clientId={viewingProgressClientId}
-            onBack={() => setViewingProgressClientId(null)}
+            onBack={() => {
+              setViewingProgressClientId(null);
+              // Reîncarcă datele clientului când se revine de la progres
+              refreshClientData();
+            }}
             onGeneratePlan={(clientId) => {
               setViewingProgressClientId(null);
               router.push(`/generator-plan?clientId=${clientId}&fromProgress=true`);

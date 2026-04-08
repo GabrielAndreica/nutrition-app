@@ -171,8 +171,16 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: 'Eroare la salvarea greutății.' }, { status: 500 });
   }
 
-  // NU actualizăm greutatea clientului aici - o face API-ul generate-meal-plan
-  // după ce decide dacă planul funcționează sau trebuie regenerat
+  // Actualizăm greutatea clientului imediat când se trimite progresul
+  const { error: updateError } = await supabase
+    .from('clients')
+    .update({ weight: parseFloat(weight) })
+    .eq('id', clientId);
+
+  if (updateError) {
+    console.error('Eroare la actualizarea greutății clientului:', updateError);
+    // Nu returnăm eroare aici, înregistrarea în istoric s-a făcut cu succes
+  }
 
   const { ip, userAgent } = getRequestMeta(request);
   logActivity({
