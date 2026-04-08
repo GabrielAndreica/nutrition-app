@@ -1,10 +1,34 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from '@/app/clients/clients.module.css';
+import mealPlanStyles from '@/app/components/MealPlanGenerator/meal-plan.module.css';
+import viewStyles from '@/app/meal-plan/meal-plan-view.module.css';
 
-export default function InlineProgressView({ clientId, onBack, onGeneratePlan }) {
+// Label constants
+const goalLabels = {
+  weight_loss: 'Slăbit',
+  muscle_gain: 'Creștere masă musculară',
+  maintenance: 'Menținere',
+  recomposition: 'Recompoziție corporală',
+};
+
+const dietLabels = {
+  omnivore: 'Omnivor',
+  vegetarian: 'Vegetarian',
+  vegan: 'Vegan',
+};
+
+const activityLabels = {
+  sedentary: 'Sedentar',
+  lightly_active: 'Ușor activ',
+  moderately_active: 'Moderat activ',
+  very_active: 'Foarte activ',
+  extra_active: 'Extrem de activ',
+};
+
+export default function InlineProgressView({ clientId, scrollContainerRef, onBack, onGeneratePlan }) {
   const router = useRouter();
   const [client, setClient] = useState(null);
   const [progressData, setProgressData] = useState(null);
@@ -17,13 +41,18 @@ export default function InlineProgressView({ clientId, onBack, onGeneratePlan })
   const [saving, setSaving] = useState(false);
   const [newWeight, setNewWeight] = useState('');
 
+  // Scroll to top când se montează componenta
+  useEffect(() => {
+    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [scrollContainerRef]);
+
   const authHeaders = useCallback(() => ({
     'Content-Type': 'application/json',
     Authorization: `Bearer ${localStorage.getItem('token')}`,
   }), []);
 
-  // Calculează recomandarea AI pe baza datelor de progres
-  const computeAiRecommendation = (data, stagnationWeeks, client, nutritionalNeeds) => {
+  // Memoized AI recommendation computation
+  const computeAiRecommendation = useCallback((data, stagnationWeeks, client, nutritionalNeeds) => {
     const goal = client?.goal || 'maintenance';
     const adherence = data.respectare?.toLowerCase();
     const energy = data.energie?.toLowerCase();
@@ -62,7 +91,13 @@ export default function InlineProgressView({ clientId, onBack, onGeneratePlan })
 
     const targetCal = currentCal ? currentCal + calChange : null;
     return { action, calChange, reason, targetCal, currentCal };
-  };
+  }, []); // Empty deps - pure calculation
+
+  // Memoized AI recommendation result
+  const aiRecommendation = useMemo(() => {
+    if (!progressData || !client) return null;
+    return computeAiRecommendation(progressData, stagnationWeeks, client, nutritionalNeeds);
+  }, [progressData, stagnationWeeks, client, nutritionalNeeds, computeAiRecommendation]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -211,48 +246,159 @@ export default function InlineProgressView({ clientId, onBack, onGeneratePlan })
     ? computeAiRecommendation(progressData, stagnationWeeks, client, nutritionalNeeds)
     : null;
 
+  const handleBackToPlan = () => {
+    // Navighează înapoi la planul alimentar
+    if (planId) {
+      onBack(planId); // Trimite planId la dashboard pentru a afișa planul
+    } else {
+      onBack(); // Dacă nu există plan, închide doar view-ul
+    }
+  };
+
   return (
     <div className={styles.progressInlinePage}>
-      {/* Navigare înapoi */}
-      <button className={styles.progressInlineBack} onClick={onBack} aria-label="Înapoi">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="15 18 9 12 15 6" />
-        </svg>
-      </button>
+      {/* Navigare înapoi + butoane acțiuni */}
+      <div className={viewStyles.navRow}>
+        <button className={viewStyles.navBackBtn} onClick={handleBackToPlan} aria-label="Înapoi la plan">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
+        </button>
+        
+        <div className={viewStyles.planTabsToggle}>
+          <button
+            className={`${viewStyles.planTab} ${viewStyles.planTabActive}`}
+            onClick={handleBackToPlan}
+          >
+            Plan alimentar
+          </button>
+          <button
+            className={viewStyles.planTab}
+            disabled
+            title="Va fi disponibil în curând"
+          >
+            Plan de antrenament
+          </button>
+        </div>
+      </div>
 
       {loading && (
-        <div className={styles.progressInlineCard}>
-          <div className={styles.progressSheetLoading}>
-            <span className={styles.savingSpinner} />Se încarcă...
+        <>
+          {/* Skeleton client header */}
+          <div className={mealPlanStyles.clientHeader} style={{ opacity: 0.6 }}>
+            <div className={mealPlanStyles.clientHeaderLeft}>
+              <div>
+                <div className={viewStyles.shimmer} style={{ width: '180px', height: '24px', borderRadius: '6px', marginBottom: '8px' }} />
+                <div className={viewStyles.shimmer} style={{ width: '220px', height: '14px', borderRadius: '4px' }} />
+              </div>
+            </div>
+            <div className={mealPlanStyles.clientStats}>
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className={mealPlanStyles.clientStat}>
+                  <div className={viewStyles.shimmer} style={{ width: '32px', height: '20px', borderRadius: '4px', marginBottom: '4px' }} />
+                  <div className={viewStyles.shimmer} style={{ width: '24px', height: '12px', borderRadius: '3px' }} />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+
+          {/* Skeleton progress card */}
+          <div className={styles.progressInlineCard}>
+            <div className={styles.progressSheetMainGrid}>
+              {/* Feedback column */}
+              <div className={styles.progressSheetSection}>
+                <div className={viewStyles.shimmer} style={{ width: '100px', height: '12px', borderRadius: '4px', marginBottom: '16px' }} />
+                <div className={styles.progressSheetColumn}>
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className={styles.progressSheetKv} style={{ opacity: 0.6 }}>
+                      <div className={viewStyles.shimmer} style={{ width: '120px', height: '11px', borderRadius: '3px', marginBottom: '6px' }} />
+                      <div className={viewStyles.shimmer} style={{ width: '80px', height: '16px', borderRadius: '4px' }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* History column */}
+              <div className={styles.progressSheetSection}>
+                <div className={viewStyles.shimmer} style={{ width: '120px', height: '12px', borderRadius: '4px', marginBottom: '16px' }} />
+                <div className={styles.progressSheetHistoryTable} style={{ opacity: 0.6 }}>
+                  {[1, 2, 3, 4, 5].map(i => (
+                    <div key={i} className={styles.progressSheetHistoryRow}>
+                      <div className={viewStyles.shimmer} style={{ width: '70px', height: '13px', borderRadius: '4px' }} />
+                      <div className={viewStyles.shimmer} style={{ width: '50px', height: '15px', borderRadius: '4px' }} />
+                      <div className={viewStyles.shimmer} style={{ width: '60px', height: '13px', borderRadius: '4px' }} />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Skeleton AI section */}
+            <div className={styles.progressSheetAiRow} style={{ opacity: 0.6 }}>
+              <div className={viewStyles.shimmer} style={{ width: '140px', height: '12px', borderRadius: '4px', marginBottom: '12px' }} />
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <div className={viewStyles.shimmer} style={{ width: '48%', height: '80px', borderRadius: '12px' }} />
+                <div className={viewStyles.shimmer} style={{ width: '48%', height: '80px', borderRadius: '12px' }} />
+              </div>
+            </div>
+
+            {/* Skeleton footer */}
+            <div className={styles.progressSheetFooter} style={{ opacity: 0.6 }}>
+              <div className={viewStyles.shimmer} style={{ width: '100px', height: '38px', borderRadius: '8px' }} />
+              <div className={viewStyles.shimmer} style={{ width: '140px', height: '38px', borderRadius: '8px' }} />
+            </div>
+          </div>
+        </>
       )}
 
       {error && !loading && (
         <div className={styles.progressInlineCard}>
           <div className={styles.formError} style={{ margin: '20px' }}>{error}</div>
           <div className={styles.progressSheetFooter}>
-            <button className={styles.cancelBtn} onClick={onBack}>Înapoi</button>
+            <button className={styles.backBtnAlt} onClick={() => onBack()}>Înapoila clienți</button>
           </div>
         </div>
       )}
 
       {!loading && !error && client && (
         <>
-          {/* Header client */}
-          <div className={styles.progressInlineHeading}>
-            <div className={styles.progressInlineHeadingLeft}>
-              <div className={styles.progressInlineAvatar}>
-                {client.name.charAt(0).toUpperCase()}
-              </div>
+          {/* Header client cu date complete */}
+          <div className={mealPlanStyles.clientHeader}>
+            <div className={mealPlanStyles.clientHeaderLeft}>
               <div>
-                <h2 className={styles.progressInlineName}>{client.name}</h2>
-                <p className={styles.progressInlineSub}>
-                  {progressData
-                    ? `Progres trimis pe ${new Date(progressData.recordedAt).toLocaleString('ro-RO', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`
-                    : 'Fișă progres client'}
+                <h2 className={mealPlanStyles.clientName}>{client.name}</h2>
+                <p className={mealPlanStyles.clientSub}>
+                  {client.goal && `${goalLabels[client.goal] || client.goal} · `}
+                  {client.diet_type && `${dietLabels[client.diet_type] || client.diet_type}`}
+                  {progressData && ` · Progres ${new Date(progressData.recordedAt).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}`}
                 </p>
               </div>
+            </div>
+            <div className={mealPlanStyles.clientStats}>
+              {client.age && (
+                <div className={mealPlanStyles.clientStat}>
+                  <span className={mealPlanStyles.clientStatValue}>{client.age}</span>
+                  <span className={mealPlanStyles.clientStatLabel}>ani</span>
+                </div>
+              )}
+              {client.weight && (
+                <div className={mealPlanStyles.clientStat}>
+                  <span className={mealPlanStyles.clientStatValue}>{client.weight}</span>
+                  <span className={mealPlanStyles.clientStatLabel}>kg</span>
+                </div>
+              )}
+              {client.height && (
+                <div className={mealPlanStyles.clientStat}>
+                  <span className={mealPlanStyles.clientStatValue}>{client.height}</span>
+                  <span className={mealPlanStyles.clientStatLabel}>cm</span>
+                </div>
+              )}
+              {client.activity_level && (
+                <div className={mealPlanStyles.clientStat}>
+                  <span className={mealPlanStyles.clientStatValue}>{activityLabels[client.activity_level] || client.activity_level}</span>
+                  <span className={mealPlanStyles.clientStatLabel}>activitate</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -262,103 +408,116 @@ export default function InlineProgressView({ clientId, onBack, onGeneratePlan })
               <>
                 <p className={styles.progressSheetEmpty}>Nu există progres trimis recent de acest client.</p>
                 <div className={styles.progressSheetFooter}>
-                  <button className={styles.cancelBtn} onClick={onBack}>Înapoi</button>
+                  <button className={styles.backBtnAlt} onClick={() => onBack()}>Înapoi la clienți</button>
                 </div>
               </>
             ) : (
               <>
-                {/* ── Secțiunea 1: Feedback client ── */}
-                <div className={styles.progressSheetSection}>
-                  <p className={styles.progressSheetSectionTitle}>Feedback client</p>
-                  <div className={styles.progressSheetRow}>
-                    <div className={styles.progressSheetKv}>
-                      <span className={styles.progressSheetKey}>Greutate raportată</span>
-                      <span className={styles.progressSheetVal}>{progressData.weight} kg</span>
+                {/* Layout cu 2 coloane: Feedback + Istoric */}
+                <div className={styles.progressSheetMainGrid}>
+                  {/* Coloana stângă: Feedback client */}
+                  <div className={styles.progressSheetSection}>
+                    <p className={styles.progressSheetSectionTitle}>Feedback client</p>
+                    <div className={styles.progressSheetColumn}>
+                      <div className={styles.progressSheetKv}>
+                        <span className={styles.progressSheetKey}>Greutate raportată</span>
+                        <span className={styles.progressSheetVal}>{progressData.weight} kg</span>
+                      </div>
+                      <div className={styles.progressSheetKv}>
+                        <span className={styles.progressSheetKey}>Respectare plan</span>
+                        <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressData.respectare}</span>
+                      </div>
+                      <div className={styles.progressSheetKv}>
+                        <span className={styles.progressSheetKey}>Nivel energie</span>
+                        <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressData.energie}</span>
+                      </div>
+                      <div className={styles.progressSheetKv}>
+                        <span className={styles.progressSheetKey}>Nivel foame</span>
+                        <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressData.foame}</span>
+                      </div>
                     </div>
-                    <div className={styles.progressSheetKv}>
-                      <span className={styles.progressSheetKey}>Respectare plan</span>
-                      <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressData.respectare}</span>
-                    </div>
-                    <div className={styles.progressSheetKv}>
-                      <span className={styles.progressSheetKey}>Nivel energie</span>
-                      <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressData.energie}</span>
-                    </div>
-                    <div className={styles.progressSheetKv}>
-                      <span className={styles.progressSheetKey}>Nivel foame</span>
-                      <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressData.foame}</span>
-                    </div>
+                    {progressData.mesaj && (
+                      <div className={styles.progressSheetMessage}>
+                        <span className={styles.progressSheetKey}>Mesaj</span>
+                        <p className={styles.progressSheetMessageText}>{progressData.mesaj}</p>
+                      </div>
+                    )}
                   </div>
-                  {progressData.mesaj && (
-                    <div className={styles.progressSheetMessage}>
-                      <span className={styles.progressSheetKey}>Mesaj</span>
-                      <p className={styles.progressSheetMessageText}>{progressData.mesaj}</p>
+
+                  {/* Coloana dreaptă: Istoric greutăți */}
+                  {weightHistory.length > 0 && (
+                    <div className={styles.progressSheetSection}>
+                      <p className={styles.progressSheetSectionTitle}>
+                        Ultimele {Math.min(5, weightHistory.length)} greutăți
+                      </p>
+                      <div className={styles.progressSheetHistoryTable}>
+                        {weightHistory.slice(0, 5).map((entry, idx, arr) => {
+                          const diff = idx < arr.length - 1
+                            ? (entry.weight - arr[idx + 1].weight).toFixed(1)
+                            : null;
+                          const isLatest = idx === 0;
+                          return (
+                            <div key={entry.id || idx} className={`${styles.progressSheetHistoryRow} ${isLatest ? styles.progressSheetHistoryRowLatest : ''}`}>
+                              <span className={styles.progressSheetHistoryDate}>
+                                {new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
+                                {isLatest && <span className={styles.latestLabel}> • Acum</span>}
+                              </span>
+                              <span className={styles.progressSheetHistoryWeight}>{entry.weight} kg</span>
+                              {diff !== null && (
+                                <span className={parseFloat(diff) < 0 ? styles.progressSheetDiffDown : parseFloat(diff) > 0 ? styles.progressSheetDiffUp : styles.progressSheetDiffNeutral}>
+                                  {parseFloat(diff) > 0 ? '+' : ''}{diff} kg
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {/* ── Secțiunea 2: Istoricul greutăților ── */}
-                {weightHistory.length > 0 && (
-                  <div className={styles.progressSheetSection}>
-                    <p className={styles.progressSheetSectionTitle}>
-                      Ultimele {Math.min(5, weightHistory.length)} greutăți
-                    </p>
-                    <div className={styles.progressSheetHistoryTable}>
-                      {weightHistory.slice(0, 5).map((entry, idx, arr) => {
-                        const diff = idx < arr.length - 1
-                          ? (entry.weight - arr[idx + 1].weight).toFixed(1)
-                          : null;
-                        const isClient = entry.notes?.startsWith('[CLIENT]');
-                        return (
-                          <div key={entry.id || idx} className={styles.progressSheetHistoryRow}>
-                            <span className={styles.progressSheetHistoryDate}>
-                              {new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
-                            </span>
-                            <span className={styles.progressSheetHistoryWeight}>{entry.weight} kg</span>
-                            {diff !== null && (
-                              <span className={parseFloat(diff) < 0 ? styles.progressSheetDiffDown : parseFloat(diff) > 0 ? styles.progressSheetDiffUp : styles.progressSheetDiffNeutral}>
-                                {parseFloat(diff) > 0 ? '+' : ''}{diff} kg
-                              </span>
-                            )}
-                            {isClient && <span className={styles.weightHistoryClientBadge}>client</span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* ── Secțiunea 3: Recomandare AI ── */}
+                {/* Recomandare AI - jos de tot */}
                 {aiRec && (
                   <div className={aiRec.action === 'regenerate' ? styles.progressSheetAiRegen : styles.progressSheetAiContinue}>
                     <div className={styles.progressSheetAiTop}>
                       <span className={styles.progressSheetAiIcon}>
-                        {aiRec.action === 'regenerate' ? '📊' : '✅'}
+                        {aiRec.action === 'regenerate' ? (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="23 4 23 10 17 10"/>
+                            <polyline points="1 20 1 14 7 14"/>
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                          </svg>
+                        ) : (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                        )}
                       </span>
-                      <div>
+                      <div style={{ flex: 1 }}>
                         <p className={styles.progressSheetAiLabel}>
-                          {aiRec.action === 'regenerate' ? 'Recomandare: plan nou' : 'Recomandare: continuă planul'}
+                          {aiRec.action === 'regenerate' ? 'Recomandare: Generează plan nou' : 'Recomandare: Continuă planul actual'}
                         </p>
                         <p className={styles.progressSheetAiReason}>{aiRec.reason}</p>
+                        {aiRec.action === 'regenerate' && aiRec.calChange !== 0 && (
+                          <div className={styles.progressSheetAiCalRow}>
+                            {aiRec.currentCal && (
+                              <><span className={styles.progressSheetAiCalOld}>{aiRec.currentCal} kcal</span>
+                              <span className={styles.progressSheetAiArrow}>→</span></>
+                            )}
+                            {aiRec.targetCal && (
+                              <span className={styles.progressSheetAiCalNew}>{aiRec.targetCal} kcal</span>
+                            )}
+                            <span className={aiRec.calChange < 0 ? styles.progressSheetAiCalDiffDown : styles.progressSheetAiCalDiffUp}>
+                              {aiRec.calChange > 0 ? '+' : ''}{aiRec.calChange}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {aiRec.action === 'regenerate' && aiRec.calChange !== 0 && (
-                      <div className={styles.progressSheetAiCalRow}>
-                        {aiRec.currentCal && (
-                          <><span className={styles.progressSheetAiCalOld}>{aiRec.currentCal} kcal</span>
-                          <span className={styles.progressSheetAiArrow}>→</span></>
-                        )}
-                        {aiRec.targetCal && (
-                          <span className={styles.progressSheetAiCalNew}>{aiRec.targetCal} kcal</span>
-                        )}
-                        <span className={aiRec.calChange < 0 ? styles.progressSheetAiCalDiffDown : styles.progressSheetAiCalDiffUp}>
-                          {aiRec.calChange > 0 ? '+' : ''}{aiRec.calChange} kcal
-                        </span>
-                      </div>
-                    )}
                   </div>
                 )}
 
-                {error && <div className={styles.formError} style={{ margin: '0 28px 16px' }}>{error}</div>}
+                {error && <div className={styles.formError} style={{ margin: '0 32px 16px' }}>{error}</div>}
 
                 <div className={styles.progressSheetFooter}>
                   <button className={styles.cancelBtn} onClick={handleContinue} disabled={saving}>

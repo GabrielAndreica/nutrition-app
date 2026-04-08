@@ -56,6 +56,10 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
     }
   };
 
+  // Debug log
+  console.log('MealPlanTrainer - onViewProgress:', typeof onViewProgress, onViewProgress);
+  console.log('MealPlanTrainer - clientData:', clientData?.clientId);
+
   if (!plan || !plan.days || plan.days.length === 0) {
     return <div className={styles.container}>Nu s-a putut genera planul.</div>;
   }
@@ -195,21 +199,24 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
           </div>
           <div className={styles.tabsActions}>
             {/* Buton pentru antrenor: vizualizează progresul clientului */}
-            {onViewProgress && (
-              <button
-                className={styles.updateProgressBtn}
-                onClick={onViewProgress}
-                title="Vizualizează progresul clientului"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                  <path d="M3 3v5h5"/>
-                  <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                  <path d="M16 16h5v5"/>
-                </svg>
-                Actualizează progres
-              </button>
-            )}
+            <button
+              className={styles.updateProgressBtn}
+              onClick={() => {
+                console.log('Button clicked! onViewProgress:', onViewProgress);
+                if (onViewProgress) {
+                  onViewProgress();
+                } else {
+                  console.error('onViewProgress is not defined!');
+                }
+              }}
+              title="Vizualizează progresul trimis de client"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+              </svg>
+              Vizualizează progres
+            </button>
             <button
               className={`${styles.downloadBtn} ${pdfLoading ? styles.downloadBtnLoading : ''}`}
               onClick={handleDownload}

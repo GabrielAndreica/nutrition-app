@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import MealPlanTrainer from '@/app/components/MealPlanGenerator/MealPlanTrainer';
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import styles from '@/app/meal-plan/meal-plan-view.module.css';
+
+// Lazy load MealPlanTrainer pentru performanță
+const MealPlanTrainer = lazy(() => import('@/app/components/MealPlanGenerator/MealPlanTrainer'));
 
 function SkeletonMealPlan() {
   return (
@@ -38,11 +40,19 @@ function SkeletonMealPlan() {
   );
 }
 
-export default function InlineMealPlanView({ planId: initialPlanId, onBack, onViewProgress }) {
+export default function InlineMealPlanView({ planId: initialPlanId, scrollContainerRef, onBack, onViewProgress }) {
+  // DEBUG
+  console.log('InlineMealPlanView RECEIVED onViewProgress:', typeof onViewProgress, onViewProgress);
+  
   const [currentPlanId, setCurrentPlanId] = useState(initialPlanId);
   const [planTab, setPlanTab] = useState('alimentar');
   const [mealPlan, setMealPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
+
+  // Scroll to top când se montează componenta
+  useEffect(() => {
+    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'instant' });
+  }, [scrollContainerRef]);
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
@@ -63,6 +73,9 @@ export default function InlineMealPlanView({ planId: initialPlanId, onBack, onVi
     setMealPlan(null);
     setLoading(true);
     setError(null);
+
+    // Scroll to top când se schimbă planul vizualizat
+    scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'instant' });
 
     const token = localStorage.getItem('token');
     if (!token) {
@@ -114,7 +127,8 @@ export default function InlineMealPlanView({ planId: initialPlanId, onBack, onVi
     return () => clearTimeout(timer);
   }, [successMessage]);
 
-  const handleRegenerate = async (progressData) => {
+  // Memoized regenerate handler pentru performanță
+  const handleRegenerate = useCallback(async (progressData) => {
     if (!clientData) return;
     abortControllerRef.current?.abort();
     const abortController = new AbortController();
@@ -204,7 +218,10 @@ export default function InlineMealPlanView({ planId: initialPlanId, onBack, onVi
     } finally {
       setRegenerating(false);
     }
-  };
+  }, [clientData]); // Dependency: clientData
+
+  // Memoized computed values
+  const nutritionalNeedsMemo = useMemo(() => nutritionalNeeds, [nutritionalNeeds]);
 
   return (
     <div className={styles.content}>
@@ -278,18 +295,21 @@ export default function InlineMealPlanView({ planId: initialPlanId, onBack, onVi
       )}
 
       {!loading && !regenerating && mealPlan && (
-        <MealPlanTrainer
-          plan={mealPlan}
-          clientData={clientData}
-          nutritionalNeeds={nutritionalNeeds}
-          onReset={onBack}
-          onRegenerate={handleRegenerate}
-          onViewProgress={onViewProgress ? () => {
-            if (clientData?.clientId) {
-              onViewProgress(clientData.clientId);
-            }
-          } : null}
-        />
+        <Suspense fallback={<SkeletonMealPlan />}>
+          <MealPlanTrainer
+            plan={mealPlan}
+            clientData={clientData}
+            nutritionalNeeds={nutritionalNeedsMemo}
+            onReset={onBack}
+            onRegenerate={handleRegenerate}
+            onViewProgress={onViewProgress ? (() => {
+              console.log('BUTTON CLICKED! clientId:', clientData?.clientId);
+              if (clientData?.clientId) {
+                onViewProgress(clientData.clientId);
+              }
+            }) : undefined}
+          />
+        </Suspense>
       )}
     </div>
   );

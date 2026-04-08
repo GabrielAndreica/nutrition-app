@@ -1,25 +1,32 @@
-﻿'use client';
+'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import styles from './dashboard.module.css';
 import ClientsList from '@/app/components/ClientsList';
 import InlineMealPlanView from '@/app/components/InlineMealPlanView';
-import InlinePlanGenerator from '@/app/components/InlinePlanGenerator';
+import InlineProgressView from '@/app/components/InlineProgressView';
 
 function DashboardContent() {
   const router = useRouter();
-  const { logout } = useAuth();
-  const [user, setUser] = useState(null);
+  const { logout, user } = useAuth();
+  const mainRef = useRef(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [view, setView] = useState({ screen: 'clients' });
+  const [viewingPlanId, setViewingPlanId] = useState(null);
+  const [viewingProgressClientId, setViewingProgressClientId] = useState(null);
 
   useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) setUser(JSON.parse(userData));
-  }, []);
+    router.prefetch('/clients');
+    router.prefetch('/generator-plan');
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('/api/clients?page=1&limit=20', {
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => {});
+    }
+  }, [router]);
 
   const firstName = user?.name?.split(' ')[0] || user?.name || '';
   const handleLogout = () => { logout(); router.push('/'); };
@@ -27,6 +34,7 @@ function DashboardContent() {
 
   return (
     <div className={styles.container}>
+      {/* Mobile top bar */}
       <div className={styles.mobileTopbar}>
         <button className={styles.hamburger} onClick={() => setSidebarOpen(v => !v)} aria-label="Meniu">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -44,11 +52,12 @@ function DashboardContent() {
       {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
 
       <div className={styles.pageLayout}>
+        {/* Sidebar */}
         <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
           <div className={styles.sidebarLogo}>
             <div className={styles.sidebarLogoMark}>N</div>
             <span className={styles.sidebarLogoText}>NutriApp</span>
-            <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Inchide meniu">
+            <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Închide meniu">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
                 <line x1="6" y1="6" x2="18" y2="18"/>
@@ -58,10 +67,7 @@ function DashboardContent() {
 
           <div className={styles.sidebarSection}>Meniu</div>
 
-          <div
-            className={`${styles.sidebarItem} ${view.screen === 'clients' ? styles.sidebarItemActive : ''}`}
-            onClick={() => { setSidebarOpen(false); setView({ screen: 'clients' }); }}
-          >
+          <div className={styles.sidebarItem} onClick={() => handleNav('/clients')}>
             <div className={styles.sidebarIcon}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -70,7 +76,18 @@ function DashboardContent() {
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
             </div>
-            <span className={styles.sidebarLabel}>Clienti</span>
+            <span className={styles.sidebarLabel}>Clienți</span>
+          </div>
+
+          <div className={styles.sidebarItem} onClick={() => handleNav('/generator-plan')}>
+            <div className={styles.sidebarIcon}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+              </svg>
+            </div>
+            <span className={styles.sidebarLabel}>Generator Plan</span>
           </div>
 
           <div className={styles.sidebarFooter}>
@@ -80,41 +97,56 @@ function DashboardContent() {
                 <polyline points="16 17 21 12 16 7"/>
                 <line x1="21" y1="12" x2="9" y2="12"/>
               </svg>
-              Iesire
+              Ieșire
             </button>
           </div>
         </aside>
 
-        <main className={styles.main}>
-          {view.screen === 'clients' && (
+        {/* Main */}
+        <main ref={mainRef} className={styles.main}>
+          {!viewingPlanId && !viewingProgressClientId && (
             <>
               <div className={styles.hero}>
                 <h2 className={styles.heroHeading}>
-                  Buna ziua, <span className={styles.accent}>{firstName}</span>.
+                  Bună ziua, <span className={styles.accent}>{firstName}</span>.
                 </h2>
                 <p className={styles.heroSub}>
-                  Gestioneaza clientii si genereaza planuri alimentare personalizate.
+                  Gestionează clienții și generează planuri alimentare personalizate.
                 </p>
               </div>
               <ClientsList
                 noPadding
-                onViewPlan={(planId) => setView({ screen: 'plan', planId })}
-                onGeneratePlan={(clientId) => setView({ screen: 'generator', clientId })}
+                onViewPlan={(planId) => setViewingPlanId(planId)}
+                onViewProgress={(clientId) => setViewingProgressClientId(clientId)}
               />
             </>
           )}
-
-          {view.screen === 'plan' && (
+          {viewingPlanId && !viewingProgressClientId && (
             <InlineMealPlanView
-              planId={view.planId}
-              onBack={() => setView({ screen: 'clients' })}
+              planId={viewingPlanId}
+              scrollContainerRef={mainRef}
+              onBack={() => setViewingPlanId(null)}
+              onViewProgress={(clientId) => {
+                console.log('DASHBOARD onViewProgress CALLED with clientId:', clientId);
+                setViewingPlanId(null);
+                setViewingProgressClientId(clientId);
+              }}
             />
           )}
-
-          {view.screen === 'generator' && (
-            <InlinePlanGenerator
-              clientId={view.clientId}
-              onBack={() => setView({ screen: 'clients' })}
+          {viewingProgressClientId && (
+            <InlineProgressView
+              clientId={viewingProgressClientId}
+              scrollContainerRef={mainRef}
+              onBack={(planId) => {
+                setViewingProgressClientId(null);
+                if (planId) {
+                  setViewingPlanId(planId);
+                }
+              }}
+              onGeneratePlan={(clientId) => {
+                setViewingProgressClientId(null);
+                router.push(`/generator-plan?clientId=${clientId}&fromProgress=true`);
+              }}
             />
           )}
         </main>

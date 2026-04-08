@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import styles from '@/app/clients/clients.module.css';
 
@@ -19,7 +19,8 @@ const goalLabels = {
 };
 const dietLabels = { omnivore: 'Omnivor', vegetarian: 'Vegetarian', vegan: 'Vegan' };
 
-function SkeletonCard() {
+// Memoized skeleton card pentru performanță
+const SkeletonCard = memo(function SkeletonCard() {
   return (
     <div className={styles.skeletonCard}>
       <div className={styles.skeletonHeader}>
@@ -40,9 +41,10 @@ function SkeletonCard() {
       </div>
     </div>
   );
-}
+});
 
-function TrashIcon() {
+// Memoized icons pentru performanță
+const TrashIcon = memo(function TrashIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -52,9 +54,9 @@ function TrashIcon() {
       <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
     </svg>
   );
-}
+});
 
-function ArrowIcon() {
+const ArrowIcon = memo(function ArrowIcon() {
   return (
     <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -62,7 +64,7 @@ function ArrowIcon() {
       <polyline points="12 5 19 12 12 19"/>
     </svg>
   );
-}
+});
 
 export default function ClientsList({ noPadding = false, onViewPlan, onGeneratePlan, onViewProgress }) {
   const router = useRouter();
