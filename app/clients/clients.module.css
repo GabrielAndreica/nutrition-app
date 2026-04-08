@@ -14,7 +14,7 @@
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
-  padding: 36px 24px 64px;
+  padding: 40px 24px 64px;
 }
 
 /* ─── Toolbar ─────────────────────────────────────────────── */
@@ -235,6 +235,38 @@
 }
 
 .clientInfo { flex: 1; min-width: 0; }
+
+.clientNameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.progressBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: rgba(183, 255, 0, 0.18);
+  border: 1px solid rgba(183, 255, 0, 0.4);
+  color: #4a7000;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, transform 0.1s;
+}
+.progressBadge:hover {
+  background: rgba(183, 255, 0, 0.32);
+  transform: translateY(-1px);
+}
+.progressBadge:active {
+  transform: translateY(0);
+}
 
 .clientName {
   margin: 0 0 3px;
@@ -829,9 +861,539 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
+/* ─── Progress fisă inline page ────────────────────────── */
+.progressInlinePage {
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0;
+}
+
+/* Back button — matches AppHeader .backBtn style */
+.progressInlineBack {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+.progressInlineBack:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+  color: #111;
+}
+
+/* Client heading card — matches .clientHeader from meal-plan */
+.progressInlineHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.progressInlineHeadingLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.progressInlineAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(183, 255, 0, 0.15);
+  color: #4a7000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(183, 255, 0, 0.35);
+}
+
+/* Name/sub — matches .clientName / .clientSub from meal-plan */
+.progressInlineName {
+  margin: 0 0 3px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+
+.progressInlineSub {
+  margin: 0;
+  font-size: 13px;
+  color: #86868b;
+  font-weight: 400;
+}
+
+/* Main content card — matches day cards from meal-plan */
+.progressInlineCard {
+  background: #ffffff;
+  border: 1px solid #e8e8ed;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-top: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+/* ─── Progress fisă modal (kept for reference) ──────────── */
+.progressSheetModal {
+  background: #fff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.progressSheetBody {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.progressSheetLoading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+  color: #86868b;
+  font-size: 13px;
+  justify-content: center;
+}
+
+.progressSheetEmpty {
+  margin: 0;
+  padding: 32px 24px;
+  color: #86868b;
+  font-size: 13px;
+  text-align: center;
+}
+
+.progressSheetMainGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border-bottom: 1px solid #f5f5f7;
+}
+
+.progressSheetSection {
+  padding: 18px 24px;
+  border-bottom: 1px solid #f5f5f7;
+}
+.progressSheetSection:last-child { border-bottom: none; }
+
+.progressSheetMainGrid .progressSheetSection {
+  border-bottom: none;
+  border-right: 1px solid #f5f5f7;
+}
+
+.progressSheetMainGrid .progressSheetSection:last-child {
+  border-right: none;
+}
+
+.progressSheetSectionTitle {
+  margin: 0 0 12px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.progressSheetRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+
+.progressSheetColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.progressSheetKv {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e8e8ed;
+  transition: all 0.15s ease;
+}
+
+.progressSheetKv:hover {
+  background: #fafafa;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.progressSheetKey {
+  font-size: 10px;
+  font-weight: 600;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.progressSheetVal {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+}
+
+.progressSheetCapitalize { text-transform: capitalize; }
+
+.progressSheetMessage {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px;
+  background: #fff;
+  border-radius: 10px;
+  border: 1px solid #e8e8ed;
+}
+
+.progressSheetMessageText {
+  margin: 0;
+  font-size: 13px;
+  color: #3c3c43;
+  line-height: 1.5;
+  font-style: normal;
+}
+
+/* History table */
+.progressSheetHistoryTable {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e8e8ed;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.progressSheetHistoryRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #f5f5f7;
+  transition: background 0.15s ease;
+}
+.progressSheetHistoryRow:last-child { border-bottom: none; }
+.progressSheetHistoryRow:hover { background: #fafafa; }
+
+.progressSheetHistoryRowLatest {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.progressSheetHistoryRowLatest:hover {
+  background: #f5f5f7;
+}
+
+.progressSheetHistoryDate {
+  flex: 1;
+  font-size: 12px;
+  color: #86868b;
+  font-weight: 500;
+}
+
+.progressSheetHistoryRowLatest .progressSheetHistoryDate {
+  color: #1d1d1f;
+  font-weight: 600;
+}
+
+.latestLabel {
+  color: #b7ff00;
+  background: #0a0a0a;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-left: 6px;
+}
+
+.progressSheetHistoryWeight {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.2px;
+}
+
+.progressSheetDiffDown {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.08);
+  padding: 3px 8px;
+  border-radius: 6px;
+  min-width: 54px;
+  text-align: center;
+}
+
+.progressSheetDiffUp {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+  padding: 3px 8px;
+  border-radius: 6px;
+  min-width: 54px;
+  text-align: center;
+}
+
+.progressSheetDiffNeutral {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #86868b;
+  background: #f5f5f7;
+  padding: 3px 8px;
+  border-radius: 6px;
+  min-width: 54px;
+  text-align: center;
+}
+
+.weightHistoryClientBadge {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(183, 255, 0, 0.15);
+  border: 1px solid rgba(183, 255, 0, 0.3);
+  color: #5a8000;
+  border-radius: 5px;
+  padding: 2px 6px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+/* AI recommendation box */
+.progressSheetAiContinue {
+  margin: 0;
+  padding: 24px 28px;
+  background: #0a0a0a;
+  border-top: 1px solid #1a1a1a;
+  border-radius: 0;
+}
+
+.progressSheetAiRegen {
+  margin: 0;
+  padding: 24px 28px;
+  background: #0a0a0a;
+  border-top: 1px solid #1a1a1a;
+  border-radius: 0;
+}
+
+.progressSheetAiTop {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.progressSheetAiIcon { 
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #b7ff00;
+  border: 1.5px solid #d4ff4d;
+  border-radius: 10px;
+  color: #0a0a0a;
+}
+
+.progressSheetAiLabel {
+  margin: 0 0 4px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #b7ff00;
+  letter-spacing: -0.15px;
+}
+
+.progressSheetAiReason {
+  margin: 0;
+  font-size: 12.5px;
+  color: #a0a0a0;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.progressSheetAiCalRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+}
+
+.progressSheetAiCalOld {
+  font-size: 12.5px;
+  color: #86868b;
+  text-decoration: line-through;
+  font-weight: 500;
+}
+
+.progressSheetAiArrow {
+  font-size: 13px;
+  color: #86868b;
+  font-weight: 600;
+}
+
+.progressSheetAiCalNew {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #1d1d1f;
+  letter-spacing: -0.2px;
+}
+
+.progressSheetAiCalDiffDown {
+  font-size: 12px;
+  font-weight: 600;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+  padding: 3px 10px;
+  border-radius: 6px;
+  margin-left: 6px;
+}
+
+.progressSheetAiCalDiffUp {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ea580c;
+  background: rgba(234, 88, 12, 0.1);
+  padding: 3px 10px;
+  border-radius: 6px;
+  margin-left: 6px;
+}
+
+.progressSheetFooter {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 20px 28px;
+  border-top: 1px solid #e8e8ed;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.cancelBtn {
+  padding: 10px 20px;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+}
+
+.cancelBtn:hover {
+  background: #e8e8ed;
+}
+
+.cancelBtn:active {
+  transform: scale(0.98);
+}
+
+.backBtnAlt {
+  padding: 10px 20px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+}
+
+.backBtnAlt:hover {
+  background: #1a1a1a;
+  transform: translateY(-1px);
+}
+
+.backBtnAlt:active {
+  transform: scale(0.98);
+}
+
+.saveBtn {
+  padding: 10px 20px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saveBtn:hover {
+  background: #1a1a1a;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.saveBtn:active {
+  transform: scale(0.98);
+  box-shadow: none;
+}
+
+.saveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
 /* ─── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .content { padding: 24px 16px 48px; }
+  .content { padding: 40px 24px 48px; }
+  .progressInlinePage { padding: 0; }
+  .progressInlineName { font-size: 22px; }
 
   .toolbar { flex-wrap: wrap; gap: 10px; }
 
@@ -848,9 +1410,165 @@
   .modalHeader { padding: 20px 20px 14px; }
 
   .pagination { gap: 12px; }
+
+  /* Progress View Mobile */
+  .progressInlineCard {
+    margin-top: 12px;
+    border-radius: 12px;
+  }
+
+  .progressSheetMainGrid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .progressSheetMainGrid .progressSheetSection {
+    border-right: none;
+    border-bottom: 1px solid #f5f5f7;
+  }
+
+  .progressSheetMainGrid .progressSheetSection:last-child {
+    border-bottom: none;
+  }
+
+  .progressSheetSection {
+    padding: 16px 18px;
+  }
+
+  .progressSheetSectionTitle {
+    font-size: 9.5px;
+    margin-bottom: 10px;
+  }
+
+  .progressSheetColumn {
+    gap: 8px;
+  }
+
+  .progressSheetKv {
+    padding: 10px 12px;
+    border-radius: 8px;
+  }
+
+  .progressSheetKey {
+    font-size: 9.5px;
+  }
+
+  .progressSheetVal {
+    font-size: 14px;
+  }
+
+  .progressSheetMessage {
+    padding: 12px;
+    margin-top: 10px;
+    border-radius: 8px;
+  }
+
+  .progressSheetMessageText {
+    font-size: 12.5px;
+  }
+
+  .progressSheetHistoryTable {
+    border-radius: 8px;
+  }
+
+  .progressSheetHistoryRow {
+    padding: 9px 12px;
+    gap: 8px;
+  }
+
+  .progressSheetHistoryDate {
+    font-size: 11.5px;
+  }
+
+  .progressSheetHistoryWeight {
+    font-size: 13px;
+  }
+
+  .latestLabel {
+    font-size: 9px;
+    padding: 2px 5px;
+    margin-left: 4px;
+  }
+
+  .progressSheetDiffDown,
+  .progressSheetDiffUp,
+  .progressSheetDiffNeutral {
+    font-size: 11px;
+    padding: 3px 7px;
+    min-width: 48px;
+  }
+
+  .progressSheetAiContinue,
+  .progressSheetAiRegen {
+    padding: 18px 20px;
+  }
+
+  .progressSheetAiTop {
+    gap: 12px;
+  }
+
+  .progressSheetAiIcon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .progressSheetAiLabel {
+    font-size: 12.5px;
+  }
+
+  .progressSheetAiReason {
+    font-size: 12px;
+  }
+
+  .progressSheetAiCalRow {
+    margin-top: 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .progressSheetFooter {
+    padding: 16px 18px;
+    gap: 8px;
+  }
+
+  .cancelBtn,
+  .saveBtn {
+    padding: 9px 16px;
+    font-size: 12.5px;
+    flex: 1;
+  }
 }
 
 @media (max-width: 480px) {
-  .content { padding: 20px 14px 40px; }
+  .content { padding: 40px 24px 40px; }
   .addBtn span { display: none; }
+
+  .progressSheetSection {
+    padding: 14px 16px;
+  }
+
+  .progressSheetKv {
+    padding: 9px 11px;
+  }
+
+  .progressSheetHistoryRow {
+    padding: 8px 11px;
+  }
+
+  .progressSheetAiContinue,
+  .progressSheetAiRegen {
+    padding: 16px 18px;
+  }
+
+  .progressSheetFooter {
+    padding: 14px 16px;
+    flex-direction: column;
+  }
+
+  .cancelBtn,
+  .saveBtn {
+    width: 100%;
+    justify-content: center;
+  }
 }

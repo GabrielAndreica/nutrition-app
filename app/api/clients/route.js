@@ -41,9 +41,9 @@ export async function GET(request) {
     clientsQuery = clientsQuery.ilike('name', `%${search}%`);
   }
 
-  // Run both queries IN PARALLEL — plans filtered only by trainer_id (3 small columns)
-  // This cuts total latency from sum(q1+q2) to max(q1,q2)
-  const [clientsResult, plansResult] = await Promise.all([
+  // Run queries IN PARALLEL — plans + recent client progress submissions
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const [clientsResult, plansResult, progressResult] = await Promise.all([
     clientsQuery,
     supabase
       .from('meal_plans')
@@ -51,6 +51,11 @@ export async function GET(request) {
       .eq('trainer_id', auth.userId)
       .order('created_at', { ascending: false })
       .limit(1000),
+    supabase
+      .from('weight_history')
+      .select('client_id')
+      .like('notes', '[CLIENT]%')
+      .gte('recorded_at', sevenDaysAgo),
   ]);
 
   if (clientsResult.error) {
@@ -78,7 +83,15 @@ export async function GET(request) {
     }
   }
 
-  // Process clients and add invitation status
+  // Build set of client_ids that sent progress in the last 7 days
+  const newProgressSet = new Set();
+  if (progressResult.data) {
+    for (const entry of progressResult.data) {
+      newProgressSet.add(entry.client_id);
+    }
+  }
+
+  // Process clients and add invitation status + progress flag
   const processedClients = (clientsResult.data || []).map(client => {
     const pendingInvite = client.client_invitations?.find(inv => inv.status === 'pending');
     return {
@@ -86,6 +99,7 @@ export async function GET(request) {
       invitation_status: client.user_id ? 'accepted' : (pendingInvite ? 'pending' : null),
       invitation_email: pendingInvite?.client_email || null,
       client_invitations: undefined, // Remove array from response
+      has_new_progress: newProgressSet.has(client.id),
     };
   });
 

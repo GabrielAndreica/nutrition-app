@@ -178,6 +178,19 @@ function GeneratorContent() {
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    // Citește datele de progres stocate de antrenor din panoul de clienți
+    const fromProgress = searchParams.get('fromProgress') === 'true';
+    let storedProgress = null;
+    let previousNeeds = null;
+    if (fromProgress) {
+      try {
+        storedProgress = JSON.parse(sessionStorage.getItem('clientProgress') || 'null');
+        previousNeeds  = JSON.parse(sessionStorage.getItem('clientPreviousNeeds') || 'null');
+      } catch { /* ignoră erori de parse */ }
+      sessionStorage.removeItem('clientProgress');
+      sessionStorage.removeItem('clientPreviousNeeds');
+    }
+
     fetch(`/api/clients/${clientId}`, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
@@ -185,11 +198,11 @@ function GeneratorContent() {
       .then(data => {
         if (!data.client) throw new Error(data.error || 'Client negăsit');
         const c = data.client;
-        handleGeneratePlan({
+        const formData = {
           clientId: clientId,
           name: c.name,
           age: String(c.age),
-          weight: String(c.weight),
+          weight: storedProgress?.currentWeight ? String(storedProgress.currentWeight) : String(c.weight),
           height: String(c.height),
           gender: c.gender || 'M',
           goal: c.goal || 'maintenance',
@@ -198,7 +211,15 @@ function GeneratorContent() {
           allergies: c.allergies || '',
           mealsPerDay: String(c.meals_per_day || '3'),
           foodPreferences: c.food_preferences || '',
-        });
+        };
+        if (storedProgress) {
+          formData.progress = storedProgress;
+        }
+        // Restaurează necesarul anterior pentru toast-ul de diff macro
+        if (previousNeeds) {
+          previousNeedsRef.current = previousNeeds;
+        }
+        handleGeneratePlan(formData, !!storedProgress);
       })
       .catch(err => setError(err.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
