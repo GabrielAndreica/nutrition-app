@@ -2,10 +2,21 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import { useAuth } from '@/app/contexts/AuthContext';
-import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
 import styles from './dashboard.module.css';
+
+// Dynamic import cu ssr: false pentru MealPlan (folosește jsPDF)
+const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPlan'), {
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingContainer}>
+      <div className={styles.loadingSpinner} />
+      <p>Se încarcă planul...</p>
+    </div>
+  )
+});
 
 function ClientDashboardContent() {
   const router = useRouter();
@@ -20,6 +31,44 @@ function ClientDashboardContent() {
   const [cooldownUntil, setCooldownUntil] = useState(null);
   const fetchedRef = useRef(false);
   const COOLDOWN_MS = 1 * 60 * 1000; 
+
+  // Funcție pentru a reîncărca datele clientului
+  const refreshClientData = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      // Fetch lista planuri pentru client
+      const plansRes = await fetch('/api/meal-plans', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const plansData = await plansRes.json();
+      
+      if (!plansData.plans || plansData.plans.length === 0) return;
+
+      const latestPlan = plansData.plans[0];
+      
+      // Fetch detalii plan
+      const planRes = await fetch(`/api/meal-plans/${latestPlan.id}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const planData = await planRes.json();
+      
+      if (planData && planData.mealPlan) {
+        const { client_id } = planData.mealPlan;
+        const c = planData.client || {};
+        
+        setClientData(prev => ({
+          ...prev,
+          weight: c.weight ? String(c.weight) : prev?.weight,
+          age: c.age ? String(c.age) : prev?.age,
+          height: c.height ? String(c.height) : prev?.height,
+        }));
+      }
+    } catch (err) {
+      console.error('Eroare la reîncărcarea datelor clientului:', err);
+    }
+  };
 
   useEffect(() => {
     if (fetchedRef.current) return;
@@ -130,6 +179,13 @@ function ClientDashboardContent() {
 
     const nextDate = new Date(Date.now() + COOLDOWN_MS);
     setCooldownUntil(nextDate.toISOString());
+    
+    // Actualizează greutatea local imediat cu valoarea trimisă
+    setClientData(prev => ({
+      ...prev,
+      weight: String(progressData.currentWeight)
+    }));
+    
     return { success: true };
   };
 
@@ -281,24 +337,6 @@ function ClientDashboardContent() {
             </p>
           </div>
 
-          {/* Inline plan tab toggle */}
-          <div className={styles.planTabsRow}>
-            <div className={styles.planTabsToggle}>
-              <button
-                className={`${styles.planTab} ${activeTab === 'plan' ? styles.planTabActive : ''}`}
-                onClick={() => handleTabChange('plan')}
-              >
-                Plan alimentar
-              </button>
-              <button
-                className={`${styles.planTab} ${activeTab === 'workout' ? styles.planTabActive : ''}`}
-                onClick={() => handleTabChange('workout')}
-              >
-                Plan de antrenament
-              </button>
-            </div>
-          </div>
-
           {!loading && !mealPlan && !error && activeTab === 'plan' && (
             <div className={styles.noPlanEmpty}>
               <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
@@ -322,6 +360,7 @@ function ClientDashboardContent() {
 
               {mealPlan && (
                 <MealPlan
+                  key={`mealplan-${clientData?.weight || 'initial'}`}
                   plan={mealPlan}
                   clientData={clientData}
                   nutritionalNeeds={nutritionalNeeds}

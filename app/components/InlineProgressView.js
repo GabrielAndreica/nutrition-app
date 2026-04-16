@@ -35,16 +35,33 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
   const [weightHistory, setWeightHistory] = useState([]);
   const [stagnationWeeks, setStagnationWeeks] = useState(0);
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
+  const [previousPlanCalories, setPreviousPlanCalories] = useState(null);
   const [planId, setPlanId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
   const [newWeight, setNewWeight] = useState('');
+  const [planContinued, setPlanContinued] = useState(false);
+  const [lastProgressId, setLastProgressId] = useState(null);
+  const [showBanner, setShowBanner] = useState(false);
+  const [generatingPlan, setGeneratingPlan] = useState(false);
+  const [generatingProgress, setGeneratingProgress] = useState(0);
+  const [generatingDay, setGeneratingDay] = useState(0);
 
   // Scroll to top când se montează componenta
   useEffect(() => {
     scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'instant' });
   }, [scrollContainerRef]);
+
+  // Auto-close banner după 5 secunde
+  useEffect(() => {
+    if (showBanner) {
+      const timer = setTimeout(() => {
+        setShowBanner(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showBanner]);
 
   const authHeaders = useCallback(() => ({
     'Content-Type': 'application/json',
@@ -52,41 +69,135 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
   }), []);
 
   // Memoized AI recommendation computation
-  const computeAiRecommendation = useCallback((data, stagnationWeeks, client, nutritionalNeeds) => {
+  const computeAiRecommendation = useCallback((data, stagnationWeeks, client, nutritionalNeeds, weightHistory, previousPlanCalories) => {
     const goal = client?.goal || 'maintenance';
     const adherence = data.respectare?.toLowerCase();
     const energy = data.energie?.toLowerCase();
     const hunger = data.foame?.toLowerCase();
-    const currentCal = nutritionalNeeds?.calories || null;
+    
+    // Dacă planul are previous_plan_calories (generat din progres), folosește acela pentru comparație
+    // Altfel folosește caloriile planului curent
+    const currentCal = previousPlanCalories || nutritionalNeeds?.calories || null;
+    if (previousPlanCalories) {
+      console.log('[AI Recommendation] Using previous_plan_calories from DB:', currentCal);
+    } else {
+      console.log('[AI Recommendation] Using current plan calories:', currentCal);
+    }
 
     let action = 'continue';
     let calChange = 0;
     let reason = '';
 
-    if (hunger === 'extrem' || (hunger === 'crescut' && energy === 'scazut')) {
-      action = 'regenerate';
-      calChange = goal === 'weight_loss' ? +100 : +150;
-      reason = hunger === 'extrem'
-        ? 'Foame extremă — deficit prea agresiv'
-        : 'Foame crescută + energie scăzută — necesită ajustare';
-    } else if (stagnationWeeks >= 2) {
-      action = 'regenerate';
-      if (goal === 'weight_loss') {
-        calChange = adherence === 'complet' ? -100 : -150;
-        reason = `Stagnare ${stagnationWeeks} săptămâni — reducere deficit`;
-      } else if (goal === 'muscle_gain') {
-        calChange = +100;
-        reason = `Stagnare ${stagnationWeeks} săptămâni — creștere surplus`;
-      } else {
-        calChange = 0;
-        reason = `Stagnare ${stagnationWeeks} săptămâni — reechilibrare macronutrienți`;
-      }
-    } else if (stagnationWeeks === 1 && adherence === 'complet') {
-      action = 'continue';
-      reason = 'O săptămână fără schimbare — este prea devreme pentru ajustare';
+    // Calculează schimbarea de greutate față de greutatea anterioară [CLIENT]
+    let weightChangePercent = 0;
+    const currentWeight = parseFloat(data.weight);
+    let previousWeight = null;
+    
+    // Filtrează doar intrările [CLIENT] din istoric pentru comparație corectă
+    const clientEntries = weightHistory?.filter(e => e.notes?.startsWith('[CLIENT]')) || [];
+    
+    // Sortează descrescător după dată (cele mai recente primele)
+    clientEntries.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+    
+    console.log(`[AI Recommendation] Client entries count: ${clientEntries.length}`);
+    
+    // Intrarea curentă este cel mai recent [CLIENT] (indexul 0)
+    // Caută a doua intrare [CLIENT] pentru comparație (indexul 1)
+    if (clientEntries.length >= 2) {
+      const prevEntry = clientEntries[1];
+      previousWeight = parseFloat(prevEntry.weight);
+      console.log(`[AI Recommendation] Comparing current ${currentWeight}kg with previous CLIENT entry ${previousWeight}kg`);
+    } else if (clientEntries.length === 1 && client?.weight) {
+      // Prima intrare de la client - comparăm cu greutatea inițială din profil
+      previousWeight = parseFloat(client.weight);
+      console.log(`[AI Recommendation] First CLIENT entry - comparing with profile weight ${previousWeight}kg`);
+    }
+    
+    if (previousWeight && currentWeight && Math.abs(currentWeight - previousWeight) > 0.05) {
+      weightChangePercent = ((currentWeight - previousWeight) / previousWeight) * 100;
+      console.log(`[AI Recommendation] Weight change: ${previousWeight}kg → ${currentWeight}kg = ${weightChangePercent.toFixed(2)}%`);
     } else {
-      action = 'continue';
-      reason = 'Progres conform așteptărilor — planul funcționează';
+      console.log(`[AI Recommendation] No significant weight change detected. Current: ${currentWeight}kg, Previous: ${previousWeight || 'N/A'}kg`);
+    }
+
+    // Verifică dacă schimbarea de greutate e în afara intervalului optim
+    let isWeightSuboptimal = false;
+    if (goal === 'weight_loss') {
+      // Cut: ar trebui -0.2% până la -1.0% pe săptămână
+      // Prea puțin sau creștere = suboptimal
+      if (weightChangePercent > -0.2) {
+        isWeightSuboptimal = true;
+        calChange = -125;
+        reason = weightChangePercent > 0 
+          ? `Greutate crescută cu ${weightChangePercent.toFixed(1)}% — reducere calorii necesară`
+          : 'Progres prea lent — reducere calorii pentru accelerare';
+        action = 'regenerate';
+      }
+      // Prea mult slăbit = suboptimal
+      else if (weightChangePercent < -1.0) {
+        isWeightSuboptimal = true;
+        calChange = +125;
+        reason = `Slăbire prea rapidă (${Math.abs(weightChangePercent).toFixed(1)}%) — creștere calorii pentru sustenabilitate`;
+        action = 'regenerate';
+      }
+    } else if (goal === 'maintenance') {
+      // Menținere: ±0.3% e ideal
+      const tolerance = 0.5; // toleranță extinsă
+      if (Math.abs(weightChangePercent) > tolerance) {
+        isWeightSuboptimal = true;
+        if (weightChangePercent > tolerance) {
+          calChange = -100;
+          reason = `Greutate crescută cu ${weightChangePercent.toFixed(1)}% — reducere calorii pentru menținere`;
+        } else {
+          calChange = +100;
+          reason = `Greutate scăzută cu ${Math.abs(weightChangePercent).toFixed(1)}% — creștere calorii pentru menținere`;
+        }
+        action = 'regenerate';
+      }
+    } else if (goal === 'muscle_gain') {
+      // Masă: +0.25% până la +0.50% e optim
+      if (weightChangePercent < 0.25) {
+        isWeightSuboptimal = true;
+        calChange = +125;
+        reason = weightChangePercent < 0
+          ? `Greutate scăzută (${weightChangePercent.toFixed(1)}%) — creștere surplus pentru masă`
+          : 'Progres prea lent — creștere surplus pentru creștere musculară';
+        action = 'regenerate';
+      } else if (weightChangePercent > 0.75) {
+        isWeightSuboptimal = true;
+        calChange = -100;
+        reason = `Creștere prea rapidă (${weightChangePercent.toFixed(1)}%) — risc grăsime, reducere surplus`;
+        action = 'regenerate';
+      }
+    }
+
+    // Dacă nu e suboptimal din greutate, verifică foamea și stagnarea
+    if (!isWeightSuboptimal) {
+      if (hunger === 'extrem' || (hunger === 'crescut' && energy === 'scazut')) {
+        action = 'regenerate';
+        calChange = goal === 'weight_loss' ? +100 : +150;
+        reason = hunger === 'extrem'
+          ? 'Foame extremă — deficit prea agresiv'
+          : 'Foame crescută + energie scăzută — necesită ajustare';
+      } else if (stagnationWeeks >= 2) {
+        action = 'regenerate';
+        if (goal === 'weight_loss') {
+          calChange = adherence === 'complet' ? -100 : -150;
+          reason = `Stagnare ${stagnationWeeks} săptămâni — reducere deficit`;
+        } else if (goal === 'muscle_gain') {
+          calChange = +100;
+          reason = `Stagnare ${stagnationWeeks} săptămâni — creștere surplus`;
+        } else {
+          calChange = 0;
+          reason = `Stagnare ${stagnationWeeks} săptămâni — reechilibrare macronutrienți`;
+        }
+      } else if (stagnationWeeks === 1 && adherence === 'complet') {
+        action = 'continue';
+        reason = 'O săptămână fără schimbare — este prea devreme pentru ajustare';
+      } else {
+        action = 'continue';
+        reason = 'Progres conform așteptărilor — planul funcționează';
+      }
     }
 
     const targetCal = currentCal ? currentCal + calChange : null;
@@ -96,8 +207,8 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
   // Memoized AI recommendation result
   const aiRecommendation = useMemo(() => {
     if (!progressData || !client) return null;
-    return computeAiRecommendation(progressData, stagnationWeeks, client, nutritionalNeeds);
-  }, [progressData, stagnationWeeks, client, nutritionalNeeds, computeAiRecommendation]);
+    return computeAiRecommendation(progressData, stagnationWeeks, client, nutritionalNeeds, weightHistory, previousPlanCalories);
+  }, [progressData, stagnationWeeks, client, nutritionalNeeds, weightHistory, previousPlanCalories, computeAiRecommendation]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -107,14 +218,20 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
       try {
         // Fetch client data
         const clientRes = await fetch(`/api/clients/${clientId}`, { headers: authHeaders() });
+        if (!clientRes.ok) {
+          const errorText = await clientRes.text();
+          throw new Error(`Eroare la încărcarea clientului: ${clientRes.status}`);
+        }
         const clientData = await clientRes.json();
-        if (!clientRes.ok) throw new Error(clientData.error || 'Eroare la încărcarea clientului');
         setClient(clientData.client);
         
         // Fetch weight history
         const whRes = await fetch(`/api/clients/${clientId}/weight-history`, { headers: authHeaders() });
+        if (!whRes.ok) {
+          const errorText = await whRes.text();
+          throw new Error(`Eroare la încărcare istoric: ${whRes.status}`);
+        }
         const whData = await whRes.json();
-        if (!whRes.ok) throw new Error(whData.error || 'Eroare la încărcare');
         setWeightHistory(whData.weightHistory || []);
         setStagnationWeeks(whData.stagnationWeeks || 0);
 
@@ -139,6 +256,14 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
             mesaj: parsed['Mesaj'] || '',
           });
           setNewWeight(String(clientEntry.weight));
+          setLastProgressId(clientEntry.id);
+          
+          // Verifică dacă planul a fost deja continuat pentru acest progres
+          const continuedKey = `plan_continued_${clientId}_${clientEntry.id}`;
+          const wasContinued = sessionStorage.getItem(continuedKey);
+          if (wasContinued) {
+            setPlanContinued(true);
+          }
         }
 
         // Fetch current plan for nutritional needs
@@ -156,10 +281,16 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
               if (planData.mealPlan?.daily_targets) {
                 setNutritionalNeeds(planData.mealPlan.daily_targets);
               }
+              // Setează previous_plan_calories dacă există
+              if (planData.previousPlanCalories) {
+                setPreviousPlanCalories(planData.previousPlanCalories);
+                console.log('[InlineProgressView] Loaded previous_plan_calories:', planData.previousPlanCalories);
+              }
             }
           }
         }
       } catch (err) {
+        console.error('[InlineProgressView] Error fetching data:', err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -172,49 +303,59 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
   }, [clientId, authHeaders]);
 
   const handleContinue = () => {
-    // Marchează progresul ca vizualizat și întoarce-te
-    onBack();
+    // Marchează planul ca fiind continuat pentru acest progres
+    if (lastProgressId) {
+      const continuedKey = `plan_continued_${clientId}_${lastProgressId}`;
+      sessionStorage.setItem(continuedKey, 'true');
+      setPlanContinued(true);
+      setShowBanner(true);
+    }
   };
 
   const handleGenerate = async () => {
     if (!client || !progressData) return;
     setSaving(true);
-    
-    const weightVal = parseFloat(newWeight);
-    const hasNewWeight = newWeight.trim() !== '' && !isNaN(weightVal) && weightVal >= 30 && weightVal <= 300;
 
     try {
-      if (hasNewWeight) {
-        const res = await fetch(`/api/clients/${client.id}`, {
-          method: 'PUT',
-          headers: authHeaders(),
-          body: JSON.stringify({
-            name: client.name,
-            age: String(client.age),
-            weight: String(weightVal),
-            height: String(client.height),
-            gender: client.gender,
-            goal: client.goal,
-            activityLevel: client.activity_level,
-            dietType: client.diet_type,
-            allergies: client.allergies || '',
-            mealsPerDay: String(client.meals_per_day),
-            foodPreferences: client.food_preferences || '',
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Eroare la actualizare');
+      // Găsește greutatea ANTERIOARĂ din weightHistory pentru calcul corect în API
+      // Nu folosim client.weight pentru că poate fi deja actualizat de trigger
+      let oldWeight = null;
+      const clientEntries = weightHistory?.filter(e => e.notes?.startsWith('[CLIENT]')) || [];
+      clientEntries.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+      
+      if (clientEntries.length >= 2) {
+        // Avem cel puțin 2 intrări CLIENT - luăm penultima
+        oldWeight = parseFloat(clientEntries[1].weight);
+        console.log('[InlineProgressView] Found previous weight from history:', oldWeight);
+      } else if (clientEntries.length === 1) {
+        // Prima intrare CLIENT - nu avem greutate anterioară, folosim cea curentă
+        oldWeight = parseFloat(progressData.weight);
+        console.log('[InlineProgressView] First CLIENT entry, using current weight:', oldWeight);
+      }
+      
+      if (oldWeight) {
+        sessionStorage.setItem('clientOldWeight', String(oldWeight));
+        console.log('[InlineProgressView] Storing oldWeight:', oldWeight);
       }
 
       // Stochează datele de progres pentru generator
       sessionStorage.setItem('clientProgress', JSON.stringify({
-        currentWeight: String(hasNewWeight ? weightVal : progressData.weight),
+        currentWeight: String(progressData.weight), // greutatea nouă din progresul clientului
         adherence: progressData.respectare,
         energyLevel: progressData.energie,
         hungerLevel: progressData.foame,
         notes: progressData.mesaj || '',
         weeksNoChange: String(stagnationWeeks),
+        forceRegenerate: true, // Flag pentru a indica că antrenorul vrea explicit regenerare
       }));
+      
+      console.log('[InlineProgressView] Stored progress:', {
+        currentWeight: progressData.weight,
+        adherence: progressData.respectare,
+        energyLevel: progressData.energie,
+        hungerLevel: progressData.foame,
+        weeksNoChange: stagnationWeeks
+      });
 
       // Stochează necesarul nutrițional curent pentru diff-ul macro după generare
       if (planId) {
@@ -231,6 +372,15 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
 
       setSaving(false);
       
+      // Marchează progresul ca fiind tratat (s-a generat plan nou)
+      if (lastProgressId) {
+        const continuedKey = `plan_continued_${clientId}_${lastProgressId}`;
+        sessionStorage.setItem(continuedKey, 'true');
+        setPlanContinued(true);
+      }
+      
+      console.log('[InlineProgressView] Calling onGeneratePlan with clientId:', client.id);
+      
       if (onGeneratePlan) {
         onGeneratePlan(client.id);
       } else {
@@ -243,15 +393,14 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
   };
 
   const aiRec = progressData && client
-    ? computeAiRecommendation(progressData, stagnationWeeks, client, nutritionalNeeds)
+    ? computeAiRecommendation(progressData, stagnationWeeks, client, nutritionalNeeds, weightHistory)
     : null;
 
   const handleBackToPlan = () => {
-    // Navighează înapoi la planul alimentar
     if (planId) {
-      onBack(planId); // Trimite planId la dashboard pentru a afișa planul
+      onBack(planId);
     } else {
-      onBack(); // Dacă nu există plan, închide doar view-ul
+      onBack();
     }
   };
 
@@ -402,6 +551,17 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
             </div>
           </div>
 
+          {/* Banner plan continuat */}
+          {planContinued && showBanner && (
+            <div className={styles.progressOptimalBanner}>
+              <span className={styles.progressOptimalIcon}>✓</span>
+              <div className={styles.progressOptimalText}>
+                <strong>Planul a rămas neschimbat</strong>
+                <p>Clientul va continua cu același plan alimentar.</p>
+              </div>
+            </div>
+          )}
+
           {/* Card principal */}
           <div className={styles.progressInlineCard}>
             {!progressData ? (
@@ -476,8 +636,8 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
                   )}
                 </div>
 
-                {/* Recomandare AI - jos de tot */}
-                {aiRec && (
+                {/* Recomandare AI - jos de tot (ascunsă după ce s-a generat plan) */}
+                {aiRec && !planContinued && (
                   <div className={aiRec.action === 'regenerate' ? styles.progressSheetAiRegen : styles.progressSheetAiContinue}>
                     <div className={styles.progressSheetAiTop}>
                       <span className={styles.progressSheetAiIcon}>
@@ -520,14 +680,22 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
                 {error && <div className={styles.formError} style={{ margin: '0 32px 16px' }}>{error}</div>}
 
                 <div className={styles.progressSheetFooter}>
-                  <button className={styles.cancelBtn} onClick={handleContinue} disabled={saving}>
-                    Continuă planul
-                  </button>
-                  <button className={styles.saveBtn} onClick={handleGenerate} disabled={saving}>
-                    {saving
-                      ? <><span className={styles.savingSpinner} />Se pregătește...</>
-                      : 'Generează plan nou'}
-                  </button>
+                  {planContinued ? (
+                    <button className={styles.disabledProgressBtn} disabled>
+                      Progresul a fost deja tratat
+                    </button>
+                  ) : (
+                    <>
+                      <button className={styles.cancelBtn} onClick={handleContinue} disabled={saving}>
+                        Continuă planul
+                      </button>
+                      <button className={styles.saveBtn} onClick={handleGenerate} disabled={saving}>
+                        {saving
+                          ? <><span className={styles.savingSpinner} />Se pregătește...</>
+                          : 'Generează plan nou'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             )}

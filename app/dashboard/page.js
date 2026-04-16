@@ -1,13 +1,40 @@
-'use client';
+﻿'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import styles from './dashboard.module.css';
 import ClientsList from '@/app/components/ClientsList';
-import InlineMealPlanView from '@/app/components/InlineMealPlanView';
-import InlineProgressView from '@/app/components/InlineProgressView';
+
+// Dynamic imports cu ssr: false pentru componente care folosesc jsPDF
+const InlineMealPlanView = dynamic(() => import('@/app/components/InlineMealPlanView'), { 
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingOverlay}>
+      <div className={styles.loadingSpinner} />
+    </div>
+  )
+});
+
+const InlineProgressView = dynamic(() => import('@/app/components/InlineProgressView'), { 
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingOverlay}>
+      <div className={styles.loadingSpinner} />
+    </div>
+  )
+});
+
+const InlinePlanGenerator = dynamic(() => import('@/app/components/InlinePlanGenerator'), { 
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingOverlay}>
+      <div className={styles.loadingSpinner} />
+    </div>
+  )
+});
 
 function DashboardContent() {
   const router = useRouter();
@@ -16,13 +43,17 @@ function DashboardContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewingPlanId, setViewingPlanId] = useState(null);
   const [viewingProgressClientId, setViewingProgressClientId] = useState(null);
+  const [generatingPlanClientId, setGeneratingPlanClientId] = useState(null);
 
   useEffect(() => {
+    // Prefetch critical routes pentru navigare rapidă
     router.prefetch('/clients');
     router.prefetch('/generator-plan');
+    
+    // Prefetch date pentru clienți în fundal
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('/api/clients?page=1&limit=20', {
+      fetch('/api/clients?page=1&limit=10', {
         headers: { Authorization: `Bearer ${token}` },
       }).catch(() => {});
     }
@@ -104,7 +135,7 @@ function DashboardContent() {
 
         {/* Main */}
         <main ref={mainRef} className={styles.main}>
-          {!viewingPlanId && !viewingProgressClientId && (
+          {!viewingPlanId && !viewingProgressClientId && !generatingPlanClientId && (
             <>
               <div className={styles.hero}>
                 <h2 className={styles.heroHeading}>
@@ -121,13 +152,12 @@ function DashboardContent() {
               />
             </>
           )}
-          {viewingPlanId && !viewingProgressClientId && (
+          {viewingPlanId && !viewingProgressClientId && !generatingPlanClientId && (
             <InlineMealPlanView
               planId={viewingPlanId}
               scrollContainerRef={mainRef}
               onBack={() => setViewingPlanId(null)}
               onViewProgress={(clientId) => {
-                console.log('DASHBOARD onViewProgress CALLED with clientId:', clientId);
                 setViewingPlanId(null);
                 setViewingProgressClientId(clientId);
               }}
@@ -145,7 +175,21 @@ function DashboardContent() {
               }}
               onGeneratePlan={(clientId) => {
                 setViewingProgressClientId(null);
-                router.push(`/generator-plan?clientId=${clientId}&fromProgress=true`);
+                setGeneratingPlanClientId(clientId);
+              }}
+            />
+          )}
+          {generatingPlanClientId && !viewingProgressClientId && (
+            <InlinePlanGenerator
+              clientId={generatingPlanClientId}
+              scrollContainerRef={mainRef}
+              onBack={() => {
+                setGeneratingPlanClientId(null);
+              }}
+              onPlanGenerated={(planId) => {
+                setGeneratingPlanClientId(null);
+                setViewingProgressClientId(null);
+                setViewingPlanId(planId);
               }}
             />
           )}

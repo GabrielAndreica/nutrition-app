@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { sanitizeName, sanitizeText, sanitizeFoodRestrictions, sanitizeFoodPreferences, sanitizeNumber } from '@/app/lib/sanitize';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -13,6 +14,32 @@ export async function GET(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (auth.role !== 'trainer') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+
+  // ─── Database Rate Limiting ────────────────────────────────
+  try {
+    const { data: rateLimitResult, error: rateLimitError } = await supabase
+      .rpc('check_rate_limit', {
+        p_user_id: String(auth.userId),
+        p_endpoint: 'clients-list',
+        p_max_requests: 1000,  // Max 1000 requests per 15 min (relaxed for load)
+        p_window_minutes: 15
+      });
+
+    if (rateLimitError) {
+      console.error('Rate limit check error:', rateLimitError);
+    } else if (rateLimitResult && rateLimitResult.length > 0) {
+      const { allowed, remaining } = rateLimitResult[0];
+      
+      if (!allowed) {
+        return NextResponse.json(
+          { error: 'Prea multe cereri. Încearcă din nou în câteva minute.' },
+          { status: 429, headers: { 'X-RateLimit-Remaining': '0' } }
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Rate limit exception:', err);
+  }
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get('search')?.trim() || '';
@@ -144,6 +171,24 @@ export async function POST(request) {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
+  }
+
+  // ─── Sanitizare input-uri (XSS Protection) ───────────────────
+  try {
+    if (body.name) body.name = sanitizeName(body.name);
+    if (body.allergies) body.allergies = sanitizeFoodRestrictions(body.allergies);
+    if (body.foodPreferences) body.foodPreferences = sanitizeFoodPreferences(body.foodPreferences);
+    
+    // Sanitizare numere
+    if (body.age) body.age = sanitizeNumber(body.age, { min: 10, max: 120, allowFloat: false });
+    if (body.weight) body.weight = sanitizeNumber(body.weight, { min: 20, max: 300 });
+    if (body.height) body.height = sanitizeNumber(body.height, { min: 100, max: 250, allowFloat: false });
+    if (body.mealsPerDay) body.mealsPerDay = sanitizeNumber(body.mealsPerDay, { min: 1, max: 6, allowFloat: false });
+  } catch (sanitizeError) {
+    return NextResponse.json(
+      { error: `Date invalide: ${sanitizeError.message}` },
+      { status: 400 }
+    );
   }
 
   const { name, age, weight, height, goal, gender, activityLevel, dietType, allergies, mealsPerDay, foodPreferences } = body;

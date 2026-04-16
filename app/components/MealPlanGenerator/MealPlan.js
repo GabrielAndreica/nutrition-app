@@ -343,7 +343,7 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
                     handleOpenProgress();
                   }
                 }}
-                disabled={progressInCooldown && onSubmitProgress}
+                disabled={!!(progressInCooldown && onSubmitProgress)}
                 title={progressInCooldown && onSubmitProgress ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}` : undefined}
               >
                 {progressInCooldown && onSubmitProgress ? (

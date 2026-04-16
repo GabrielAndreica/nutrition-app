@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { sanitizeEmail } from '@/app/lib/sanitize';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,

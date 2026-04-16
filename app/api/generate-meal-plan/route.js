@@ -5,6 +5,7 @@ import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { checkRateLimit, requestQueue, generateRequestId } from '@/app/lib/rateLimiter';
 import { cachedCalculateCalories, cachedCalculateMacros, getCachedMealDistribution } from '@/app/lib/nutritionCache';
+import { sanitizeText, sanitizeFoodRestrictions, sanitizeFoodPreferences, sanitizeNumber } from '@/app/lib/sanitize';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -162,6 +163,57 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
     }
 
+    // ─── Database Rate Limiting (PRIORITATE - previne abuse) ────
+    try {
+      const { data: rateLimitResult, error: rateLimitError } = await supabase
+        .rpc('check_rate_limit', {
+          p_user_id: String(auth.userId),  // Convert to TEXT for DB
+          p_endpoint: 'generate-meal-plan',
+          p_max_requests: 10,  // Max 10 planuri per oră
+          p_window_minutes: 60
+        });
+
+      if (rateLimitError) {
+        console.error('Eroare la verificare rate limit:', rateLimitError);
+        // Continuă execuția - nu blocăm pentru erori de rate limit
+      } else if (rateLimitResult && rateLimitResult.length > 0) {
+        const { allowed, remaining, reset_at } = rateLimitResult[0];
+        
+        if (!allowed) {
+          const resetDate = new Date(reset_at);
+          const minutesRemaining = Math.ceil((resetDate - new Date()) / 60000);
+          
+          await logActivity({
+            action: 'meal_plan.generate',
+            status: 'rate_limited',
+            userId: auth.userId,
+            email: auth.email,
+            details: { reset_at, remaining: 0 }
+          });
+          
+          return NextResponse.json(
+            { 
+              error: `Ai atins limita de 10 planuri pe oră. Poți genera un nou plan în ${minutesRemaining} minute.`,
+              retryAfter: minutesRemaining * 60
+            },
+            { 
+              status: 429,
+              headers: { 
+                'Retry-After': String(minutesRemaining * 60),
+                'X-RateLimit-Remaining': '0',
+                'X-RateLimit-Reset': reset_at
+              }
+            }
+          );
+        }
+        
+        console.log(`Rate limit OK - rămân ${remaining} planuri în fereastra curentă`);
+      }
+    } catch (rateLimitCheckError) {
+      console.error('Excepție la verificare rate limit:', rateLimitCheckError);
+      // Continuă - nu blocăm pentru erori
+    }
+
     // ─── Rate Limiting ───────────────────────────────────────────
     const rateCheck = checkRateLimit(auth.userId);
     if (!rateCheck.allowed) {
@@ -196,6 +248,34 @@ export async function POST(request) {
       );
     }
 
+    // ─── Sanitizare input-uri (XSS Protection) ───────────────────
+    try {
+      if (clientData.name) clientData.name = sanitizeText(clientData.name);
+      if (clientData.allergies) clientData.allergies = sanitizeFoodRestrictions(clientData.allergies);
+      if (clientData.foodPreferences) clientData.foodPreferences = sanitizeFoodPreferences(clientData.foodPreferences);
+      if (clientData.notes) clientData.notes = sanitizeText(clientData.notes);
+      
+      // Sanitizare numere
+      if (clientData.age) clientData.age = sanitizeNumber(clientData.age, { min: 10, max: 120, allowFloat: false });
+      if (clientData.weight) clientData.weight = sanitizeNumber(clientData.weight, { min: 20, max: 300 });
+      if (clientData.height) clientData.height = sanitizeNumber(clientData.height, { min: 100, max: 250, allowFloat: false });
+      
+      // Sanitizare progress data
+      if (clientData.progress) {
+        if (clientData.progress.currentWeight) {
+          clientData.progress.currentWeight = sanitizeNumber(clientData.progress.currentWeight, { min: 20, max: 300 });
+        }
+        if (clientData.progress.notes) {
+          clientData.progress.notes = sanitizeText(clientData.progress.notes);
+        }
+      }
+    } catch (sanitizeError) {
+      return NextResponse.json(
+        { error: `Date invalide: ${sanitizeError.message}` },
+        { status: 400 }
+      );
+    }
+
     const missingFields = [];
     if (!clientData.name)           missingFields.push('nume');
     if (!clientData.age)            missingFields.push('vârstă');
@@ -221,6 +301,15 @@ export async function POST(request) {
       const oldWeight = parseFloat(weight);
       const newWeight = parseFloat(progress.currentWeight);
       const weightChangePercent = ((newWeight - oldWeight) / oldWeight) * 100;
+      
+      console.log('[API] Progress evaluation:', {
+        oldWeight,
+        newWeight,
+        weightChangePercent: weightChangePercent.toFixed(2),
+        goal,
+        forceRegenerate: progress?.forceRegenerate,
+        currentPlanCalories: clientData.currentPlanCalories
+      });
       
       // Log: începe evaluarea progresului
       logActivity({
@@ -295,6 +384,12 @@ export async function POST(request) {
 
       // Verifică intervalele optime DOAR dacă nu avem cazuri speciale de foame/stagnare
       const hasSpecialCase = hungerAdjustment !== 0 || stagnationAdjustment !== 0;
+      
+      // Dacă antrenorul a cerut explicit regenerare, nu verificăm progres optim
+      const forceRegenerate = progress?.forceRegenerate === true;
+      if (forceRegenerate) {
+        console.log('Regenerare forțată de antrenor - se generează plan nou chiar dacă progresul e optim');
+      }
 
       // ─── CAZ SPECIAL: Adherență DELOC - nu se regenerează planul dacă obiectivul nu e îndeplinit ───
       if (adherence === 'deloc') {
@@ -357,13 +452,13 @@ export async function POST(request) {
         console.log('Adherență parțială detectată - se folosește marja de variație mai permisivă (×1.5)');
       }
 
-      // Menținere cu greutate stabilă = succes mereu, indiferent de stagnare
-      if (goal === 'maintenance' && isWeightStable) {
+      // Menținere cu greutate stabilă = succes DOAR dacă nu avem cazuri speciale SAU regenerare forțată
+      if (goal === 'maintenance' && isWeightStable && !hasSpecialCase && !forceRegenerate) {
         isOptimalProgress = true;
         progressMessage = `Greutate stabilă! Variație de doar ${weightChangePercent >= 0 ? '+' : ''}${weightChangePercent.toFixed(2)}% — perfect pentru menținere${weeksNoChange >= 2 ? ' (greutate menținută constant, planul funcționează excelent)' : ''}.`;
       }
 
-      if (!isOptimalProgress && !hasSpecialCase) {
+      if (!isOptimalProgress && !hasSpecialCase && !forceRegenerate) {
         if (goal === 'weight_loss') {
           // Cut: -0.2% până la -1.0% pe săptămână e progres bun (cu ajustare pentru adherență)
           const minLoss = -1.0 * weightToleranceMultiplier; // poate fi -1.5% dacă adherență parțială
@@ -677,12 +772,13 @@ Nu folosi altă sursă de proteine principală în afara celei specificate.
 
 CLIENT: ${name}, ${age} ani, ${sex}, ${weight}kg, ${height}cm
 Ziua ${dayNumber} (${dayName}) | Dietă: ${getDietLabel(dietType)}${
-  dietType === 'vegetarian' ? ' (ATENTIE CRITICA: FARA carne, fără pește)' :
-  dietType === 'vegan'      ? ' (ATENTIE CRITICA: FARA carne, pește, ouă, lactate, miere)' : ''
-} | Atentie CRITICA LA ALERGII: ${sanitizeForPrompt(allergies) || 'Niciuna'}${foodPreferences ? `
+  dietType === 'vegetarian' ? ' (IMPORTANT: Fără carne și fără pește)' :
+  dietType === 'vegan'      ? ' (IMPORTANT: Fără produse animale - carne, pește, ouă, lactate, miere)' : ''
+}${allergies ? `
+RESTRICȚII ALIMENTARE (alimente de evitat complet): ${sanitizeForPrompt(allergies)}` : ''}${foodPreferences ? `
 
 ═══ PREFERINȚE ALIMENTARE ALE CLIENTULUI (FOARTE IMPORTANT) ═══
-Clinetul a specificat următoarele preferințe: ${sanitizeForPrompt(foodPreferences)}
+Clientul a specificat următoarele preferințe: ${sanitizeForPrompt(foodPreferences)}
 - Dă PRIORITATE alimentelor pe care clientul le preferă
 - EVITĂ alimentele pe care clientul a menționat că nu îi plac
 - Folosește alimentele preferate cât mai des posibil în planul alimentar
@@ -758,7 +854,7 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
           messages: [
             {
               role: 'system',
-              content: `Ești un nutriționist și chef AI precis. ATENȚIE CRITICĂ: Clientul are alergii la: ${sanitizeForPrompt(allergies) || 'Niciuna'}. Niciun aliment din această categorie nu trebuie să apară în plan. Returnează DOAR JSON valid pentru o singură zi. Fără markdown, fără blocuri de cod. Ziua trebuie să totalizeze ~${targets.calories} kcal cu P:${targets.protein}g C:${targets.carbs}g G:${targets.fat}g. Folosește nume de alimente și rețete în limba română. Creează mese variate și apetisante, nu combinații banale.${progress ? ' IMPORTANT: Acest plan este o REGENERARE bazată pe progresul clientului. Adaptează alegerile alimentare la feedback-ul și progresul menționat.' : ''}`,
+              content: `Ești un asistent AI specializat în planificare culinară și nutriție. Returnează DOAR JSON valid pentru o singură zi de mese. Fără markdown, fără blocuri de cod. Ziua trebuie să totalizeze aproximativ ${targets.calories} kcal cu proteine: ${targets.protein}g, carbohidrați: ${targets.carbs}g, grăsimi: ${targets.fat}g. Folosește nume de alimente și rețete în limba română. Creează mese variate, echilibrate și gustoase.${progress ? ' Acest plan este ajustat pe baza feedback-ului și progresului clientului menționat în instrucțiuni.' : ''}`,
             },
             {
               role: 'user',
@@ -826,14 +922,22 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
     console.log('Verificare salvare plan - clientId:', clientData.clientId);
     let savedPlanId = null;
     if (clientData.clientId) {
+      const insertData = {
+        client_id: clientData.clientId,
+        trainer_id: auth.userId,
+        plan_data: plan,
+        daily_targets: targets,
+      };
+      
+      // Dacă planul e generat din progres, salvează caloriile planului anterior
+      if (progress && clientData.currentPlanCalories) {
+        insertData.previous_plan_calories = clientData.currentPlanCalories;
+        console.log('Saving previous_plan_calories:', clientData.currentPlanCalories);
+      }
+      
       const { data: savedPlan, error: saveError } = await supabase
         .from('meal_plans')
-        .insert({
-          client_id: clientData.clientId,
-          trainer_id: auth.userId,
-          plan_data: plan,
-          daily_targets: targets,
-        })
+        .insert(insertData)
         .select()
         .single();
       if (saveError) {

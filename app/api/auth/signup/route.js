@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcrypt';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { sanitizeEmail, sanitizeName } from '@/app/lib/sanitize';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,

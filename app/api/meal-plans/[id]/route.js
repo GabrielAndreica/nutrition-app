@@ -21,7 +21,7 @@ export async function GET(request, { params }) {
 
   let query = supabase
     .from('meal_plans')
-    .select('id, client_id, plan_data, daily_targets, created_at')
+    .select('id, client_id, plan_data, daily_targets, created_at, previous_plan_calories')
     .eq('id', id);
 
   // Dacă e trainer, verifică că planul aparține trainerului
@@ -76,10 +76,13 @@ export async function GET(request, { params }) {
     },
   });
 
-  // Cache per-user: same trainer navigating back = instant load; stale-while-revalidate
-  // serves stale content immediately while fetching fresh in background (fewer DB hits at scale)
-  const res = NextResponse.json({ mealPlan: data, client });
-  res.headers.set('Cache-Control', 'private, max-age=60, stale-while-revalidate=300');
+  // Nu folosim cache pentru a avea datele mereu fresh (important pentru greutate actualizată)
+  const res = NextResponse.json({ 
+    mealPlan: data, 
+    client,
+    previousPlanCalories: data.previous_plan_calories || null
+  });
+  res.headers.set('Cache-Control', 'no-store, must-revalidate');
   res.headers.set('Vary', 'Authorization');
   return res;
 }
