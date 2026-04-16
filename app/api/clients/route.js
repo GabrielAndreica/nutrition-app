@@ -21,7 +21,7 @@ export async function GET(request) {
       .rpc('check_rate_limit', {
         p_user_id: String(auth.userId),
         p_endpoint: 'clients-list',
-        p_max_requests: 100,  // Max 100 requests per 15 min
+        p_max_requests: 1000,  // Max 1000 requests per 15 min (relaxed for load)
         p_window_minutes: 15
       });
 
