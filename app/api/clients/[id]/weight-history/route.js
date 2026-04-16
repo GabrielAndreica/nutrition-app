@@ -172,14 +172,18 @@ export async function POST(request, { params }) {
   }
 
   // Actualizăm greutatea clientului imediat când se trimite progresul
-  const { error: updateError } = await supabase
+  const weightValue = parseFloat(weight);
+  const { data: updateData, error: updateError } = await supabase
     .from('clients')
-    .update({ weight: parseFloat(weight) })
-    .eq('id', clientId);
+    .update({ weight: weightValue })
+    .eq('id', clientId)
+    .select();
 
   if (updateError) {
     console.error('Eroare la actualizarea greutății clientului:', updateError);
     // Nu returnăm eroare aici, înregistrarea în istoric s-a făcut cu succes
+  } else {
+    console.log(`✅ Greutate actualizată pentru client ${clientId}: ${weightValue}kg`);
   }
 
   const { ip, userAgent } = getRequestMeta(request);

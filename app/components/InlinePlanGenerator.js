@@ -5,7 +5,7 @@ import ClientForm from '@/app/components/MealPlanGenerator/ClientForm';
 import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
 import styles from '@/app/generator-plan/generator.module.css';
 
-export default function InlinePlanGenerator({ clientId, onBack }) {
+export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated }) {
   const [mealPlan, setMealPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -81,10 +81,36 @@ export default function InlinePlanGenerator({ clientId, onBack }) {
             setLoadingProgress(Math.round((event.day / event.total) * 90));
           } else if (event.type === 'complete') {
             setLoadingProgress(100);
+            
+            console.log('[InlinePlanGenerator] Plan complete:', {
+              hasPlanIdInPlan: !!event.plan?.id,
+              planIdInPlan: event.plan?.id,
+              hasEventPlanId: !!event.planId,
+              eventPlanId: event.planId,
+              clientId,
+              hasOnPlanGenerated: !!onPlanGenerated
+            });
+            
+            // planId vine ca event.planId (nu event.plan.id)
+            const planId = event.planId || event.plan?.id;
+            
+            // Dacă vine din progres (clientId setat), tranziție automată FĂRĂ a afișa planul
+            if (onPlanGenerated && planId && clientId) {
+              // Așteaptă doar 500ms pentru feedback vizual că s-a finalizat
+              console.log('[InlinePlanGenerator] Calling onPlanGenerated with planId:', planId);
+              setTimeout(() => {
+                onPlanGenerated(planId);
+              }, 500);
+              // NU setăm mealPlan pentru a nu afișa planul în InlinePlanGenerator
+              return;
+            }
+            
+            // Doar dacă NU vine din progres, afișăm planul aici
             setMealPlan(event.plan);
             setNutritionalNeeds(event.nutritionalNeeds);
 
-            if (isRegeneration && previousNeedsRef.current) {
+            // NU afișăm macro toast când vine din progres (clientId setat)
+            if (isRegeneration && previousNeedsRef.current && !clientId) {
               const newNeeds = event.nutritionalNeeds;
               const oldNeeds = previousNeedsRef.current;
               const adjustments = [];
@@ -130,6 +156,24 @@ export default function InlinePlanGenerator({ clientId, onBack }) {
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    // Citește datele de progres stocate din InlineProgressView
+    let storedProgress = null;
+    let previousNeeds = null;
+    let oldWeight = null;
+    try {
+      storedProgress = JSON.parse(sessionStorage.getItem('clientProgress') || 'null');
+      previousNeeds = JSON.parse(sessionStorage.getItem('clientPreviousNeeds') || 'null');
+      const storedOldWeight = sessionStorage.getItem('clientOldWeight');
+      if (storedOldWeight) {
+        oldWeight = storedOldWeight;
+      }
+      console.log('[InlinePlanGenerator] StoredProgress:', storedProgress);
+      console.log('[InlinePlanGenerator] OldWeight:', oldWeight);
+    } catch { /* ignoră erori de parse */ }
+    sessionStorage.removeItem('clientProgress');
+    sessionStorage.removeItem('clientPreviousNeeds');
+    sessionStorage.removeItem('clientOldWeight');
+
     fetch(`/api/clients/${clientId}`, {
       headers: { 'Authorization': `Bearer ${token}` },
     })
@@ -137,11 +181,12 @@ export default function InlinePlanGenerator({ clientId, onBack }) {
       .then(data => {
         if (!data.client) throw new Error(data.error || 'Client negasit');
         const c = data.client;
-        handleGeneratePlan({
+        
+        const formData = {
           clientId,
           name: c.name,
           age: String(c.age),
-          weight: String(c.weight),
+          weight: oldWeight || String(c.weight), // Folosește greutatea VECHE stocată sau cea din profil
           height: String(c.height),
           gender: c.gender || 'M',
           goal: c.goal || 'maintenance',
@@ -150,7 +195,26 @@ export default function InlinePlanGenerator({ clientId, onBack }) {
           allergies: c.allergies || '',
           mealsPerDay: String(c.meals_per_day || '3'),
           foodPreferences: c.food_preferences || '',
-        });
+        };
+        
+        if (storedProgress) {
+          formData.progress = storedProgress;
+        }
+        
+        // Dacă avem necesarul anterior, adăugăm caloriile actuale pentru ajustare corectă
+        if (previousNeeds && previousNeeds.calories) {
+          formData.currentPlanCalories = previousNeeds.calories;
+          console.log('[InlinePlanGenerator] Adding currentPlanCalories:', previousNeeds.calories);
+        }
+        
+        console.log('[InlinePlanGenerator] FormData to send:', JSON.stringify(formData, null, 2));
+        
+        // Restaurează necesarul anterior pentru toast-ul de diff macro
+        if (previousNeeds) {
+          previousNeedsRef.current = previousNeeds;
+        }
+        
+        handleGeneratePlan(formData, !!storedProgress);
       })
       .catch(err => setError(err.message));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,13 +249,14 @@ export default function InlinePlanGenerator({ clientId, onBack }) {
 
   return (
     <div className={styles.content}>
-      <div style={{ padding: '0 0 20px' }}>
-        <button
-          onClick={onBack}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '7px',
-            background: 'transparent',
-            border: '1px solid #e5e5e5',
+      {!clientId && (
+        <div style={{ padding: '0 0 20px' }}>
+          <button
+            onClick={onBack}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '7px',
+              background: 'transparent',
+              border: '1px solid #e5e5e5',
             borderRadius: '8px',
             cursor: 'pointer',
             fontSize: '13px', fontWeight: '500', color: '#666',
@@ -207,9 +272,10 @@ export default function InlinePlanGenerator({ clientId, onBack }) {
           </svg>
           Înapoi la clienți
         </button>
-      </div>
+        </div>
+      )}
 
-      {!mealPlan ? (
+      {!mealPlan || clientId ? (
         <>
           {loading ? (
             <div className={styles.loadingWrapper}>
@@ -251,7 +317,7 @@ export default function InlinePlanGenerator({ clientId, onBack }) {
             </div>
           )}
         </>
-      ) : (
+      ) : !clientId ? (
         <MealPlan
           plan={mealPlan}
           clientData={clientData}
@@ -259,7 +325,7 @@ export default function InlinePlanGenerator({ clientId, onBack }) {
           onReset={handleReset}
           onRegenerate={handleRegenerate}
         />
-      )}
+      ) : null}
 
       {macroToast && (
         <div className={`${styles.macroToast} ${toastHiding ? styles.toastHiding : ''}`}>

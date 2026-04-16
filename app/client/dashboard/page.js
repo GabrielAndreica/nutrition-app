@@ -175,9 +175,6 @@ function ClientDashboardContent() {
       weight: String(progressData.currentWeight)
     }));
     
-    // Reîncarcă datele clientului pentru sincronizare cu serverul
-    await refreshClientData();
-    
     return { success: true };
   };
 
@@ -352,6 +349,7 @@ function ClientDashboardContent() {
 
               {mealPlan && (
                 <MealPlan
+                  key={`mealplan-${clientData?.weight || 'initial'}`}
                   plan={mealPlan}
                   clientData={clientData}
                   nutritionalNeeds={nutritionalNeeds}

@@ -8,6 +8,7 @@ import styles from './dashboard.module.css';
 import ClientsList from '@/app/components/ClientsList';
 import InlineMealPlanView from '@/app/components/InlineMealPlanView';
 import InlineProgressView from '@/app/components/InlineProgressView';
+import InlinePlanGenerator from '@/app/components/InlinePlanGenerator';
 
 function DashboardContent() {
   const router = useRouter();
@@ -16,6 +17,7 @@ function DashboardContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [viewingPlanId, setViewingPlanId] = useState(null);
   const [viewingProgressClientId, setViewingProgressClientId] = useState(null);
+  const [generatingPlanClientId, setGeneratingPlanClientId] = useState(null);
 
   useEffect(() => {
     router.prefetch('/clients');
@@ -104,8 +106,10 @@ function DashboardContent() {
 
         {/* Main */}
         <main ref={mainRef} className={styles.main}>
-          {!viewingPlanId && !viewingProgressClientId && (
+          {console.log('[Dashboard] Render states:', { viewingPlanId, viewingProgressClientId, generatingPlanClientId })}
+          {!viewingPlanId && !viewingProgressClientId && !generatingPlanClientId && (
             <>
+              {console.log('[Dashboard] Rendering ClientsList')}
               <div className={styles.hero}>
                 <h2 className={styles.heroHeading}>
                   Bună ziua, <span className={styles.accent}>{firstName}</span>.
@@ -121,33 +125,62 @@ function DashboardContent() {
               />
             </>
           )}
-          {viewingPlanId && !viewingProgressClientId && (
-            <InlineMealPlanView
-              planId={viewingPlanId}
-              scrollContainerRef={mainRef}
-              onBack={() => setViewingPlanId(null)}
-              onViewProgress={(clientId) => {
-                console.log('DASHBOARD onViewProgress CALLED with clientId:', clientId);
-                setViewingPlanId(null);
-                setViewingProgressClientId(clientId);
-              }}
-            />
+          {viewingPlanId && !viewingProgressClientId && !generatingPlanClientId && (
+            <>
+              {console.log('[Dashboard] Rendering InlineMealPlanView with planId:', viewingPlanId)}
+              <InlineMealPlanView
+                planId={viewingPlanId}
+                scrollContainerRef={mainRef}
+                onBack={() => setViewingPlanId(null)}
+                onViewProgress={(clientId) => {
+                  console.log('DASHBOARD onViewProgress CALLED with clientId:', clientId);
+                  setViewingPlanId(null);
+                  setViewingProgressClientId(clientId);
+                }}
+              />
+            </>
           )}
           {viewingProgressClientId && (
-            <InlineProgressView
-              clientId={viewingProgressClientId}
-              scrollContainerRef={mainRef}
-              onBack={(planId) => {
-                setViewingProgressClientId(null);
-                if (planId) {
+            <>
+              {console.log('[Dashboard] Rendering InlineProgressView for clientId:', viewingProgressClientId)}
+              <InlineProgressView
+                clientId={viewingProgressClientId}
+                scrollContainerRef={mainRef}
+                onBack={(planId) => {
+                  setViewingProgressClientId(null);
+                  if (planId) {
+                    setViewingPlanId(planId);
+                  }
+                }}
+                onGeneratePlan={(clientId) => {
+                  console.log('[Dashboard] onGeneratePlan called with clientId:', clientId);
+                  setViewingProgressClientId(null);
+                  setGeneratingPlanClientId(clientId);
+                  console.log('[Dashboard] Set generatingPlanClientId to:', clientId);
+                }}
+              />
+            </>
+          )}
+          {generatingPlanClientId && !viewingProgressClientId && (
+            <>
+              {console.log('[Dashboard] Rendering InlinePlanGenerator for clientId:', generatingPlanClientId)}
+              <InlinePlanGenerator
+                clientId={generatingPlanClientId}
+                scrollContainerRef={mainRef}
+                onBack={() => {
+                  setGeneratingPlanClientId(null);
+                }}
+                onPlanGenerated={(planId) => {
+                  console.log('[Dashboard] onPlanGenerated called with planId:', planId);
+                  console.log('[Dashboard] Current states before update:', { viewingPlanId, viewingProgressClientId, generatingPlanClientId });
+                  // Setăm planId pentru vizualizare și ascundem generatorul
+                  setGeneratingPlanClientId(null);
+                  setViewingProgressClientId(null);
                   setViewingPlanId(planId);
-                }
-              }}
-              onGeneratePlan={(clientId) => {
-                setViewingProgressClientId(null);
-                router.push(`/generator-plan?clientId=${clientId}&fromProgress=true`);
-              }}
-            />
+                  console.log('[Dashboard] States set to: generatingPlanClientId=null, viewingProgressClientId=null, viewingPlanId=', planId);
+                }}
+              />
+            </>
           )}
         </main>
       </div>

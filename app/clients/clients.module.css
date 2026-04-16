@@ -1300,6 +1300,53 @@
   margin-left: 6px;
 }
 
+/* Banner plan continuat */
+.progressOptimalBanner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 20px;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, rgba(183, 255, 0, 0.15), rgba(183, 255, 0, 0.08));
+  border: 1px solid rgba(183, 255, 0, 0.4);
+  border-radius: 14px;
+}
+
+.progressOptimalIcon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #b7ff00;
+  border-radius: 50%;
+  color: #0a0a0a;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.progressOptimalText {
+  flex: 1;
+}
+
+.progressOptimalText strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #5a8000;
+  margin-bottom: 4px;
+  letter-spacing: -0.2px;
+}
+
+.progressOptimalText p {
+  margin: 0;
+  font-size: 13px;
+  color: #6a9000;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
 .progressSheetFooter {
   display: flex;
   gap: 10px;
@@ -1387,6 +1434,20 @@
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+}
+
+.disabledProgressBtn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+  color: #b7ff00;
+  border: 1px solid rgba(183, 255, 0, 0.2);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: not-allowed;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+  opacity: 0.7;
 }
 
 /* ─── Responsive ──────────────────────────────────────────── */
@@ -1503,6 +1564,11 @@
     padding: 18px 20px;
   }
 
+  .progressOptimalBanner {
+    margin: 0 0 16px;
+    padding: 14px 16px;
+  }
+
   .progressSheetAiTop {
     gap: 12px;
   }
@@ -1559,6 +1625,11 @@
   .progressSheetAiContinue,
   .progressSheetAiRegen {
     padding: 16px 18px;
+  }
+
+  .progressOptimalBanner {
+    margin: 0 0 14px;
+    padding: 12px 14px;
   }
 
   .progressSheetFooter {
