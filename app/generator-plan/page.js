@@ -2,12 +2,23 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import ClientForm from '@/app/components/MealPlanGenerator/ClientForm';
-import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
 import AppHeader from '@/app/components/AppHeader';
 import styles from './generator.module.css';
+
+// Dynamic import cu ssr: false pentru MealPlan (folosește jsPDF)
+const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPlan'), {
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingContainer}>
+      <div className={styles.loadingSpinner} />
+      <p>Se încarcă planul...</p>
+    </div>
+  )
+});
 
 function GeneratorContent() {
   const router = useRouter();
@@ -321,9 +332,7 @@ function GeneratorContent() {
             )}
           </>
         ) : (
-          <>
-            <MealPlan plan={mealPlan} clientData={clientData} nutritionalNeeds={nutritionalNeeds} onReset={handleReset} onRegenerate={handleRegenerate} />
-          </>
+          <MealPlan plan={mealPlan} clientData={clientData} nutritionalNeeds={nutritionalNeeds} onReset={handleReset} onRegenerate={handleRegenerate} />
         )}
       </div>
 

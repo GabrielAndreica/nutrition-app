@@ -34,6 +34,7 @@ const nextConfig = {
   
   // React optimizations
   reactStrictMode: true,
+  swcMinify: true, // Use SWC for minification (faster than Terser)
 
   // Output
   output: 'standalone', // For Docker/serverless optimization

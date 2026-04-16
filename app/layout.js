@@ -13,14 +13,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "NutriPlan - Your Personal Nutrition Companion",
-  description: "AI-powered meal plans tailored to your goals and lifestyle",
+  title: {
+    default: "NutriApp - Planuri Nutriționale Personalizate",
+    template: "%s | NutriApp"
+  },
+  description: "Aplicație de nutriție pentru antrenori: generează planuri alimentare personalizate, monitorizează progresul clienților și gestionează portofoliul de clienți.",
+  keywords: ['nutriție', 'planuri alimentare', 'antrenori', 'fitness', 'dieta'],
+  authors: [{ name: 'NutriApp' }],
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'ro_RO',
+    title: 'NutriApp - Planuri Nutriționale',
+    description: 'Platformă pentru antrenori - Creează planuri alimentare personalizate',
+  },
 };
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  themeColor: '#4f46e5',
 };
 
 export default function RootLayout({ children }) {

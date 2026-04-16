@@ -2,10 +2,21 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import { useAuth } from '@/app/contexts/AuthContext';
-import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
 import styles from './dashboard.module.css';
+
+// Dynamic import cu ssr: false pentru MealPlan (folosește jsPDF)
+const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPlan'), {
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingContainer}>
+      <div className={styles.loadingSpinner} />
+      <p>Se încarcă planul...</p>
+    </div>
+  )
+});
 
 function ClientDashboardContent() {
   const router = useRouter();

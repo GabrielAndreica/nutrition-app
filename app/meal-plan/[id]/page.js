@@ -2,11 +2,25 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
-import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
 import AppHeader from '@/app/components/AppHeader';
-import InlineProgressView from '@/app/components/InlineProgressView';
 import styles from '../meal-plan-view.module.css';
+
+// Dynamic imports cu ssr: false pentru componente care folosesc jsPDF
+const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPlan'), {
+  ssr: false,
+  loading: () => <SkeletonMealPlan />
+});
+
+const InlineProgressView = dynamic(() => import('@/app/components/InlineProgressView'), {
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingOverlay}>
+      <div className={styles.loadingSpinner} />
+    </div>
+  )
+});
 
 function SkeletonMealPlan() {
   return (
