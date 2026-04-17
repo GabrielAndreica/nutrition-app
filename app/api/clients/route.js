@@ -68,21 +68,28 @@ export async function GET(request) {
     clientsQuery = clientsQuery.ilike('name', `%${search}%`);
   }
 
-  // Run queries IN PARALLEL — plans + recent client progress submissions
+  // Run queries IN PARALLEL — plans + recent client progress submissions + trainer responses
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const [clientsResult, plansResult, progressResult] = await Promise.all([
+  const [clientsResult, plansResult, progressResult, notificationsResult] = await Promise.all([
     clientsQuery,
     supabase
       .from('meal_plans')
-      .select('id, client_id')
+      .select('id, client_id, created_at')
       .eq('trainer_id', auth.userId)
       .order('created_at', { ascending: false })
       .limit(1000),
     supabase
       .from('weight_history')
-      .select('client_id')
+      .select('client_id, recorded_at')
       .like('notes', '[CLIENT]%')
-      .gte('recorded_at', sevenDaysAgo),
+      .gte('recorded_at', sevenDaysAgo)
+      .order('recorded_at', { ascending: false }),
+    supabase
+      .from('notifications')
+      .select('related_client_id, created_at, type')
+      .in('type', ['plan_continued', 'new_meal_plan'])
+      .gte('created_at', sevenDaysAgo)
+      .order('created_at', { ascending: false }),
   ]);
 
   if (clientsResult.error) {
@@ -105,28 +112,47 @@ export async function GET(request) {
   if (plansResult.data) {
     for (const plan of plansResult.data) {
       if (!planMap[plan.client_id]) {
-        planMap[plan.client_id] = { planId: plan.id };
+        planMap[plan.client_id] = { planId: plan.id, createdAt: plan.created_at };
       }
     }
   }
 
-  // Build set of client_ids that sent progress in the last 7 days
-  const newProgressSet = new Set();
+  // Build map of client_ids with latest progress submission time
+  const progressMap = {};
   if (progressResult.data) {
     for (const entry of progressResult.data) {
-      newProgressSet.add(entry.client_id);
+      if (!progressMap[entry.client_id]) {
+        progressMap[entry.client_id] = entry.recorded_at;
+      }
+    }
+  }
+
+  // Build map of client_ids with latest trainer response (notification)
+  const trainerResponseMap = {};
+  if (notificationsResult.data) {
+    for (const notif of notificationsResult.data) {
+      const clientId = notif.related_client_id;
+      if (clientId && !trainerResponseMap[clientId]) {
+        trainerResponseMap[clientId] = notif.created_at;
+      }
     }
   }
 
   // Process clients and add invitation status + progress flag
   const processedClients = (clientsResult.data || []).map(client => {
     const pendingInvite = client.client_invitations?.find(inv => inv.status === 'pending');
+    const latestProgressDate = progressMap[client.id];
+    const latestResponseDate = trainerResponseMap[client.id];
+    
+    // has_new_progress = true only if progress exists AND trainer hasn't responded yet
+    const hasNewProgress = latestProgressDate && (!latestResponseDate || new Date(latestProgressDate) > new Date(latestResponseDate));
+    
     return {
       ...client,
       invitation_status: client.user_id ? 'accepted' : (pendingInvite ? 'pending' : null),
       invitation_email: pendingInvite?.client_email || null,
       client_invitations: undefined, // Remove array from response
-      has_new_progress: newProgressSet.has(client.id),
+      has_new_progress: hasNewProgress,
     };
   });
 

@@ -302,13 +302,49 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
     }
   }, [clientId, authHeaders]);
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     // Marchează planul ca fiind continuat pentru acest progres
     if (lastProgressId) {
       const continuedKey = `plan_continued_${clientId}_${lastProgressId}`;
       sessionStorage.setItem(continuedKey, 'true');
       setPlanContinued(true);
       setShowBanner(true);
+      
+      // Trimite notificare către client
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/clients/${clientId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const result = await response.json();
+        const clientData = result.client;
+        
+        console.log('[handleContinue] Client data:', clientData);
+        
+        if (clientData && clientData.user_id) {
+          const notifResponse = await fetch('/api/notifications', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              user_id: clientData.user_id,
+              type: 'plan_continued',
+              title: 'Plan continuat',
+              message: 'Antrenorul tău a decis să continui cu același plan alimentar',
+              related_client_id: clientId
+            })
+          });
+          
+          const notifResult = await notifResponse.json();
+          console.log('[handleContinue] Notification created:', notifResult);
+        } else {
+          console.warn('[handleContinue] No user_id found for client:', clientData);
+        }
+      } catch (err) {
+        console.error('[handleContinue] Error sending notification:', err);
+      }
     }
   };
 

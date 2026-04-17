@@ -95,6 +95,234 @@
 .sidebarLabel {
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+}
+
+.sidebarBadge {
+  min-width: 18px;
+  height: 18px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* ─── Notifications Panel ─────────────────────────────────────── */
+.notificationsPanel {
+  position: fixed;
+  left: 180px;
+  top: 140px;
+  width: 340px;
+  max-height: calc(100vh - 160px);
+  background: #0f0f0f;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  z-index: 800;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: slideInFromLeft 0.25s ease-out;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 768px) {
+  .notificationsPanel {
+    left: auto;
+    right: 0;
+    top: 52px;
+    width: 100%;
+    max-width: 340px;
+    height: calc(100vh - 52px);
+    max-height: none;
+    border-radius: 0;
+    border: none;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    animation: slideInFromRight 0.25s ease-out;
+  }
+
+  @keyframes slideInFromRight {
+    from {
+      opacity: 0;
+      transform: translateX(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+}
+
+.notificationsPanelHeader {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  position: sticky;
+  top: 0;
+  background: #0f0f0f;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notificationsPanelTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.notificationCloseBtn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s;
+  border-radius: 4px;
+}
+
+.notificationCloseBtn:hover {
+  color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.markAllReadBtn {
+  background: transparent;
+  border: none;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.markAllReadBtn:hover {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.notificationsList {
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+  max-height: 500px;
+}
+
+.notificationItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  transition: background 0.15s;
+  position: relative;
+}
+
+.notificationItem:last-child {
+  border-bottom: none;
+}
+
+.notificationItem:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.notificationUnread {
+  background: rgba(183, 255, 0, 0.03);
+}
+
+.notificationIcon {
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.5);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.notificationContent {
+  flex: 1;
+  min-width: 0;
+}
+
+.notificationMessage {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0 0 4px;
+  line-height: 1.4;
+}
+
+.notificationTime {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.notificationDot {
+  width: 6px;
+  height: 6px;
+  background: #b7ff00;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+
+.notificationsPanelFooter {
+  padding: 16px 20px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  position: sticky;
+  bottom: 0;
+  background: #0f0f0f;
+}
+
+@media (max-width: 768px) {
+  .notificationsPanelFooter {
+    display: none;
+  }
+}
+
+.viewAllBtn {
+  width: 100%;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.viewAllBtn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .sidebarFooter {
@@ -275,6 +503,49 @@
     gap: 8px;
   }
 
+  .mobileNotificationsBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border: none;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
+    cursor: pointer;
+    border-radius: 6px;
+    flex-shrink: 0;
+    transition: background 0.12s, color 0.12s;
+    position: relative;
+    margin-left: auto;
+  }
+
+  .mobileNotificationsBtn:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: rgba(255, 255, 255, 0.9);
+  }
+
+  .mobileNotificationBadge {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    min-width: 16px;
+    height: 16px;
+    background: #ef4444;
+    color: white;
+    font-size: 9px;
+    font-weight: 700;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+  }
+
+  .desktopOnly {
+    display: none;
+  }
+
   .overlay {
     display: block;
     position: fixed;
@@ -282,6 +553,13 @@
     background: rgba(0, 0, 0, 0.55);
     z-index: 40;
     backdrop-filter: blur(2px);
+  }
+
+  .notificationsOverlay {
+    position: fixed;
+    inset: 0;
+    background: transparent;
+    z-index: 799;
   }
 
   .sidebar {

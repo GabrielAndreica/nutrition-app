@@ -18,6 +18,34 @@ const goalLabels = {
   maintenance: 'Mentinere', recomposition: 'Recompozitie',
 };
 const dietLabels = { omnivore: 'Omnivor', vegetarian: 'Vegetarian', vegan: 'Vegan' };
+const activityLabels = {
+  sedentary: 'Sedentar',
+  light: 'Usor activ',
+  moderate: 'Moderat activ',
+  active: 'Activ',
+  very_active: 'Foarte activ',
+};
+
+// Format plan creation time
+const formatPlanTime = (createdAt) => {
+  const now = new Date();
+  const then = new Date(createdAt);
+  const diffMs = now - then;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 60) return 'acum mai puțin de o oră';
+  if (diffHours < 24) return `acum ${diffHours} ${diffHours === 1 ? 'oră' : 'ore'}`;
+  if (diffDays === 1) return 'ieri';
+  if (diffDays < 7) return `acum ${diffDays} zile`;
+  if (diffDays < 30) {
+    const weeks = Math.floor(diffDays / 7);
+    return `acum ${weeks} ${weeks === 1 ? 'săptămână' : 'săptămâni'}`;
+  }
+  const months = Math.floor(diffDays / 30);
+  return `acum ${months} ${months === 1 ? 'lună' : 'luni'}`;
+};
 
 // Memoized skeleton card pentru performanță
 const SkeletonCard = memo(function SkeletonCard() {
@@ -62,6 +90,25 @@ const ArrowIcon = memo(function ArrowIcon() {
       strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
       <line x1="5" y1="12" x2="19" y2="12"/>
       <polyline points="12 5 19 12 12 19"/>
+    </svg>
+  );
+});
+
+const ClockIcon = memo(function ClockIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+  );
+});
+
+const CheckIcon = memo(function CheckIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
     </svg>
   );
 });
@@ -565,36 +612,54 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
           </div>
         ) : (
           <div className={styles.clientGrid}>
-            {clients.map(client => (
+            {clients.map(client => {
+              const hasAccount = !!client.user_id;
+              const isPending = client.invitation_status === 'pending';
+              const plan = planMap[client.id];
+              const hasNewProgress = client.has_new_progress;
+
+              return (
               <div key={client.id} className={styles.clientCard}>
                 <button className={styles.deleteIconBtn} onClick={() => setDeleteId(client.id)} aria-label="Sterge client">
                   <TrashIcon />
                 </button>
+                
+                {/* Header cu nume */}
                 <div className={styles.clientCardHeader}>
-                  <div className={styles.clientInfo}>
-                    <div className={styles.clientNameRow}>
-                      <h3 className={styles.clientName}>{client.name}</h3>
-                      {client.has_new_progress && (
-                        <button 
-                          className={styles.progressBadge} 
-                          onClick={() => onViewProgress ? onViewProgress(client.id) : openProgressModal(client)}
-                        >
-                          Progres nou
-                        </button>
+                  <div>
+                    <h3 className={styles.clientName}>{client.name}</h3>
+                    <div className={styles.badgeGroup}>
+                      <span className={`${styles.accountBadge} ${hasAccount ? styles.badgeActive : (isPending ? styles.badgePending : styles.badgeInactive)}`}>
+                        {hasAccount ? 'Activ' : (isPending ? 'Invitat' : 'Neinvitat')}
+                      </span>
+                      {!plan && (
+                        <span className={`${styles.accountBadge} ${styles.badgeNoPlan}`}>
+                          Fără plan alimentar
+                        </span>
                       )}
                     </div>
-                    <p className={styles.clientMeta}>
-                      {client.age} ani &middot; {client.weight} kg &middot; {client.height} cm
-                    </p>
                   </div>
                 </div>
-                <div className={styles.clientTags}>
-                  <span className={`${styles.tag} ${styles.tagGoal}`}>
-                    {goalLabels[client.goal] || client.goal}
-                  </span>
-                  <span className={styles.tag}>{dietLabels[client.diet_type] || client.diet_type}</span>
-                  <span className={styles.tag}>{client.meals_per_day} mese/zi</span>
+
+                {/* Informații rapide */}
+                <div className={styles.clientQuickInfo}>
+                  {goalLabels[client.goal] || client.goal} · {client.weight}kg · {activityLabels[client.activity_level] || client.activity_level}
                 </div>
+
+                {/* Status plan */}
+                <div className={styles.clientPlanStatus}>
+                  {plan ? `Ultimul plan: ${formatPlanTime(plan.createdAt)}` : 'Nu există plan generat'}
+                </div>
+
+                {/* Status progres */}
+                {hasNewProgress && (
+                  <div className={styles.clientProgressStatus}>
+                    <ClockIcon />
+                    <span>Progres în așteptare</span>
+                  </div>
+                )}
+
+                {/* Butoane */}
                 <div className={styles.clientActions}>
                   <div className={styles.secondaryActions}>
                     <button className={styles.editBtn} onClick={() => openEdit(client)}>Editeaza</button>
@@ -621,7 +686,8 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
                   )}
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
 

@@ -186,6 +186,68 @@ export async function POST(request, { params }) {
     console.log(`✅ Greutate actualizată pentru client ${clientId}: ${weightValue}kg`);
   }
 
+  // Creează notificare pentru trainer dacă progesul a fost adăugat de client
+  if (auth.role === 'client') {
+    // Obține informații despre client și trainer_id
+    const { data: clientData, error: clientDataError } = await supabase
+      .from('clients')
+      .select('name, trainer_id')
+      .eq('id', clientId)
+      .single();
+
+    if (!clientDataError && clientData && clientData.trainer_id) {
+      // Creează notificare pentru trainer (folosim integer trainer_id)
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: clientData.trainer_id,
+          type: 'progress_update',
+          title: 'Progres nou',
+          message: `${clientData.name} tocmai și-a actualizat progresul`,
+          related_client_id: clientId,
+          is_read: false
+        });
+
+      if (notificationError) {
+        console.error('Eroare la crearea notificării:', notificationError);
+        // Nu returnăm eroare, progresul s-a salvat cu succes
+      } else {
+        console.log(`✅ Notificare creată pentru trainer ${clientData.trainer_id}`);
+      }
+    }
+  }
+
+  // Creează notificare pentru client dacă progresul a fost adăugat de trainer
+  if (auth.role === 'trainer') {
+    // Obține informații despre client și user_id
+    const { data: clientData, error: clientDataError } = await supabase
+      .from('clients')
+      .select('name, user_id, trainer_id')
+      .eq('id', clientId)
+      .single();
+
+    if (!clientDataError && clientData && clientData.user_id) {
+      // Creează notificare pentru client (folosim integer user_id)
+      const { error: notificationError } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: clientData.user_id,
+          type: 'progress_update',
+          title: 'Progres actualizat',
+          message: `Antrenorul tău ți-a actualizat progresul`,
+          related_client_id: clientId,
+          is_read: false
+        });
+
+      if (notificationError) {
+        console.error('Eroare la crearea notificării pentru client:', notificationError);
+        // Nu returnăm eroare, progresul s-a salvat cu succes
+      } else {
+        console.log(`✅ Notificare creată pentru client ${clientData.user_id}`);
+      }
+    }
+  }
+
   const { ip, userAgent } = getRequestMeta(request);
   logActivity({
     action: 'progress.weight_record',

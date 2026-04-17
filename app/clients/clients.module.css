@@ -191,92 +191,148 @@
 /* ─── Delete icon button ──────────────────────────────────── */
 .deleteIconBtn {
   position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 28px;
-  height: 28px;
+  top: 16px;
+  right: 16px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
-  border: none;
-  border-radius: 6px;
-  color: var(--gray-400);
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+  color: rgba(0, 0, 0, 0.3);
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: all 0.2s;
 }
 .deleteIconBtn:hover {
-  color: #dc2626;
-  background: rgba(220, 38, 38, 0.08);
+  color: #ff4444;
+  background: rgba(255, 68, 68, 0.08);
+  border-color: rgba(255, 68, 68, 0.2);
+  transform: scale(1.08);
+}
+.deleteIconBtn svg {
+  width: 14px;
+  height: 14px;
 }
 
 /* ─── Card header ─────────────────────────────────────────── */
 .clientCardHeader {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-right: 24px;
-}
-
-.clientAvatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: rgba(183, 255, 0, 0.14);
-  border: 1px solid rgba(183, 255, 0, 0.28);
-  color: #2d4a00;
-  font-weight: 800;
-  font-size: 17px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  letter-spacing: -0.5px;
-}
-
-.clientInfo { flex: 1; min-width: 0; }
-
-.clientNameRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  overflow: hidden;
-}
-
-.progressBadge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 8px;
-  border-radius: 99px;
-  background: rgba(183, 255, 0, 0.18);
-  border: 1px solid rgba(183, 255, 0, 0.4);
-  color: #4a7000;
-  font-size: 10.5px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  white-space: nowrap;
-  flex-shrink: 0;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s, transform 0.1s;
-}
-.progressBadge:hover {
-  background: rgba(183, 255, 0, 0.32);
-  transform: translateY(-1px);
-}
-.progressBadge:active {
-  transform: translateY(0);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding-right: 38px;
+  margin-bottom: 12px;
 }
 
 .clientName {
-  margin: 0 0 3px;
-  font-size: 15px;
+  margin: 0 0 4px;
+  font-size: 17px;
   font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: -0.3px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  letter-spacing: -0.5px;
+  line-height: 1.2;
+}
+
+.badgeGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.accountBadge {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 9px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.badgeActive {
+  background: rgba(183, 255, 0, 0.15);
+  border: 1px solid rgba(183, 255, 0, 0.35);
+  color: #5a7000;
+}
+
+.badgePending {
+  background: rgba(255, 149, 0, 0.12);
+  border: 1px solid rgba(255, 149, 0, 0.3);
+  color: #b35000;
+}
+
+.badgeInactive {
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  color: #d62800;
+}
+
+.badgeNoPlan {
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  color: #d62800;
+}
+
+.clientQuickInfo {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.55);
+  margin-bottom: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.clientPlanStatus {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.5);
+  margin-bottom: 8px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.clientProgressStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #5a7000;
+  margin-bottom: 14px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  background: rgba(183, 255, 0, 0.12);
+  border: 1px solid rgba(183, 255, 0, 0.25);
+}
+
+.clientProgressStatus svg {
+  flex-shrink: 0;
+}
+
+.clientGoal {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.goal_weight_loss {
+  color: #ff6b6b;
+}
+
+.goal_muscle_gain {
+  color: #4dabf7;
+}
+
+.goal_maintenance {
+  color: #b7ff00;
+}
+
+.goal_recomposition {
+  color: #ffa94d;
 }
 
 .clientMeta {
