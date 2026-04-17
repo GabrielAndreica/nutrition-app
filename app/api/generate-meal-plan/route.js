@@ -945,6 +945,33 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
       } else {
         savedPlanId = savedPlan?.id || null;
         console.log('Plan salvat cu succes în Supabase cu ID:', savedPlanId, 'pentru clientul', clientData.clientId);
+        
+        // Creează notificare pentru client când antrenorul generează un plan nou
+        const { data: clientInfo, error: clientInfoError } = await supabase
+          .from('clients')
+          .select('user_id, name')
+          .eq('id', clientData.clientId)
+          .single();
+
+        if (!clientInfoError && clientInfo && clientInfo.user_id) {
+          const { error: notificationError } = await supabase
+            .from('notifications')
+            .insert({
+              user_id: clientInfo.user_id,
+              type: 'new_meal_plan',
+              title: 'Plan alimentar nou',
+              message: `Antrenorul tău ți-a creat un plan alimentar nou`,
+              related_plan_id: savedPlanId,
+              related_client_id: clientData.clientId,
+              is_read: false
+            });
+
+          if (notificationError) {
+            console.error('Eroare la crearea notificării pentru client:', notificationError);
+          } else {
+            console.log(`✅ Notificare plan nou creată pentru client ${clientInfo.user_id}`);
+          }
+        }
       }
 
       // Actualizează greutatea clientului și salvează în weight_history dacă avem progres cu greutate nouă

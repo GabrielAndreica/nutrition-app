@@ -65,6 +65,43 @@ export async function POST(request) {
   // Verifică expirarea
   const expiresAt = new Date(invitation.expires_at);
   if (expiresAt < new Date()) {
+    // Creează notificare pentru trainer - link expirat (tentativă de activare)
+    const { data: clientData } = await supabase
+      .from('clients')
+      .select('name, trainer_id')
+      .eq('id', invitation.client_id)
+      .single();
+
+    if (clientData && clientData.trainer_id) {
+      // Verifică dacă nu există deja notificare pentru acest link expirat
+      const { data: existingNotif } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', clientData.trainer_id)
+        .eq('type', 'invitation_expired')
+        .eq('related_client_id', invitation.client_id)
+        .single();
+
+      if (!existingNotif) {
+        const { error: notificationError } = await supabase
+          .from('notifications')
+          .insert({
+            user_id: clientData.trainer_id,
+            type: 'invitation_expired',
+            title: 'Link de invitație expirat',
+            message: `${clientData.name} a încercat să activeze contul dar link-ul a expirat`,
+            related_client_id: invitation.client_id,
+            is_read: false
+          });
+
+        if (notificationError) {
+          console.error('Eroare la crearea notificării de expirare:', notificationError);
+        } else {
+          console.log(`✅ Notificare de expirare creată pentru trainer ${clientData.trainer_id}`);
+        }
+      }
+    }
+
     logActivity({
       action: 'client.activate',
       status: 'failure',
@@ -126,6 +163,32 @@ export async function POST(request) {
 
   if (updateClientError) {
     console.error('Eroare la actualizarea clientului:', updateClientError);
+  }
+
+  // Creează notificare pentru trainer - client activat cu succes
+  const { data: clientData } = await supabase
+    .from('clients')
+    .select('name, trainer_id')
+    .eq('id', invitation.client_id)
+    .single();
+
+  if (clientData && clientData.trainer_id) {
+    const { error: notificationError } = await supabase
+      .from('notifications')
+      .insert({
+        user_id: clientData.trainer_id,
+        type: 'client_activated',
+        title: 'Client nou activat',
+        message: `${clientData.name} și-a activat contul cu succes`,
+        related_client_id: invitation.client_id,
+        is_read: false
+      });
+
+    if (notificationError) {
+      console.error('Eroare la crearea notificării de activare:', notificationError);
+    } else {
+      console.log(`✅ Notificare de activare creată pentru trainer ${clientData.trainer_id}`);
+    }
   }
 
   // Generează JWT token
