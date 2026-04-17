@@ -371,13 +371,6 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         weeksNoChange: String(stagnationWeeks),
         forceRegenerate: true, // Flag pentru a indica că antrenorul vrea explicit regenerare
       }));
-      
-        currentWeight: progressData.weight,
-        adherence: progressData.respectare,
-        energyLevel: progressData.energie,
-        hungerLevel: progressData.foame,
-        weeksNoChange: stagnationWeeks
-      });
 
       // Stochează necesarul nutrițional curent pentru diff-ul macro după generare
       if (planId) {
