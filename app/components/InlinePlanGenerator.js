@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
 import ClientForm from '@/app/components/MealPlanGenerator/ClientForm';
@@ -82,22 +82,12 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
           } else if (event.type === 'complete') {
             setLoadingProgress(100);
             
-            console.log('[InlinePlanGenerator] Plan complete:', {
-              hasPlanIdInPlan: !!event.plan?.id,
-              planIdInPlan: event.plan?.id,
-              hasEventPlanId: !!event.planId,
-              eventPlanId: event.planId,
-              clientId,
-              hasOnPlanGenerated: !!onPlanGenerated
-            });
-            
             // planId vine ca event.planId (nu event.plan.id)
             const planId = event.planId || event.plan?.id;
             
             // Dacă vine din progres (clientId setat), tranziție automată FĂRĂ a afișa planul
             if (onPlanGenerated && planId && clientId) {
               // Așteaptă doar 500ms pentru feedback vizual că s-a finalizat
-              console.log('[InlinePlanGenerator] Calling onPlanGenerated with planId:', planId);
               setTimeout(() => {
                 onPlanGenerated(planId);
               }, 500);
@@ -167,8 +157,6 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
       if (storedOldWeight) {
         oldWeight = storedOldWeight;
       }
-      console.log('[InlinePlanGenerator] StoredProgress:', storedProgress);
-      console.log('[InlinePlanGenerator] OldWeight:', oldWeight);
     } catch { /* ignoră erori de parse */ }
     sessionStorage.removeItem('clientProgress');
     sessionStorage.removeItem('clientPreviousNeeds');
@@ -204,10 +192,8 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
         // Dacă avem necesarul anterior, adăugăm caloriile actuale pentru ajustare corectă
         if (previousNeeds && previousNeeds.calories) {
           formData.currentPlanCalories = previousNeeds.calories;
-          console.log('[InlinePlanGenerator] Adding currentPlanCalories:', previousNeeds.calories);
         }
         
-        console.log('[InlinePlanGenerator] FormData to send:', JSON.stringify(formData, null, 2));
         
         // Restaurează necesarul anterior pentru toast-ul de diff macro
         if (previousNeeds) {

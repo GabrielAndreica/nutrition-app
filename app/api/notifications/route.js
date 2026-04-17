@@ -118,11 +118,9 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    console.log('[Notifications POST] Request body:', body);
     const { user_id, type, title, message, related_client_id, related_plan_id } = body;
 
     if (!user_id || !type || !message) {
-      console.error('[Notifications POST] Missing required fields:', { user_id, type, message });
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -135,8 +133,6 @@ export async function POST(request) {
       related_plan_id: related_plan_id || null,
       is_read: false
     };
-    
-    console.log('[Notifications POST] Inserting:', insertData);
 
     const { data: notification, error: insertError } = await supabase
       .from('notifications')
@@ -148,8 +144,6 @@ export async function POST(request) {
       console.error('[Notifications POST] Insert error:', insertError);
       return NextResponse.json({ error: 'Failed to create notification', details: insertError.message }, { status: 500 });
     }
-
-    console.log('[Notifications POST] Success:', notification);
     
     // Log pentru acțiunile antrenorului
     const { ip, userAgent } = getRequestMeta(request);

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
@@ -79,9 +79,7 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
     // Altfel folosește caloriile planului curent
     const currentCal = previousPlanCalories || nutritionalNeeds?.calories || null;
     if (previousPlanCalories) {
-      console.log('[AI Recommendation] Using previous_plan_calories from DB:', currentCal);
     } else {
-      console.log('[AI Recommendation] Using current plan calories:', currentCal);
     }
 
     let action = 'continue';
@@ -99,25 +97,20 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
     // Sortează descrescător după dată (cele mai recente primele)
     clientEntries.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
     
-    console.log(`[AI Recommendation] Client entries count: ${clientEntries.length}`);
     
     // Intrarea curentă este cel mai recent [CLIENT] (indexul 0)
     // Caută a doua intrare [CLIENT] pentru comparație (indexul 1)
     if (clientEntries.length >= 2) {
       const prevEntry = clientEntries[1];
       previousWeight = parseFloat(prevEntry.weight);
-      console.log(`[AI Recommendation] Comparing current ${currentWeight}kg with previous CLIENT entry ${previousWeight}kg`);
     } else if (clientEntries.length === 1 && client?.weight) {
       // Prima intrare de la client - comparăm cu greutatea inițială din profil
       previousWeight = parseFloat(client.weight);
-      console.log(`[AI Recommendation] First CLIENT entry - comparing with profile weight ${previousWeight}kg`);
     }
     
     if (previousWeight && currentWeight && Math.abs(currentWeight - previousWeight) > 0.05) {
       weightChangePercent = ((currentWeight - previousWeight) / previousWeight) * 100;
-      console.log(`[AI Recommendation] Weight change: ${previousWeight}kg → ${currentWeight}kg = ${weightChangePercent.toFixed(2)}%`);
     } else {
-      console.log(`[AI Recommendation] No significant weight change detected. Current: ${currentWeight}kg, Previous: ${previousWeight || 'N/A'}kg`);
     }
 
     // Verifică dacă schimbarea de greutate e în afara intervalului optim
@@ -284,7 +277,6 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
               // Setează previous_plan_calories dacă există
               if (planData.previousPlanCalories) {
                 setPreviousPlanCalories(planData.previousPlanCalories);
-                console.log('[InlineProgressView] Loaded previous_plan_calories:', planData.previousPlanCalories);
               }
             }
           }
@@ -319,7 +311,6 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         const result = await response.json();
         const clientData = result.client;
         
-        console.log('[handleContinue] Client data:', clientData);
         
         if (clientData && clientData.user_id) {
           const notifResponse = await fetch('/api/notifications', {
@@ -338,7 +329,6 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
           });
           
           const notifResult = await notifResponse.json();
-          console.log('[handleContinue] Notification created:', notifResult);
         } else {
           console.warn('[handleContinue] No user_id found for client:', clientData);
         }
@@ -362,16 +352,13 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
       if (clientEntries.length >= 2) {
         // Avem cel puțin 2 intrări CLIENT - luăm penultima
         oldWeight = parseFloat(clientEntries[1].weight);
-        console.log('[InlineProgressView] Found previous weight from history:', oldWeight);
       } else if (clientEntries.length === 1) {
         // Prima intrare CLIENT - nu avem greutate anterioară, folosim cea curentă
         oldWeight = parseFloat(progressData.weight);
-        console.log('[InlineProgressView] First CLIENT entry, using current weight:', oldWeight);
       }
       
       if (oldWeight) {
         sessionStorage.setItem('clientOldWeight', String(oldWeight));
-        console.log('[InlineProgressView] Storing oldWeight:', oldWeight);
       }
 
       // Stochează datele de progres pentru generator
@@ -385,7 +372,6 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         forceRegenerate: true, // Flag pentru a indica că antrenorul vrea explicit regenerare
       }));
       
-      console.log('[InlineProgressView] Stored progress:', {
         currentWeight: progressData.weight,
         adherence: progressData.respectare,
         energyLevel: progressData.energie,
@@ -415,7 +401,6 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         setPlanContinued(true);
       }
       
-      console.log('[InlineProgressView] Calling onGeneratePlan with clientId:', client.id);
       
       if (onGeneratePlan) {
         onGeneratePlan(client.id);

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
 import styles from '@/app/meal-plan/meal-plan-view.module.css';
@@ -42,7 +42,6 @@ function SkeletonMealPlan() {
 
 export default function InlineMealPlanView({ planId: initialPlanId, scrollContainerRef, onBack, onViewProgress }) {
   // DEBUG
-  console.log('InlineMealPlanView RECEIVED onViewProgress:', typeof onViewProgress, onViewProgress);
   
   const [currentPlanId, setCurrentPlanId] = useState(initialPlanId);
   const [planTab, setPlanTab] = useState('alimentar');
@@ -303,7 +302,6 @@ export default function InlineMealPlanView({ planId: initialPlanId, scrollContai
             onReset={onBack}
             onRegenerate={handleRegenerate}
             onViewProgress={onViewProgress ? (() => {
-              console.log('BUTTON CLICKED! clientId:', clientData?.clientId);
               if (clientData?.clientId) {
                 onViewProgress(clientData.clientId);
               }

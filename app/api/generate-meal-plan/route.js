@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { createClient } from '@supabase/supabase-js';
 import { verifyToken } from '@/app/lib/verifyToken';
@@ -32,11 +32,8 @@ async function loadFoodsFromSupabase(dietType = 'omnivore', allergiesText = '') 
   
   // Verifică dacă cache-ul e valid
   if (foodsCache && (now - foodsCacheTimestamp) < FOODS_CACHE_TTL) {
-    console.log('Folosesc alimentele din cache');
     return filterFoods(foodsCache, dietType, allergiesText);
   }
-  
-  console.log('Încarc alimentele din Supabase...');
   const { data: foods, error } = await supabase
     .from('foods')
     .select('name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, category, diet_types, allergens, max_amount_per_meal')
@@ -52,7 +49,6 @@ async function loadFoodsFromSupabase(dietType = 'omnivore', allergiesText = '') 
   // Actualizează cache-ul
   foodsCache = foods;
   foodsCacheTimestamp = now;
-  console.log(`Încărcate ${foods.length} alimente din Supabase`);
   
   return filterFoods(foods, dietType, allergiesText);
 }
@@ -206,8 +202,6 @@ export async function POST(request) {
             }
           );
         }
-        
-        console.log(`Rate limit OK - rămân ${remaining} planuri în fereastra curentă`);
       }
     } catch (rateLimitCheckError) {
       console.error('Excepție la verificare rate limit:', rateLimitCheckError);
@@ -302,14 +296,7 @@ export async function POST(request) {
       const newWeight = parseFloat(progress.currentWeight);
       const weightChangePercent = ((newWeight - oldWeight) / oldWeight) * 100;
       
-      console.log('[API] Progress evaluation:', {
-        oldWeight,
-        newWeight,
-        weightChangePercent: weightChangePercent.toFixed(2),
-        goal,
-        forceRegenerate: progress?.forceRegenerate,
-        currentPlanCalories: clientData.currentPlanCalories
-      });
+
       
       // Log: începe evaluarea progresului
       logActivity({
@@ -348,13 +335,11 @@ export async function POST(request) {
         hungerAdjustment = 100;
         needsCarbRedistribution = true;
         hungerMessage = 'Foame extremă cu energie scăzută detectată - se adaugă +100 kcal și se redistribuie carbohidrații.';
-        console.log(hungerMessage);
       }
       // Foame constantă → +100 kcal
       else if (hungerLevel === 'crescut' || hungerLevel === 'extrem') {
         hungerAdjustment = 100;
         hungerMessage = 'Foame crescută detectată - se adaugă +100 kcal.';
-        console.log(hungerMessage);
       }
 
       // ─── Stagnare 2+ săptămâni cu greutate stabilă → ±150-200 kcal ───
@@ -367,15 +352,9 @@ export async function POST(request) {
         if (goal === 'weight_loss') {
           stagnationAdjustment = -175; // scade 150-200 kcal
           stagnationMessage = 'Stagnare 2+ săptămâni pe cut - se scad 175 kcal pentru a relansa progresul.';
-          console.log(stagnationMessage);
         } else if (goal === 'muscle_gain') {
           stagnationAdjustment = 175; // adaugă 150-200 kcal
           stagnationMessage = 'Stagnare 2+ săptămâni pe masă - se adaugă 175 kcal pentru a relansa creșterea.';
-          console.log(stagnationMessage);
-        } else if (goal === 'maintenance') {
-          // Menținere: stagnarea e de fapt SUCCESUL — greutatea e stabilă, exact cum trebuie
-          // Nu facem nicio ajustare — planul funcționează perfect
-          console.log('Menținere cu greutate stabilă — planul funcționează, nu se regenerează.');
         }
       }
 
@@ -387,9 +366,6 @@ export async function POST(request) {
       
       // Dacă antrenorul a cerut explicit regenerare, nu verificăm progres optim
       const forceRegenerate = progress?.forceRegenerate === true;
-      if (forceRegenerate) {
-        console.log('Regenerare forțată de antrenor - se generează plan nou chiar dacă progresul e optim');
-      }
 
       // ─── CAZ SPECIAL: Adherență DELOC - nu se regenerează planul dacă obiectivul nu e îndeplinit ───
       if (adherence === 'deloc') {
@@ -449,7 +425,6 @@ export async function POST(request) {
       let weightToleranceMultiplier = 1.0; // Factor de multiplicare pentru toleranță
       if (adherence === 'partial') {
         weightToleranceMultiplier = 1.5; // Marja cu 50% mai permisivă
-        console.log('Adherență parțială detectată - se folosește marja de variație mai permisivă (×1.5)');
       }
 
       // Menținere cu greutate stabilă = succes DOAR dacă nu avem cazuri speciale SAU regenerare forțată
@@ -495,7 +470,7 @@ export async function POST(request) {
         if (updateError) {
           console.error('Eroare la actualizarea greutății clientului:', updateError.message);
         } else {
-          console.log('Greutate actualizată pentru client:', clientData.clientId, '→', newWeight, 'kg');
+
         }
 
         // Salvează în weight_history chiar dacă nu se regenerează planul
@@ -509,7 +484,6 @@ export async function POST(request) {
         if (whErrOptimal) {
           console.error('[weight_history] Eroare la inserare (optimal):', whErrOptimal.message);
         } else {
-          console.log('[weight_history] Greutate salvată (progres optim):', newWeight, 'kg');
         }
 
         logActivity({
@@ -598,13 +572,13 @@ export async function POST(request) {
       // Foamea are prioritate - adăugăm caloriile pentru foame
       if (hungerAdjustment > 0) {
         calorieAdjustment += hungerAdjustment;
-        console.log(`Ajustare foame aplicată: +${hungerAdjustment} kcal`);
+
       }
       
       // Stagnarea se aplică doar dacă nu avem deja o ajustare mare
       if (stagnationAdjustment !== 0 && Math.abs(calorieAdjustment) < 150) {
         calorieAdjustment = stagnationAdjustment; // înlocuiește cu ajustarea de stagnare
-        console.log(`Ajustare stagnare aplicată: ${stagnationAdjustment} kcal`);
+
       }
 
       // Stochează flag-ul pentru redistribuție carbo (foame extremă + energie scăzută)
@@ -614,7 +588,6 @@ export async function POST(request) {
 
       // Stochează ajustarea pentru a o folosi în calculul caloriilor
       clientData._calorieAdjustment = calorieAdjustment;
-      console.log(`Ajustare calorii pentru ${goal}: ${calorieAdjustment} kcal (schimbare greutate: ${weightChangePercent.toFixed(2)}%)`);
     }
 
     // Dacă avem greutate nouă din progres, recalculăm caloriile
@@ -626,13 +599,11 @@ export async function POST(request) {
     // aplicăm ajustarea față de planul curent (nu față de recalculul pentru greutatea nouă)
     if (clientData._calorieAdjustment && clientData.currentPlanCalories) {
       targetCalories = clientData.currentPlanCalories + clientData._calorieAdjustment;
-      console.log(`Calorii ajustate față de planul curent: ${clientData.currentPlanCalories} + (${clientData._calorieAdjustment}) = ${targetCalories} kcal`);
     } else {
       // Fără ajustare sau fără plan curent — calculează normal
       targetCalories = cachedCalculateCalories(effectiveClientData, calculateTargetCalories);
       if (clientData._calorieAdjustment) {
         targetCalories += clientData._calorieAdjustment;
-        console.log(`Calorii ajustate față de TDEE recalculat: ${targetCalories} kcal`);
       }
     }
     
@@ -668,7 +639,6 @@ export async function POST(request) {
     // Încarcă alimentele din Supabase, filtrate după dietă și alergii
     const availableFoods = await loadFoodsFromSupabase(dietType || 'omnivore', allergies || '');
     const foodsContext = generateFoodsContext(availableFoods);
-    console.log(`Alimente disponibile pentru plan: ${availableFoods.length}`);
 
     // Surse de proteine rotative pe zile — forțează varietatea
     const proteinSources = [
@@ -719,14 +689,13 @@ export async function POST(request) {
 
     for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
       if (request.signal.aborted) {
-        console.log(`Generare întreruptă de client după ziua ${dayIndex}.`);
+
         logCancelled({ clientId: clientData.clientId || null, clientName: clientData.name, daysCompleted: dayIndex, reason: 'user_aborted' });
         closeStream();
         return;
       }
       const dayNumber = dayIndex + 1;
       const dayName = dayNames[dayIndex];
-      console.log(`Generare ziua ${dayNumber}/7 (${dayName})...`);
       sendEvent({ type: 'progress', day: dayNumber, total: 7 });
 
       const avoidMealsStr = previousMeals.length > 0
@@ -901,7 +870,6 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
       recalculateDayTotals(dayPlan);
       adjustDayToTargets(dayPlan, targets);
 
-      console.log(`Day ${dayNumber}: Done ✓ (${dayPlan.dailyTotals.calories} kcal)`);
 
       // Stochează mesele ca combinații complete pentru anti-repetiție
       if (dayPlan.meals) {
@@ -919,7 +887,6 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
     const plan = { clientName: name, dailyTargets: targets, days };
 
     // Salvează planul în Supabase dacă există clientId
-    console.log('Verificare salvare plan - clientId:', clientData.clientId);
     let savedPlanId = null;
     if (clientData.clientId) {
       const insertData = {
@@ -932,7 +899,6 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
       // Dacă planul e generat din progres, salvează caloriile planului anterior
       if (progress && clientData.currentPlanCalories) {
         insertData.previous_plan_calories = clientData.currentPlanCalories;
-        console.log('Saving previous_plan_calories:', clientData.currentPlanCalories);
       }
       
       const { data: savedPlan, error: saveError } = await supabase
@@ -944,7 +910,6 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
         console.error('Eroare la salvarea planului în Supabase:', saveError.message);
       } else {
         savedPlanId = savedPlan?.id || null;
-        console.log('Plan salvat cu succes în Supabase cu ID:', savedPlanId, 'pentru clientul', clientData.clientId);
         
         // Creează notificare pentru client când antrenorul generează un plan nou
         const { data: clientInfo, error: clientInfoError } = await supabase
@@ -968,8 +933,6 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
 
           if (notificationError) {
             console.error('Eroare la crearea notificării pentru client:', notificationError);
-          } else {
-            console.log(`✅ Notificare plan nou creată pentru client ${clientInfo.user_id}`);
           }
         }
       }
@@ -984,7 +947,7 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
         if (weightUpdateError) {
           console.error('Eroare la actualizarea greutății clientului:', weightUpdateError.message);
         } else {
-          console.log('Greutate actualizată pentru client:', clientData.clientId, '→', newWeight, 'kg');
+
         }
 
         // Salvează în weight_history DOAR după ce planul a fost generat și salvat cu succes
@@ -998,11 +961,11 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
         if (whErr) {
           console.error('[weight_history] Eroare la inserare (progres plan):', whErr.message, whErr);
         } else {
-          console.log('[weight_history] Greutate salvată după generare plan:', newWeight, 'kg');
+
         }
       }
     } else {
-      console.log('clientId lipsă, planul NU va fi salvat în baza de date');
+
     }
 
     logActivity({
@@ -1017,7 +980,7 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
     sendEvent({ type: 'complete', plan, nutritionalNeeds: targets, planId: savedPlanId });
         } catch (err) {
           if (request.signal.aborted || err.name === 'AbortError') {
-            console.log('Generare anulată de client.');
+
             logCancelled({ clientId: clientData.clientId || null, clientName: clientData.name, reason: 'user_aborted' });
             closeStream();
             return;

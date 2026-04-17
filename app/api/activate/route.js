@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import bcrypt from 'bcrypt';
@@ -97,7 +97,6 @@ export async function POST(request) {
         if (notificationError) {
           console.error('Eroare la crearea notificării de expirare:', notificationError);
         } else {
-          console.log(`✅ Notificare de expirare creată pentru trainer ${clientData.trainer_id}`);
         }
       }
     }
@@ -187,7 +186,6 @@ export async function POST(request) {
     if (notificationError) {
       console.error('Eroare la crearea notificării de activare:', notificationError);
     } else {
-      console.log(`✅ Notificare de activare creată pentru trainer ${clientData.trainer_id}`);
     }
   }
 
