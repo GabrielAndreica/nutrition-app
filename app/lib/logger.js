@@ -1,9 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
+import { getSupabase } from '@/app/lib/supabase';
 
 /**
  * Înregistrează un eveniment de activitate în baza de date.
@@ -28,6 +23,7 @@ export async function logActivity({
   userAgent = null,
   details = null,
 }) {
+  const supabase = getSupabase();
   try {
     console.log('[Logger] Attempting to log:', { action, status, userId, email });
     

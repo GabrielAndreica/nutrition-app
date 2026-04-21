@@ -1,18 +1,14 @@
-﻿import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { NextResponse } from 'next/server';
+import { getSupabase } from '@/app/lib/supabase';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // POST /api/activate — activează contul clientului
 export async function POST(request) {
+  const supabase = getSupabase();
   const { ip, userAgent } = getRequestMeta(request);
 
   // ─── Rate Limiting pentru Activation (previne brute force pe tokens) ───

@@ -10,8 +10,8 @@ const mockUpdate = jest.fn();
 const mockEq     = jest.fn();
 const mockSelect = jest.fn();
 
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({
+jest.mock('@/app/lib/supabase', () => ({
+  getSupabase: () => ({
     from: () => ({ update: mockUpdate }),
   }),
 }));

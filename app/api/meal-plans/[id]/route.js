@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 // GET /api/meal-plans/[id] — returnează un plan complet
-export async function GET(request, { params }) {
+export async function GET(request, {
+params }) {
+  const supabase = getSupabase();
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -108,7 +105,9 @@ export async function GET(request, { params }) {
 }
 
 // DELETE /api/meal-plans/[id] — șterge un plan (doar traineri)
-export async function DELETE(request, { params }) {
+export async function DELETE(request, {
+params }) {
+  const supabase = getSupabase();
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });

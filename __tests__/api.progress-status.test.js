@@ -9,8 +9,8 @@ import { NextRequest } from 'next/server';
 const mockSelect = jest.fn();
 const mockEq    = jest.fn();
 
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({
+jest.mock('@/app/lib/supabase', () => ({
+  getSupabase: () => ({
     from: () => ({
       select: mockSelect,
     }),

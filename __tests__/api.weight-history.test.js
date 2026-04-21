@@ -16,8 +16,8 @@ const mockEqChain = jest.fn();
 const mockInsert  = jest.fn();
 const mockRpc     = jest.fn();
 
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({
+jest.mock('@/app/lib/supabase', () => ({
+  getSupabase: () => ({
     from: (table) => {
       lastUpdateTable = table;
       return {

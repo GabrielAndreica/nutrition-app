@@ -1,16 +1,11 @@
-﻿import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { checkRateLimit, requestQueue, generateRequestId } from '@/app/lib/rateLimiter';
 import { cachedCalculateCalories, cachedCalculateMacros, getCachedMealDistribution } from '@/app/lib/nutritionCache';
 import { sanitizeText, sanitizeFoodRestrictions, sanitizeFoodPreferences, sanitizeNumber } from '@/app/lib/sanitize';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -34,6 +29,7 @@ async function loadFoodsFromSupabase(dietType = 'omnivore', allergiesText = '') 
   if (foodsCache && (now - foodsCacheTimestamp) < FOODS_CACHE_TTL) {
     return filterFoods(foodsCache, dietType, allergiesText);
   }
+  const supabase = getSupabase();
   const { data: foods, error } = await supabase
     .from('foods')
     .select('name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, category, diet_types, allergens, max_amount_per_meal')
@@ -147,6 +143,7 @@ const PARALLEL_CONFIG = {
 };
 
 export async function POST(request) {
+  const supabase = getSupabase();
   const requestId = generateRequestId();
   
   try {
@@ -629,12 +626,13 @@ export async function POST(request) {
     
     // Dacă avem o ajustare de calorii și știm caloriile planului curent,
     // aplicăm ajustarea față de planul curent (nu față de recalculul pentru greutatea nouă)
-    if (clientData._calorieAdjustment && clientData.currentPlanCalories) {
+    // IMPORTANT: verificăm !== undefined (nu && ) pentru că ajustarea 0 e validă (nu e falsy)
+    if (clientData._calorieAdjustment !== undefined && clientData.currentPlanCalories) {
       targetCalories = clientData.currentPlanCalories + clientData._calorieAdjustment;
     } else {
-      // Fără ajustare sau fără plan curent — calculează normal
+      // Fără progres sau fără plan curent — calculează normal din formula
       targetCalories = cachedCalculateCalories(effectiveClientData, calculateTargetCalories);
-      if (clientData._calorieAdjustment) {
+      if (clientData._calorieAdjustment !== undefined) {
         targetCalories += clientData._calorieAdjustment;
       }
     }

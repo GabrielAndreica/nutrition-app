@@ -1,16 +1,13 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeName, sanitizeFoodRestrictions, sanitizeFoodPreferences, sanitizeNumber } from '@/app/lib/sanitize';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
 // GET /api/clients/[id] — get a single client
-export async function GET(request, { params }) {
+export async function GET(request, {
+params }) {
+  const supabase = getSupabase();
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -57,7 +54,9 @@ export async function GET(request, { params }) {
 }
 
 // PUT /api/clients/[id] — update a client
-export async function PUT(request, { params }) {
+export async function PUT(request, {
+params }) {
+  const supabase = getSupabase();
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -174,7 +173,9 @@ export async function PUT(request, { params }) {
 }
 
 // PATCH /api/clients/[id] — partial update for trainer-controlled fields
-export async function PATCH(request, { params }) {
+export async function PATCH(request, {
+params }) {
+  const supabase = getSupabase();
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -219,7 +220,9 @@ export async function PATCH(request, { params }) {
 }
 
 // DELETE /api/clients/[id] — delete a client
-export async function DELETE(request, { params }) {
+export async function DELETE(request, {
+params }) {
+  const supabase = getSupabase();
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });

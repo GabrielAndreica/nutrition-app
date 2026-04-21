@@ -14,8 +14,8 @@ const mockRpc    = jest.fn();
 // meal_plans mock
 const mockPlansLimit = jest.fn();
 
-jest.mock('@supabase/supabase-js', () => ({
-  createClient: () => ({
+jest.mock('@/app/lib/supabase', () => ({
+  getSupabase: () => ({
     from: (table) => {
       if (table === 'meal_plans') {
         return {

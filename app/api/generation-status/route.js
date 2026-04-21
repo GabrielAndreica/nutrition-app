@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 /**
  * GET /api/generation-status
  * Returnează toate generările active pentru trainer-ul curent
  */
 export async function GET(request) {
+  const supabase = getSupabase();
   try {
     const auth = verifyToken(request);
     if (auth.error) {
@@ -60,6 +56,7 @@ export async function GET(request) {
  * Creează sau actualizează statusul generării
  */
 export async function POST(request) {
+  const supabase = getSupabase();
   try {
     const auth = verifyToken(request);
     if (auth.error) {
@@ -122,6 +119,7 @@ export async function POST(request) {
  * Șterge statusul generării pentru un client
  */
 export async function DELETE(request) {
+  const supabase = getSupabase();
   try {
     const auth = verifyToken(request);
     if (auth.error) {

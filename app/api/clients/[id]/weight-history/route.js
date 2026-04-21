@@ -1,19 +1,16 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeText, sanitizeNumber } from '@/app/lib/sanitize';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 /**
  * GET /api/clients/[id]/weight-history
  * Returnează istoricul greutății pentru un client + calcul automat stagnare
  */
-export async function GET(request, { params }) {
+export async function GET(request, {
+params }) {
+  const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -102,7 +99,9 @@ export async function GET(request, { params }) {
  * POST /api/clients/[id]/weight-history
  * Adaugă o nouă înregistrare de greutate
  */
-export async function POST(request, { params }) {
+export async function POST(request, {
+params }) {
+  const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });

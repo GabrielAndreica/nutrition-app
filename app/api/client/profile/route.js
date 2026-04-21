@@ -1,14 +1,10 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 // GET /api/client/profile — returnează datele clientului autentificat
 export async function GET(request) {
+  const supabase = getSupabase();
   const user = await verifyToken(request);
 
   if (!user || user.role !== 'client') {

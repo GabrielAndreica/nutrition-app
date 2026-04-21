@@ -1,12 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import bcrypt from 'bcrypt';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeEmail, sanitizeName } from '@/app/lib/sanitize';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
-);
 
 // Validation rules
 const ValidationRules = {
@@ -66,6 +61,7 @@ const validateName = (name) => {
 };
 
 export async function POST(request) {
+  const supabase = getSupabase();
   const { ip, userAgent } = getRequestMeta(request);
 
   // ─── Rate Limiting pentru Signup (previne spam accounts) ───────

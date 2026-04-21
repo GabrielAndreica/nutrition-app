@@ -21,6 +21,9 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
   const abortControllerRef = useRef(null);
   const previousNeedsRef = useRef(null);
   const isMountedRef = useRef(true);
+  // Flag: generarea tocmai a pornit — polling-ul nu trebuie să redirecționeze
+  // înainte ca SSE-ul să trimită primul eveniment progress
+  const generationJustStartedRef = useRef(false);
 
   useEffect(() => {
     return () => { isMountedRef.current = false; };
@@ -40,6 +43,7 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
     setLoadingProgress(0);
     setError(null);
     setClientData(formData);
+    generationJustStartedRef.current = true; // blochează polling-ul să încarce planul vechi
     let redirecting = false;
 
     // Salvează în sessionStorage pentru generare în background
@@ -115,6 +119,7 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
           if (!line.trim()) continue;
           const event = JSON.parse(line);
           if (event.type === 'progress') {
+            generationJustStartedRef.current = false; // SSE activ — polling poate monitoriza acum
             setLoadingStep(event.day);
             setLoadingProgress(Math.round((event.day / event.total) * 90));
             // Actualizează sessionStorage cu progresul
@@ -332,9 +337,9 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
         } catch (e) {
           console.error('Error parsing status:', e);
         }
-      } else {
-        // Dacă nu mai există status, înseamnă că s-a finalizat
-        // Încearcă să re-fetch planul
+      } else if (!generationJustStartedRef.current) {
+        // Dacă nu mai există status ȘI generarea a pornit deja (SSE a confirmat),
+        // înseamnă că s-a finalizat — încearcă să re-fetch planul
         const token = localStorage.getItem('token');
         if (token) {
           fetch(`/api/clients/${clientId}`, {
