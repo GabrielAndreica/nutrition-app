@@ -28,11 +28,12 @@
   justify-content: space-between;
   gap: 20px;
   background: #fff;
-  border: 1px solid #e8e8ed;
-  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 21px;
   padding: 16px 20px;
   margin-bottom: 16px;
   flex-wrap: wrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
 }
 
 .clientHeaderLeft {
@@ -985,11 +986,13 @@
 @media (max-width: 768px) {
   .container {
     padding: 0;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
   .downloadBtn {
     padding: 9px 10px;
     border-radius: 12px;
+    min-height: 44px;
   }
 
   .downloadBtnLabel {
@@ -999,6 +1002,7 @@
   .updateProgressBtn {
     padding: 9px 14px;
     font-size: 12px;
+    min-height: 44px;
   }
 
   .modal {
@@ -1438,6 +1442,17 @@
 
   .progressForm {
     padding: 18px;
+  }
+
+  .progressField input,
+  .progressField select,
+  .progressField textarea {
+    font-size: 16px;
+  }
+
+  .updateProgressBtn,
+  .progressSubmitBtn {
+    min-height: 48px;
   }
 }
 

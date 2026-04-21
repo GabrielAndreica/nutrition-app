@@ -20,11 +20,14 @@ const goalLabels = {
 };
 const dietLabels = { omnivore: 'Omnivor', vegetarian: 'Vegetarian', vegan: 'Vegan' };
 const activityLabels = {
-  sedentary: 'Sedentar',
-  light: 'Usor activ',
-  moderate: 'Moderat activ',
-  active: 'Activ',
-  very_active: 'Foarte activ',
+  sedentary: 'Sedentară',
+  light: 'Ușor activă',
+  lightly_active: 'Ușor activă',
+  moderate: 'Moderată',
+  moderately_active: 'Moderată',
+  active: 'Activă',
+  very_active: 'Foarte activă',
+  extra_active: 'Extrem de activă',
 };
 
 // Format plan creation time
@@ -145,6 +148,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
   const [formError,     setFormError]     = useState(null);
   const [fieldErrors,   setFieldErrors]   = useState({});
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [confirmSave,   setConfirmSave]   = useState(false);
 
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -429,11 +433,11 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
     setFormError(null);
     setFieldErrors({});
     setFormSubmitted(false);
+    setEditingClient(null);
     onAddFormChange?.(false);
   };
 
   const openEdit = (client) => {
-    setShowAddForm(false);
     setEditingClient(client);
     setForm({
       name:          client.name           || '',
@@ -449,7 +453,10 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       foodPreferences: client.food_preferences || '',
     });
     setFormError(null);
-    setModalOpen(true);
+    setFieldErrors({});
+    setFormSubmitted(false);
+    setShowAddForm(true);
+    onAddFormChange?.(true);
   };
 
   const closeModal = () => {
@@ -739,16 +746,19 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
     return errs;
   };
 
-  const handleSave = async (e) => {
+  const handleSave = (e) => {
     e.preventDefault();
     setFormSubmitted(true);
-
     if (!editingClient) {
       const errs = validateClientForm(form);
       setFieldErrors(errs);
       if (Object.keys(errs).length > 0) return;
     }
+    setConfirmSave(true);
+  };
 
+  const doSave = async () => {
+    setConfirmSave(false);
     setSaving(true);
     setFormError(null);
     try {
@@ -759,7 +769,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       if (!res.ok) throw new Error(data.error || 'Eroare la salvare');
       if (editingClient) {
         setClients(prev => prev.map(c => c.id === editingClient.id ? data.client : c));
-        closeModal();
+        closeAddForm();
       } else {
         setSearch('');
         setDebouncedSearch('');
@@ -822,7 +832,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
               <polyline points="15 18 9 12 15 6"/>
             </svg>
           </button>
-          <span className={styles.addPageTitle}>Client nou</span>
+          <span className={styles.addPageTitle}>{editingClient ? `Editează client — ${editingClient.name}` : 'Client nou'}</span>
         </div>
 
         <form onSubmit={handleSave} className={styles.addPageForm} noValidate>
@@ -984,9 +994,34 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
 
           {formError && <div className={styles.formError}>{formError}</div>}
 
+          {confirmSave && (
+            <div className={styles.modalOverlay} onClick={() => setConfirmSave(false)}>
+              <div className={styles.confirmModal} onClick={e => e.stopPropagation()}>
+                <div className={styles.confirmIcon}>
+                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                </div>
+                <h3>{editingClient ? 'Salvezi modificările?' : 'Adaugi clientul?'}</h3>
+                <p>{editingClient
+                  ? `Datele lui ${editingClient.name} vor fi actualizate cu informațiile introduse.`
+                  : `${form.name} va fi adăugat în lista ta de clienți.`}
+                </p>
+                <div className={styles.confirmActions}>
+                  <button className={styles.cancelBtn} onClick={() => setConfirmSave(false)}>Anulează</button>
+                  <button className={styles.saveBtn} onClick={doSave} disabled={saving}>
+                    {saving ? 'Se salvează...' : editingClient ? 'Da, salvează' : 'Da, adaugă'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className={styles.addFooter}>
             <button type="submit" className={styles.saveBtn} disabled={saving}>
-              {saving ? <><span className={styles.savingSpinner} />Se salvează...</> : 'Adaugă client'}
+              {saving ? <><span className={styles.savingSpinner} />Se salvează...</> : editingClient ? 'Salvează modificările' : 'Adaugă client'}
             </button>
           </div>
 
@@ -1180,106 +1215,6 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
           </div>
         )}
       </div>
-      )}
-
-      {modalOpen && (
-        <div className={styles.modalOverlay} onClick={closeModal}>
-          <div className={styles.modal} onClick={e => e.stopPropagation()}>
-            <div className={styles.modalHeader}>
-              <h2>{editingClient ? 'Editeaza client' : 'Client nou'}</h2>
-              <button className={styles.modalClose} onClick={closeModal} aria-label="Inchide">x</button>
-            </div>
-            <form onSubmit={handleSave} className={styles.form}>
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label>Nume *</label>
-                  <input name="name" value={form.name} onChange={handleFormChange} required placeholder="ex. Ion Popescu" />
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Gen</label>
-                  <select name="gender" value={form.gender} onChange={handleFormChange}>
-                    <option value="M">Masculin</option>
-                    <option value="F">Feminin</option>
-                  </select>
-                </div>
-              </div>
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label>Varsta *</label>
-                  <input name="age" type="number" min="18" max="100" value={form.age} onChange={handleFormChange} required placeholder="ani" />
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Greutate (kg) *</label>
-                  <input name="weight" type="number" step="0.1" min="30" max="300" value={form.weight} onChange={handleFormChange} required placeholder="kg" />
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Inaltime (cm) *</label>
-                  <input name="height" type="number" min="100" max="250" value={form.height} onChange={handleFormChange} required placeholder="cm" />
-                </div>
-              </div>
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label>Obiectiv</label>
-                  <select name="goal" value={form.goal} onChange={handleFormChange}>
-                    <option value="weight_loss">Slabit</option>
-                    <option value="muscle_gain">Masa musculara</option>
-                    <option value="maintenance">Mentinere</option>
-                    <option value="recomposition">Recompozitie</option>
-                  </select>
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Nivel activitate</label>
-                  <select name="activityLevel" value={form.activityLevel} onChange={handleFormChange}>
-                    <option value="sedentary">Sedentar</option>
-                    <option value="light">Usor activ</option>
-                    <option value="moderate">Moderat activ</option>
-                    <option value="very_active">Foarte activ</option>
-                  </select>
-                </div>
-              </div>
-              <div className={styles.formRow}>
-                <div className={styles.formGroup}>
-                  <label>Tip dieta</label>
-                  <select name="dietType" value={form.dietType} onChange={handleFormChange}>
-                    <option value="omnivore">Omnivor</option>
-                    <option value="vegetarian">Vegetarian</option>
-                    <option value="vegan">Vegan</option>
-                  </select>
-                </div>
-                <div className={styles.formGroup}>
-                  <label>Mese pe zi</label>
-                  <select name="mealsPerDay" value={form.mealsPerDay} onChange={handleFormChange}>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                  </select>
-                </div>
-              </div>
-              <div className={styles.formGroup}>
-                <label>Alergii / intolerante</label>
-                <input name="allergies" value={form.allergies} onChange={handleFormChange} placeholder="ex. gluten, lactate, nuci" />
-              </div>
-              <div className={styles.formGroup}>
-                <label>Preferinte alimentare</label>
-                <textarea
-                  name="foodPreferences"
-                  value={form.foodPreferences}
-                  onChange={handleFormChange}
-                  placeholder="ex. Imi place puiul, orezul, broccoliul. Prefer mancaruri simple. Nu imi plac ciupercile."
-                  rows="3"
-                  className={styles.textarea}
-                />
-              </div>
-              {formError && <div className={styles.formError}>{formError}</div>}
-              <div className={styles.modalFooter}>
-                <button type="button" className={styles.cancelBtn} onClick={closeModal}>Anuleaza</button>
-                <button type="submit" className={styles.saveBtn} disabled={saving}>
-                  {saving ? <><span className={styles.savingSpinner} />Se salveaza...</> : editingClient ? 'Salveaza modificarile' : 'Adauga client'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
       )}
 
       {deleteId && (

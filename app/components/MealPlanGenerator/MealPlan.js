@@ -183,11 +183,13 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
   const currentDay = plan.days[activeDay];
 
   const activityLabels = {
-    sedentary: 'Sedentar',
-    lightly_active: 'Ușor activ',
-    moderately_active: 'Moderat activ',
-    very_active: 'Foarte activ',
-    extra_active: 'Extrem de activ',
+    sedentary: 'Sedentară',
+    lightly_active: 'Ușor activă',
+    light: 'Ușor activă',
+    moderately_active: 'Moderată',
+    moderate: 'Moderată',
+    very_active: 'Foarte activă',
+    extra_active: 'Extrem de activă',
   };
 
   const cooldownDate = progressCooldownUntil ? new Date(progressCooldownUntil) : null;
@@ -226,6 +228,17 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
                 <span className={styles.clientStatLabel}>activitate</span>
               </div>
             )}
+            {clientData.planCreatedAt && (() => {
+              const d = new Date(clientData.planCreatedAt);
+              const months = ['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'];
+              const dateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+              return (
+                <div className={styles.clientStat}>
+                  <span className={styles.clientStatValue}>{dateStr}</span>
+                  <span className={styles.clientStatLabel}>ultima actualizare</span>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

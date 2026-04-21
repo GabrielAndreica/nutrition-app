@@ -157,7 +157,7 @@ function MealPlanViewContent() {
       })
       .then(data => {
         if (!data.mealPlan) throw new Error(data.error || 'Planul nu a fost găsit.');
-        const { plan_data, daily_targets, client_id } = data.mealPlan;
+        const { plan_data, daily_targets, client_id, created_at } = data.mealPlan;
         setMealPlan(plan_data);
         setNutritionalNeeds(daily_targets);
         const c = data.client || {};
@@ -174,6 +174,7 @@ function MealPlanViewContent() {
           allergies: c.allergies,
           mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
           foodPreferences: c.food_preferences || '',
+          planCreatedAt: created_at || null,
         });
       })
       .catch(err => {
