@@ -15,30 +15,30 @@
 
 /* ─── Sidebar ─────────────────────────────────────── */
 .sidebar {
-  width: 220px;
+  width: 213px;
   flex-shrink: 0;
   background: #0f0f0f;
-  padding: 14px 10px 20px;
+  padding: 13px 8px 21px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
   overflow-y: auto;
 }
 
 .sidebarLogo {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 6px 10px 18px;
-  margin-bottom: 4px;
+  gap: 8px;
+  padding: 5px 8px 13px;
+  margin-bottom: 5px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .sidebarLogoMark {
-  width: 24px;
-  height: 24px;
+  width: 21px;
+  height: 21px;
   background: #b7ff00;
-  border-radius: 6px;
+  border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -61,15 +61,15 @@
   color: rgba(255, 255, 255, 0.25);
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  padding: 12px 10px 6px;
+  padding: 13px 8px 5px;
 }
 
 .sidebarItem {
   display: flex;
   align-items: center;
-  gap: 9px;
-  padding: 8px 10px;
-  border-radius: 7px;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 8px;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
   color: rgba(255, 255, 255, 0.5);
@@ -334,10 +334,10 @@
 .sidebarLogoutBtn {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
-  padding: 8px 10px;
-  border-radius: 7px;
+  padding: 8px;
+  border-radius: 8px;
   border: none;
   background: transparent;
   color: rgba(255, 255, 255, 0.4);
@@ -358,7 +358,7 @@
   flex: 1;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  padding: 40px 48px;
+  padding: 34px 55px;
   background:
     radial-gradient(ellipse 70% 30% at 50% 0%, rgba(183, 255, 0, 0.07) 0%, transparent 55%),
     #ffffff;
@@ -366,15 +366,15 @@
 
 /* ─── Hero ───────────────────────────────────────── */
 .hero {
-  margin-bottom: 36px;
+  margin-bottom: 34px;
 }
 
 .heroHeading {
-  font-size: 36px;
+  font-size: 34px;
   font-weight: 800;
   letter-spacing: -1.5px;
   color: #0a0a0a;
-  margin: 0 0 8px;
+  margin: 0 0 5px;
   line-height: 1.1;
 }
 
@@ -398,20 +398,21 @@
 .quickCards {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   max-width: 520px;
 }
 
 .quickCard {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 16px 18px;
+  gap: 13px;
+  padding: 13px 21px;
   background: #ffffff;
-  border: 1px solid var(--gray-200);
-  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 13px;
   cursor: pointer;
   transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.12s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
 }
 
 .quickCard:hover {
@@ -421,8 +422,8 @@
 }
 
 .quickCardIcon {
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   background: #f5f5f5;
   border-radius: 8px;
   display: flex;
@@ -469,8 +470,9 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 0 16px;
-    height: 52px;
+    padding: env(safe-area-inset-top, 0) max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+    min-height: 52px;
+    height: calc(52px + env(safe-area-inset-top, 0px));
     background: #0f0f0f;
     flex-shrink: 0;
     position: relative;
@@ -481,8 +483,8 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 36px;
-    height: 36px;
+    min-width: 44px;
+    min-height: 44px;
     border: none;
     background: transparent;
     color: rgba(255, 255, 255, 0.6);
@@ -567,10 +569,11 @@
     top: 0;
     left: -240px;
     height: 100vh;
+    height: 100dvh;
     width: 220px;
     z-index: 50;
     transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    padding: 14px 10px 20px;
+    padding: 14px 10px calc(20px + env(safe-area-inset-bottom, 0px)) 10px;
   }
 
   .sidebarOpen {
@@ -599,7 +602,7 @@
   }
 
   .main {
-    padding: 24px 20px;
+    padding: 24px max(20px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left));
   }
 
   .heroHeading {
@@ -608,6 +611,10 @@
 
   .quickCards {
     max-width: 100%;
+  }
+
+  .quickCard {
+    min-height: 56px;
   }
 }
 

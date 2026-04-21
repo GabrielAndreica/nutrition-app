@@ -46,23 +46,22 @@
   --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
   --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.12);
   
-  /* Border Radius */
-  --radius-xs: 8px;
-  --radius-sm: 12px;
-  --radius-md: 16px;
-  --radius-lg: 20px;
-  --radius-xl: 24px;
+  /* Border Radius — φ scale: 5→8→13→21→34 */
+  --radius-xs: 5px;
+  --radius-sm: 8px;
+  --radius-md: 13px;
+  --radius-lg: 21px;
+  --radius-xl: 34px;
   --radius-full: 9999px;
   
-  /* Spacing */
-  --spacing-xs: 4px;
+  /* Spacing — φ scale: 5→8→13→21→34→55→89 */
+  --spacing-xs: 5px;
   --spacing-sm: 8px;
-  --spacing-md: 12px;
-  --spacing-lg: 16px;
-  --spacing-xl: 20px;
-  --spacing-2xl: 24px;
-  --spacing-3xl: 32px;
-  --spacing-4xl: 40px;
+  --spacing-md: 13px;
+  --spacing-lg: 21px;
+  --spacing-xl: 34px;
+  --spacing-2xl: 55px;
+  --spacing-3xl: 89px;
 }
 
 * {
@@ -73,6 +72,9 @@
 
 html {
   scroll-behavior: smooth;
+  /* Prevent iOS text size adjustment */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -171,4 +173,17 @@ select:focus {
   outline: none;
   border-color: var(--primary-orange);
   box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
+}
+
+button {
+  touch-action: manipulation;
+}
+
+/* ── iOS zoom prevention: force 16px on all inputs on mobile ─────── */
+@media (max-width: 768px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }

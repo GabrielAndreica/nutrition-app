@@ -470,12 +470,13 @@
 
 .optimalProgressBox {
   background: var(--bg-primary);
-  border-radius: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 21px;
   padding: 48px;
   text-align: center;
   max-width: 480px;
   width: 100%;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
 }
 
 .optimalIcon {

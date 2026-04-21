@@ -1,4 +1,4 @@
-﻿/* ─── Container ──────────────────────────────────────────── */
+/* ─── Container ──────────────────────────────────────────── */
 .container {
   min-height: 100vh;
   background:
@@ -11,8 +11,6 @@
 /* ─── Content ─────────────────────────────────────────────── */
 .content {
   flex: 1;
-  max-width: 1200px;
-  margin: 0 auto;
   width: 100%;
   padding: 40px 24px 64px;
 }
@@ -21,8 +19,8 @@
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 28px;
+  gap: 13px;
+  margin-bottom: 34px;
 }
 
 .searchWrap {
@@ -43,9 +41,9 @@
 
 .searchInput {
   width: 100%;
-  padding: 10px 34px 10px 36px;
+  padding: 8px 34px 8px 36px;
   border: 1.5px solid var(--gray-200);
-  border-radius: 10px;
+  border-radius: 13px;
   font-size: 14px;
   background: #fff;
   color: var(--text-primary);
@@ -90,12 +88,12 @@
 .addBtn {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 10px 18px;
+  gap: 8px;
+  padding: 8px 21px;
   background: #0a0a0a;
   color: #b7ff00;
   border: none;
-  border-radius: 10px;
+  border-radius: 13px;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
@@ -111,6 +109,708 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
 }
 .addBtn:active { transform: translateY(0); box-shadow: none; }
+
+/* ─── Add client page ─────────────────────────────────────── */
+/*
+   Golden ratio scale (φ = 1.618):
+   spacing: 8 → 13 → 21 → 34px
+   columns: 1 : φ : 1  (middle = 1.618× wider)
+   radius:  8 → 13 → 21px
+*/
+.addPage {
+  width: 100%;
+  padding: 21px 0 55px;   /* 34+21 */
+}
+
+.addPageNav {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 34px;
+}
+
+.addPageTitle {
+  font-size: 21px;          /* 13×φ ≈ 21 */
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.4px;
+}
+
+/* 3 coloane în raport 1 : φ : 1 */
+.addPageForm {
+  display: grid;
+  grid-template-columns: 1fr 1.618fr 1fr;
+  gap: 21px;
+  align-items: stretch;
+}
+
+/* ── Secțiune ── */
+.addSection {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 21px;        /* φ³ ≈ 21 */
+  padding: 21px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;                  /* φ² ≈ 13 */
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
+}
+
+.addSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid #f0f0f5;
+}
+
+.addSectionNum {
+  font-size: 10px;
+  font-weight: 800;
+  color: #b7ff00;
+  background: #0a0a0a;
+  border-radius: 6px;
+  padding: 3px 7px;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+}
+
+.addSectionTitle {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Câmp generic ── */
+.addField {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.addField label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: 0.01em;
+}
+
+.addFieldError {
+  color: #e05252;
+  font-size: 11px;
+  margin-top: 2px;
+  padding: 0 3px;
+  animation: fadeInErr 0.2s ease;
+  line-height: 1.3;
+}
+
+@keyframes fadeInErr {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.addFieldErrorInput {
+  border-color: #e05252 !important;
+}
+
+.addField input,
+.addField textarea {
+  padding: 8px 13px;          /* 8 și 13 — consecutive Fibonacci/φ */
+  border: 1.5px solid #e5e7eb;
+  border-radius: 13px;        /* φ² */
+  font-size: 14px;
+  color: var(--text-primary);
+  background: #fafafa;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.addField textarea { resize: none; line-height: 1.618; }   /* φ line-height */
+
+.addField input:focus,
+.addField textarea:focus {
+  border-color: #b7ff00;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
+}
+
+.opt { font-weight: 400; color: #9ca3af; }
+
+/* ── 2 câmpuri pe rând ── */
+.addRow2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 13px;
+}
+
+/* ── 3 câmpuri pe rând ── */
+.addRow3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+/* ── Input cu unitate ── */
+.inputUnit {
+  position: relative;
+}
+
+.inputUnit input {
+  padding-right: 40px !important;
+}
+
+.inputUnit span {
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+/* ── Segmented ── */
+.seg {
+  display: flex;
+  background: #f3f4f6;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 13px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.segBtn {
+  flex: 1;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+  letter-spacing: -0.1px;
+}
+.segBtn:hover:not(.segOn) { color: #374151; }
+
+.segOn {
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+/* ── Goal cards — full width stivuite ── */
+.goalGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.goalCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 13px 16px;         /* 13 φ-spacing */
+  background: #fafafa;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+}
+.goalCard:hover {
+  border-color: #d1d5db;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.goalOn {
+  border-color: #0a0a0a !important;
+  background: #0a0a0a !important;
+  box-shadow: 0 4px 13px rgba(0,0,0,0.18) !important;
+}
+
+.goalL {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+.goalOn .goalL { color: #b7ff00; }
+
+.goalSub {
+  font-size: 11.5px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+.goalOn .goalSub { color: rgba(183,255,0,0.5); }
+
+/* ── Activity cards 2×2 ── */
+.actGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.actCard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 13px;              /* 13 φ-spacing */
+  background: #fafafa;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.actCard:hover {
+  border-color: #d1d5db;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.actOn {
+  border-color: #0a0a0a !important;
+  background: #0a0a0a !important;
+  box-shadow: 0 4px 13px rgba(0,0,0,0.18) !important;
+}
+
+.actL {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+.actOn .actL { color: #b7ff00; }
+
+.actSub {
+  font-size: 12px;
+  color: #4b5563;
+  font-weight: 500;
+}
+.actOn .actSub { color: rgba(183,255,0,0.85); }
+
+/* ── Footer ── */
+.addFooter {
+  grid-column: span 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 13px;
+  padding-top: 8px;
+}
+
+.saveBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 34px;         /* 13 vertical, 34 horizontal — φ ratio */
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 13px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.15s, box-shadow 0.18s;
+  font-family: inherit;
+  letter-spacing: -0.1px;
+}
+.saveBtn:hover:not(:disabled) {
+  background: #1a1a1a;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 21px rgba(0,0,0,0.22);   /* 21 φ-spacing */
+}
+.saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .addPageForm {
+    grid-template-columns: 1fr 1fr;
+  }
+  .addSection:nth-child(2) { grid-column: span 2; }
+  .addFooter { grid-column: span 2; }
+}
+
+@media (max-width: 580px) {
+  .addPageForm {
+    grid-template-columns: 1fr;
+  }
+  .addSection:nth-child(2) { grid-column: span 1; }
+  .addRow2 { grid-template-columns: 1fr; }
+  .addFooter { grid-column: span 1; }
+}
+
+
+
+.addPageNav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.addPageTitle {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.4px;
+}
+
+.addPageForm {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 20px;
+  align-items: stretch;
+}
+
+/* ── Secțiune ── */
+.addSection {
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 16px;
+  padding: 22px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+}
+
+.addSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #f0f0f5;
+}
+
+.addSectionNum {
+  font-size: 10px;
+  font-weight: 800;
+  color: #b7ff00;
+  background: #0a0a0a;
+  border-radius: 6px;
+  padding: 3px 7px;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+}
+
+.addSectionTitle {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Câmp generic ── */
+.addField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.addField label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: 0.01em;
+}
+
+.addField input,
+.addField textarea {
+  padding: 9px 12px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--text-primary);
+  background: #fafafa;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.addField textarea { resize: none; line-height: 1.55; }
+
+.addField input:focus,
+.addField textarea:focus {
+  border-color: #b7ff00;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
+}
+
+.opt { font-weight: 400; color: #9ca3af; }
+
+/* ── 2 câmpuri pe rând ── */
+.addRow2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* ── 3 câmpuri pe rând (vârstă/greutate/înălțime) ── */
+.addRow3 {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+/* ── Input cu unitate ── */
+.inputUnit {
+  position: relative;
+}
+
+.inputUnit input {
+  padding-right: 40px !important;
+}
+
+.inputUnit span {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+/* ── Segmented ── */
+.seg {
+  display: flex;
+  background: #f3f4f6;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.segBtn {
+  flex: 1;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+  letter-spacing: -0.1px;
+}
+.segBtn:hover:not(.segOn) { color: #374151; }
+
+.segOn {
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+/* ── Goal cards — 3 butoane full-width stivuite ── */
+.goalGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.goalCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: #fafafa;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  text-align: left;
+  width: 100%;
+}
+.goalCard:hover {
+  border-color: #d1d5db;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.goalOn {
+  border-color: #0a0a0a !important;
+  background: #0a0a0a !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18) !important;
+}
+
+.goalL {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+.goalOn .goalL { color: #b7ff00; }
+
+.goalSub {
+  font-size: 11.5px;
+  color: #9ca3af;
+  font-weight: 500;
+}
+.goalOn .goalSub { color: rgba(183,255,0,0.5); }
+
+/* ── Activity cards — 2×2 grid ── */
+.actGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.actCard {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 14px;
+  background: #fafafa;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+}
+.actCard:hover {
+  border-color: #d1d5db;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.actOn {
+  border-color: #0a0a0a !important;
+  background: #0a0a0a !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18) !important;
+}
+
+.actL {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+.actOn .actL { color: #b7ff00; }
+
+.actSub {
+  font-size: 12px;
+  color: #4b5563;
+  font-weight: 500;
+}
+.actOn .actSub { color: rgba(183,255,0,0.85); }
+
+/* ── Footer ── */
+.addFooter {
+  grid-column: span 3;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.saveBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 32px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.15s, box-shadow 0.18s;
+  font-family: inherit;
+  letter-spacing: -0.1px;
+}
+.saveBtn:hover:not(:disabled) {
+  background: #1a1a1a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+.saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .addPageForm {
+    grid-template-columns: 1fr 1fr;
+  }
+  .addSection:nth-child(2) { grid-column: span 2; }
+  .addFooter { grid-column: span 2; }
+}
+
+@media (max-width: 580px) {
+  .addPageForm {
+    grid-template-columns: 1fr;
+  }
+  .addSection:nth-child(2) { grid-column: span 1; }
+  .addRow2 { grid-template-columns: 1fr; }
+  .addFooter { grid-column: span 1; }
+}
+
+/* ─── Add Form Page — CSS vechi, pastrat pentru modal edit ─── */
+.addFormPageHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 0 12px;
+}
+
+.addFormBackBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: 1px solid #e8e8ed;
+  border-radius: 8px;
+  color: #666;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+.addFormBackBtn:hover {
+  background: #f5f5f7;
+  border-color: #d4d4d8;
+  color: #111;
+}
+
+.addFormPageTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+
+.addFormPageCard {
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 620px;
+}
+
+.addFormPageFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f5;
+}
 
 /* ─── Error ───────────────────────────────────────────────── */
 .error {
@@ -165,22 +865,22 @@
 /* ─── Grid ────────────────────────────────────────────────── */
 .clientGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 21px;
 }
 
 /* ─── Card ────────────────────────────────────────────────── */
 .clientCard {
   position: relative;
   background: #fff;
-  border: 1.5px solid var(--gray-200);
-  border-radius: 16px;
-  padding: 20px;
+  border: 1px solid #e5e7eb;
+  border-radius: 21px;
+  padding: 21px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 13px;
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
 }
 .clientCard:hover {
   border-color: #b7ff00;
@@ -191,10 +891,10 @@
 /* ─── Delete icon button ──────────────────────────────────── */
 .deleteIconBtn {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  width: 30px;
-  height: 30px;
+  top: 13px;
+  right: 13px;
+  width: 28px;
+  height: 28px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -221,14 +921,14 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 10px;
-  padding-right: 38px;
-  margin-bottom: 12px;
+  gap: 8px;
+  padding-right: 34px;
+  margin-bottom: 5px;
 }
 
 .clientName {
-  margin: 0 0 4px;
-  font-size: 17px;
+  margin: 0 0 5px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.5px;
@@ -238,8 +938,8 @@
 .badgeGroup {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 5px;
+  margin-top: 5px;
 }
 
 .accountBadge {
@@ -298,17 +998,15 @@
 .clientQuickInfo {
   font-size: 13px;
   color: rgba(0, 0, 0, 0.55);
-  margin-bottom: 14px;
   font-weight: 500;
-  line-height: 1.5;
-  padding-bottom: 14px;
+  line-height: 1.618;
+  padding-bottom: 13px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .clientPlanStatus {
   font-size: 12px;
   color: rgba(0, 0, 0, 0.5);
-  margin-bottom: 8px;
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -391,6 +1089,7 @@
   flex-direction: column;
   gap: 8px;
   margin-top: auto;
+  padding-top: 5px;
 }
 
 .secondaryActions {
@@ -713,30 +1412,35 @@
   gap: 16px;
 }
 
+/* Form inside addFormPageCard — no extra padding */
+.addFormPageCard .form {
+  padding: 0;
+  gap: 18px;
+}
+
 .formRow { display: flex; gap: 14px; }
 .formRow .formGroup { flex: 1; }
 
 .formGroup { display: flex; flex-direction: column; gap: 6px; }
 
 .formGroup label {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3c3c43;
+  letter-spacing: -0.01em;
 }
 
 .formGroup input,
 .formGroup select,
 .formGroup textarea {
   padding: 10px 13px;
-  border: 1.5px solid var(--gray-200);
+  border: 1px solid #e8e8ed;
   border-radius: 9px;
   font-size: 14px;
   color: var(--text-primary);
-  background: var(--gray-50);
+  background: #fff;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  transition: border-color 0.18s, box-shadow 0.18s;
   font-family: inherit;
 }
 
@@ -1546,7 +2250,9 @@
 
 /* ─── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .content { padding: 40px 24px 48px; }
+  .content {
+    padding: 24px max(24px, env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left));
+  }
   .progressInlinePage { padding: 0; }
   .progressInlineName { font-size: 22px; }
 
@@ -1701,7 +2407,9 @@
 }
 
 @media (max-width: 480px) {
-  .content { padding: 40px 24px 40px; }
+  .content {
+    padding: 20px max(20px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left));
+  }
   .addBtn span { display: none; }
 
   .progressSheetSection {

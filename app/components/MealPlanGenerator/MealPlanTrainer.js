@@ -67,11 +67,14 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
   const currentDay = plan.days[activeDay];
 
   const activityLabels = {
-    sedentary: 'Sedentar',
-    lightly_active: 'Ușor activ',
-    moderately_active: 'Moderat activ',
-    very_active: 'Foarte activ',
-    extra_active: 'Extrem de activ',
+    sedentary: 'Sedentară',
+    light: 'Ușor activă',
+    lightly_active: 'Ușor activă',
+    moderate: 'Moderată',
+    moderately_active: 'Moderată',
+    active: 'Activă',
+    very_active: 'Foarte activă',
+    extra_active: 'Extrem de activă',
   };
 
   return (
