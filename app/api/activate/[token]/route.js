@@ -4,7 +4,7 @@ import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // GET /api/activate/[token] — verifică token și returnează detalii invitație

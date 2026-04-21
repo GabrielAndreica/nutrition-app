@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { sanitizeText, sanitizeNumber } from '@/app/lib/sanitize';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 /**
@@ -80,7 +81,8 @@ export async function GET(request, { params }) {
     },
   });
 
-  return NextResponse.json({
+  // ─── Optimizare: Cache 20s pentru weight history (data se schimbă rar) ───
+  const res = NextResponse.json({
     client: {
       id: client.id,
       name: client.name,
@@ -90,6 +92,10 @@ export async function GET(request, { params }) {
     stagnationWeeks,
     stagnationInfo: getStagnationInfo(stagnationWeeks),
   });
+  
+  res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=40');
+  res.headers.set('Vary', 'Authorization');
+  return res;
 }
 
 /**
@@ -104,6 +110,34 @@ export async function POST(request, { params }) {
 
   const { id: clientId } = await params;
 
+  // ─── Database Rate Limiting ────────────────────────────────
+  try {
+    const { data: rateLimitResult, error: rateLimitError } = await supabase
+      .rpc('check_rate_limit', {
+        p_user_id: String(auth.userId),
+        p_endpoint: 'update-weight',
+        p_max_requests: 100,  // Max 100 actualizări greutate per oră
+        p_window_minutes: 60
+      });
+
+    if (rateLimitError) {
+      console.error('Rate limit check error:', rateLimitError);
+    } else if (rateLimitResult && rateLimitResult.length > 0) {
+      const { allowed, remaining, reset_at } = rateLimitResult[0];
+      
+      if (!allowed) {
+        const resetDate = new Date(reset_at);
+        const minutesRemaining = Math.ceil((resetDate - new Date()) / 60000);
+        return NextResponse.json(
+          { error: `Ai atins limita de actualizări. Încearcă din nou în ${minutesRemaining} minute.` },
+          { status: 429, headers: { 'Retry-After': String(minutesRemaining * 60) } }
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Rate limit exception:', err);
+  }
+
   let body;
   try {
     body = await request.json();
@@ -111,10 +145,18 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }
 
-  const { weight, notes, recordedAt } = body;
+  let { weight, notes, recordedAt } = body;
 
-  if (!weight || isNaN(parseFloat(weight))) {
-    return NextResponse.json({ error: 'Greutatea este obligatorie.' }, { status: 400 });
+  // Sanitizare greutate
+  try {
+    weight = sanitizeNumber(weight, { min: 20, max: 300 });
+  } catch (err) {
+    return NextResponse.json({ error: 'Greutate invalidă: ' + err.message }, { status: 400 });
+  }
+
+  // Sanitizare notes (previne XSS)
+  if (notes) {
+    notes = sanitizeText(notes).slice(0, 1000);
   }
 
   // Construiește query pentru client bazat pe rol
@@ -145,7 +187,7 @@ export async function POST(request, { params }) {
     .from('weight_history')
     .insert({
       client_id: clientId,
-      weight: parseFloat(weight),
+      weight: weight,
       notes: notes || null,
       recorded_at: recordedAt || new Date().toISOString(),
     })
@@ -164,26 +206,27 @@ export async function POST(request, { params }) {
       userAgent,
       details: { 
         clientId, 
-        weight: parseFloat(weight),
+        weight: weight,
         error: insertError.message
       },
     });
     return NextResponse.json({ error: 'Eroare la salvarea greutății.' }, { status: 500 });
   }
 
-  // Actualizăm greutatea clientului imediat când se trimite progresul
-  const weightValue = parseFloat(weight);
-  const { data: updateData, error: updateError } = await supabase
+  // Actualizăm greutatea clientului + setăm has_new_progress=true când clientul trimite progres
+  const clientUpdate = { weight: weight };
+  if (auth.role === 'client') {
+    clientUpdate.has_new_progress = true;
+  }
+  const { error: updateError } = await supabase
     .from('clients')
-    .update({ weight: weightValue })
-    .eq('id', clientId)
-    .select();
+    .update(clientUpdate)
+    .eq('id', clientId);
 
   if (updateError) {
     console.error('Eroare la actualizarea greutății clientului:', updateError);
-    // Nu returnăm eroare aici, înregistrarea în istoric s-a făcut cu succes
   } else {
-    console.log(`✅ Greutate actualizată pentru client ${clientId}: ${weightValue}kg`);
+    console.log(`✅ Greutate actualizată pentru client ${clientId}: ${weight}kg${auth.role === 'client' ? ' + has_new_progress=true' : ''}`);
   }
 
   // Creează notificare pentru trainer dacă progesul a fost adăugat de client

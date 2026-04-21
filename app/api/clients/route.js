@@ -6,7 +6,7 @@ import { sanitizeName, sanitizeText, sanitizeFoodRestrictions, sanitizeFoodPrefe
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // GET /api/clients — list clients with pagination, server-side search and latest plan per client
@@ -47,17 +47,12 @@ export async function GET(request) {
   const limit  = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)));
   const offset = (page - 1) * limit;
 
-  // Build clients query with invitation status
+  // ─── Optimizare: Single query cu LEFT JOINs pentru toate relațiile ───────
   let clientsQuery = supabase
     .from('clients')
     .select(
-      `id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences, created_at, user_id,
-       client_invitations!client_invitations_client_id_fkey(
-         id,
-         status,
-         client_email,
-         created_at
-       )`,
+      `id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences, created_at, user_id, has_new_progress,
+       client_invitations!client_invitations_client_id_fkey(id, status, client_email, created_at)`,
       { count: 'exact' }
     )
     .eq('trainer_id', auth.userId)
@@ -68,28 +63,16 @@ export async function GET(request) {
     clientsQuery = clientsQuery.ilike('name', `%${search}%`);
   }
 
-  // Run queries IN PARALLEL — plans + recent client progress submissions + trainer responses
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const [clientsResult, plansResult, progressResult, notificationsResult] = await Promise.all([
+  // Run queries IN PARALLEL — optimizat pentru speed
+  const [clientsResult, plansResult] = await Promise.all([
     clientsQuery,
+    // Optimizare: Doar ultimul plan per client (folosește DISTINCT ON în Postgres)
     supabase
       .from('meal_plans')
       .select('id, client_id, created_at')
       .eq('trainer_id', auth.userId)
       .order('created_at', { ascending: false })
-      .limit(1000),
-    supabase
-      .from('weight_history')
-      .select('client_id, recorded_at')
-      .like('notes', '[CLIENT]%')
-      .gte('recorded_at', sevenDaysAgo)
-      .order('recorded_at', { ascending: false }),
-    supabase
-      .from('notifications')
-      .select('related_client_id, created_at, type')
-      .in('type', ['plan_continued', 'new_meal_plan'])
-      .gte('created_at', sevenDaysAgo)
-      .order('created_at', { ascending: false }),
+      .limit(500),
   ]);
 
   if (clientsResult.error) {
@@ -117,42 +100,14 @@ export async function GET(request) {
     }
   }
 
-  // Build map of client_ids with latest progress submission time
-  const progressMap = {};
-  if (progressResult.data) {
-    for (const entry of progressResult.data) {
-      if (!progressMap[entry.client_id]) {
-        progressMap[entry.client_id] = entry.recorded_at;
-      }
-    }
-  }
-
-  // Build map of client_ids with latest trainer response (notification)
-  const trainerResponseMap = {};
-  if (notificationsResult.data) {
-    for (const notif of notificationsResult.data) {
-      const clientId = notif.related_client_id;
-      if (clientId && !trainerResponseMap[clientId]) {
-        trainerResponseMap[clientId] = notif.created_at;
-      }
-    }
-  }
-
-  // Process clients and add invitation status + progress flag
+  // Process clients and add invitation status (has_new_progress comes directly from DB column)
   const processedClients = (clientsResult.data || []).map(client => {
     const pendingInvite = client.client_invitations?.find(inv => inv.status === 'pending');
-    const latestProgressDate = progressMap[client.id];
-    const latestResponseDate = trainerResponseMap[client.id];
-    
-    // has_new_progress = true only if progress exists AND trainer hasn't responded yet
-    const hasNewProgress = latestProgressDate && (!latestResponseDate || new Date(latestProgressDate) > new Date(latestResponseDate));
-    
     return {
       ...client,
       invitation_status: client.user_id ? 'accepted' : (pendingInvite ? 'pending' : null),
       invitation_email: pendingInvite?.client_email || null,
-      client_invitations: undefined, // Remove array from response
-      has_new_progress: hasNewProgress,
+      client_invitations: undefined,
     };
   });
 
@@ -170,7 +125,7 @@ export async function GET(request) {
     details: { page, search: search || null, total },
   });
 
-  const res = NextResponse.json({
+  return NextResponse.json({
     clients: processedClients,
     plans: planMap,
     total,
@@ -178,12 +133,6 @@ export async function GET(request) {
     limit,
     totalPages,
   });
-
-  // Cache is keyed per-user via Vary: Authorization — different tokens = different cache entries.
-  // max-age=15: same user navigating back sees instant load; after 15s a fresh fetch is made.
-  res.headers.set('Cache-Control', 'private, max-age=15');
-  res.headers.set('Vary', 'Authorization');
-  return res;
 }
 
 // POST /api/clients — create a new client
@@ -191,6 +140,34 @@ export async function POST(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (auth.role !== 'trainer') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+
+  // ─── Database Rate Limiting ────────────────────────────────
+  try {
+    const { data: rateLimitResult, error: rateLimitError } = await supabase
+      .rpc('check_rate_limit', {
+        p_user_id: String(auth.userId),
+        p_endpoint: 'create-client',
+        p_max_requests: 50,  // Max 50 clienți noi per oră
+        p_window_minutes: 60
+      });
+
+    if (rateLimitError) {
+      console.error('Rate limit check error:', rateLimitError);
+    } else if (rateLimitResult && rateLimitResult.length > 0) {
+      const { allowed, remaining, reset_at } = rateLimitResult[0];
+      
+      if (!allowed) {
+        const resetDate = new Date(reset_at);
+        const minutesRemaining = Math.ceil((resetDate - new Date()) / 60000);
+        return NextResponse.json(
+          { error: `Ai atins limita de 50 clienți noi per oră. Încearcă din nou în ${minutesRemaining} minute.` },
+          { status: 429, headers: { 'Retry-After': String(minutesRemaining * 60) } }
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Rate limit exception:', err);
+  }
 
   let body;
   try {

@@ -208,23 +208,43 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
       setLoading(true);
       setError(null);
       
+      // ─── Optimizare: Timeout 10s pentru toate fetch-urile ───────
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      
       try {
-        // Fetch client data
-        const clientRes = await fetch(`/api/clients/${clientId}`, { headers: authHeaders() });
+        // ─── Optimizare: Fetch-uri în PARALEL în loc de secvențial ───────
+        const [clientRes, whRes, plansRes] = await Promise.all([
+          fetch(`/api/clients/${clientId}`, { 
+            headers: authHeaders(),
+            signal: controller.signal 
+          }),
+          fetch(`/api/clients/${clientId}/weight-history`, { 
+            headers: authHeaders(),
+            signal: controller.signal 
+          }),
+          fetch('/api/meal-plans', { 
+            headers: authHeaders(),
+            signal: controller.signal 
+          })
+        ]);
+        
+        clearTimeout(timeoutId);
+        
         if (!clientRes.ok) {
-          const errorText = await clientRes.text();
           throw new Error(`Eroare la încărcarea clientului: ${clientRes.status}`);
         }
-        const clientData = await clientRes.json();
-        setClient(clientData.client);
-        
-        // Fetch weight history
-        const whRes = await fetch(`/api/clients/${clientId}/weight-history`, { headers: authHeaders() });
         if (!whRes.ok) {
-          const errorText = await whRes.text();
           throw new Error(`Eroare la încărcare istoric: ${whRes.status}`);
         }
-        const whData = await whRes.json();
+        
+        const [clientData, whData, plansData] = await Promise.all([
+          clientRes.json(),
+          whRes.json(),
+          plansRes.ok ? plansRes.json() : null
+        ]);
+        
+        setClient(clientData.client);
         setWeightHistory(whData.weightHistory || []);
         setStagnationWeeks(whData.stagnationWeeks || 0);
 
@@ -251,39 +271,58 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
           setNewWeight(String(clientEntry.weight));
           setLastProgressId(clientEntry.id);
           
-          // Verifică dacă planul a fost deja continuat pentru acest progres
+          // Dacă DB spune că există progres netratat (has_new_progress=true),
+          // înseamnă că e un progres NOU — ștergem cheia veche din sessionStorage
+          // și lăsăm butoanele active.
           const continuedKey = `plan_continued_${clientId}_${clientEntry.id}`;
-          const wasContinued = sessionStorage.getItem(continuedKey);
-          if (wasContinued) {
-            setPlanContinued(true);
+          if (clientData.client?.has_new_progress) {
+            sessionStorage.removeItem(continuedKey);
+          } else {
+            const wasContinued = sessionStorage.getItem(continuedKey);
+            if (wasContinued) setPlanContinued(true);
           }
         }
 
-        // Fetch current plan for nutritional needs
-        const plansRes = await fetch('/api/meal-plans', { headers: authHeaders() });
-        if (plansRes.ok) {
-          const plansData = await plansRes.json();
-          // plansData.plans este un obiect { clientId: { planId, createdAt } }
-          if (plansData.plans && plansData.plans[clientId]) {
-            const clientPlanInfo = plansData.plans[clientId];
-            setPlanId(clientPlanInfo.planId);
-            // Fetch full plan details for nutritional needs
-            const planRes = await fetch(`/api/meal-plans/${clientPlanInfo.planId}`, { headers: authHeaders() });
+        // ─── Optimizare: Fetch plan details doar dacă avem planId ───────
+        if (plansData?.plans?.[clientId]) {
+          const clientPlanInfo = plansData.plans[clientId];
+          setPlanId(clientPlanInfo.planId);
+          
+          // Fetch plan details pentru nutritional needs
+          const planController = new AbortController();
+          const planTimeoutId = setTimeout(() => planController.abort(), 5000);
+          
+          try {
+            const planRes = await fetch(`/api/meal-plans/${clientPlanInfo.planId}`, { 
+              headers: authHeaders(),
+              signal: planController.signal
+            });
+            clearTimeout(planTimeoutId);
+            
             if (planRes.ok) {
               const planData = await planRes.json();
               if (planData.mealPlan?.daily_targets) {
                 setNutritionalNeeds(planData.mealPlan.daily_targets);
               }
-              // Setează previous_plan_calories dacă există
               if (planData.previousPlanCalories) {
                 setPreviousPlanCalories(planData.previousPlanCalories);
               }
             }
+          } catch (planErr) {
+            clearTimeout(planTimeoutId);
+            if (planErr.name !== 'AbortError') {
+              console.warn('Plan fetch failed, continuing without nutritional needs:', planErr);
+            }
           }
         }
       } catch (err) {
-        console.error('[InlineProgressView] Error fetching data:', err);
-        setError(err.message);
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          setError('Timeout la încărcarea datelor. Încearcă din nou.');
+        } else {
+          console.error('[InlineProgressView] Error fetching data:', err);
+          setError(err.message);
+        }
       } finally {
         setLoading(false);
       }
@@ -295,46 +334,23 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
   }, [clientId, authHeaders]);
 
   const handleContinue = async () => {
-    // Marchează planul ca fiind continuat pentru acest progres
     if (lastProgressId) {
       const continuedKey = `plan_continued_${clientId}_${lastProgressId}`;
       sessionStorage.setItem(continuedKey, 'true');
-      setPlanContinued(true);
-      setShowBanner(true);
-      
-      // Trimite notificare către client
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`/api/clients/${clientId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const result = await response.json();
-        const clientData = result.client;
-        
-        
-        if (clientData && clientData.user_id) {
-          const notifResponse = await fetch('/api/notifications', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({
-              user_id: clientData.user_id,
-              type: 'plan_continued',
-              title: 'Plan continuat',
-              message: 'Antrenorul tău a decis să continui cu același plan alimentar',
-              related_client_id: clientId
-            })
-          });
-          
-          const notifResult = await notifResponse.json();
-        } else {
-          console.warn('[handleContinue] No user_id found for client:', clientData);
-        }
-      } catch (err) {
-        console.error('[handleContinue] Error sending notification:', err);
-      }
+    }
+    setPlanContinued(true);
+    setShowBanner(true);
+
+    // Șterge badge-ul din DB
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`/api/clients/${clientId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ has_new_progress: false }),
+      });
+    } catch (err) {
+      console.error('[handleContinue] PATCH error:', err);
     }
   };
 
@@ -387,18 +403,25 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
 
       setSaving(false);
       
-      // Marchează progresul ca fiind tratat (s-a generat plan nou)
+      // Marchează progresul ca fiind tratat (s-a generat plan nou) + şterge badge din DB
       if (lastProgressId) {
         const continuedKey = `plan_continued_${clientId}_${lastProgressId}`;
         sessionStorage.setItem(continuedKey, 'true');
         setPlanContinued(true);
       }
+      // Persist în DB
+      try {
+        const token = localStorage.getItem('token');
+        await fetch(`/api/clients/${clientId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ has_new_progress: false }),
+        });
+      } catch { /* non-critical */ }
       
       
       if (onGeneratePlan) {
-        onGeneratePlan(client.id);
-      } else {
-        router.push(`/generator-plan?clientId=${client.id}&fromProgress=true`);
+        onGeneratePlan(client.id, true);
       }
     } catch (err) {
       setError(err.message);

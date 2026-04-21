@@ -9,7 +9,7 @@ import { sanitizeText, sanitizeFoodRestrictions, sanitizeFoodPreferences, saniti
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 const openai = new OpenAI({
@@ -289,6 +289,38 @@ export async function POST(request) {
     // Progresul clientului (dacă e regenerare pe baza progresului)
     const progress = clientData.progress || null;
     const { name, age, weight, height, goal, activityLevel, allergies, mealsPerDay, dietType, foodPreferences } = clientData;
+
+    // ─── OWNERSHIP VERIFICATION ──────────────────────────────────
+    // Dacă există clientId, verifică că clientul aparține trainer-ului autentificat
+    if (clientData.clientId) {
+      const { data: clientOwnership, error: ownershipError } = await supabase
+        .from('clients')
+        .select('id, trainer_id')
+        .eq('id', clientData.clientId)
+        .eq('trainer_id', auth.userId)
+        .single();
+
+      if (ownershipError || !clientOwnership) {
+        await logActivity({
+          action: 'meal_plan.generate',
+          status: 'unauthorized',
+          userId: auth.userId,
+          email: auth.email,
+          ipAddress: ip,
+          userAgent,
+          details: { 
+            clientId: clientData.clientId, 
+            reason: 'client_not_owned',
+            message: 'Tentativă de generare plan pentru client care nu aparține trainer-ului'
+          },
+        });
+
+        return NextResponse.json(
+          { error: 'Clientul nu a fost găsit sau nu ai acces la el.' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Verifică dacă progresul e în intervalul optim pentru obiectiv (nu necesită regenerare)
     if (progress?.currentWeight && clientData.clientId) {
@@ -662,11 +694,17 @@ export async function POST(request) {
     const encoder = new TextEncoder();
     const responseStream = new ReadableStream({
       async start(controller) {
-        const sendEvent = (obj) =>
-          controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
         let streamClosed = false;
+        const sendEvent = (obj) => {
+          if (streamClosed) return; // clientul s-a deconectat, dar generarea continuă
+          try {
+            controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
+          } catch (e) {
+            streamClosed = true; // stream închis extern
+          }
+        };
         const closeStream = () => {
-          if (!streamClosed) { streamClosed = true; controller.close(); }
+          if (!streamClosed) { streamClosed = true; try { controller.close(); } catch(e) {} }
         };
         let loggedCancelled = false;
         const logCancelled = (details) => {
@@ -687,16 +725,39 @@ export async function POST(request) {
     // Stochează mesele anterioare ca combinații complete pentru anti-repetiție
     const previousMeals = [];
 
-    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
-      if (request.signal.aborted) {
+    // Scrie imediat în DB că generarea a început — AWAIT pentru a garanta că e în DB
+    // înainte ca clientul să poată naviga înapoi și să facă polling
+    if (clientData.clientId) {
+      const { error: initErr } = await supabase
+        .from('generation_status')
+        .upsert({
+          client_id: clientData.clientId,
+          trainer_id: auth.userId,
+          status: 'generating',
+          current_step: 0,
+          total_steps: 7,
+        }, { onConflict: 'client_id,trainer_id' });
+      if (initErr) console.error('[generation_status] Init failed:', initErr);
+    }
 
-        logCancelled({ clientId: clientData.clientId || null, clientName: clientData.name, daysCompleted: dayIndex, reason: 'user_aborted' });
-        closeStream();
-        return;
-      }
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
       const dayNumber = dayIndex + 1;
       const dayName = dayNames[dayIndex];
       sendEvent({ type: 'progress', day: dayNumber, total: 7 });
+      
+      // Actualizează progresul în DB (fire-and-forget - non-blocking)
+      if (clientData.clientId) {
+        supabase
+          .from('generation_status')
+          .upsert({
+            client_id: clientData.clientId,
+            trainer_id: auth.userId,
+            status: 'generating',
+            current_step: dayNumber,
+            total_steps: 7,
+          }, { onConflict: 'client_id,trainer_id' })
+          .then(null, err => console.error('[generation_status] Update failed:', err));
+      }
 
       const avoidMealsStr = previousMeals.length > 0
         ? `\nMESE DEJA FOLOSITE ÎN ZILELE ANTERIOARE (nu repeta aceleași combinații):
@@ -817,36 +878,50 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
 }`;
 
       let rawContent;
-      try {
-        const message = await openai.chat.completions.create({
-          model: 'gpt-4o',
-          messages: [
-            {
-              role: 'system',
-              content: `Ești un asistent AI specializat în planificare culinară și nutriție. Returnează DOAR JSON valid pentru o singură zi de mese. Fără markdown, fără blocuri de cod. Ziua trebuie să totalizeze aproximativ ${targets.calories} kcal cu proteine: ${targets.protein}g, carbohidrați: ${targets.carbs}g, grăsimi: ${targets.fat}g. Folosește nume de alimente și rețete în limba română. Creează mese variate, echilibrate și gustoase.${progress ? ' Acest plan este ajustat pe baza feedback-ului și progresului clientului menționat în instrucțiuni.' : ''}`,
-            },
-            {
-              role: 'user',
-              content: dayPrompt,
-            },
-          ],
-          temperature: 0.7,
-          max_tokens: 3000,
-        });
-        rawContent = message.choices[0].message.content;
-      } catch (openaiErr) {
-        const isNetwork = openaiErr.code === 'ECONNREFUSED' || openaiErr.code === 'ENOTFOUND' || openaiErr.type === 'request_error';
-        const isRateLimit = openaiErr.status === 429;
-        const isOverloaded = openaiErr.status === 503;
-        const isTimeout = openaiErr.code === 'ETIMEDOUT' || openaiErr.message?.includes('timeout');
+      // Retry cu backoff exponențial pentru rate limit (429) - max 5 încercări
+      const MAX_RETRIES = 5;
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          const message = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [
+              {
+                role: 'system',
+                content: `Ești un asistent AI specializat în planificare culinară și nutriție. Returnează DOAR JSON valid pentru o singură zi de mese. Fără markdown, fără blocuri de cod. Ziua trebuie să totalizeze aproximativ ${targets.calories} kcal cu proteine: ${targets.protein}g, carbohidrați: ${targets.carbs}g, grăsimi: ${targets.fat}g. Folosește nume de alimente și rețete în limba română. Creează mese variate, echilibrate și gustoase.${progress ? ' Acest plan este ajustat pe baza feedback-ului și progresului clientului menționat în instrucțiuni.' : ''}`,
+              },
+              {
+                role: 'user',
+                content: dayPrompt,
+              },
+            ],
+            temperature: 0.7,
+            max_tokens: 3000,
+          });
+          rawContent = message.choices[0].message.content;
+          break; // succes - ieșim din retry loop
+        } catch (openaiErr) {
+          const isRateLimit = openaiErr.status === 429;
+          const isOverloaded = openaiErr.status === 503;
+          const isNetwork = openaiErr.code === 'ECONNREFUSED' || openaiErr.code === 'ENOTFOUND' || openaiErr.type === 'request_error';
+          const isTimeout = openaiErr.code === 'ETIMEDOUT' || openaiErr.message?.includes('timeout');
 
-        let msg;
-        if (isNetwork || isOverloaded)  msg = 'Serviciul OpenAI nu este disponibil momentan. Vă rog încercați din nou în câteva minute.';
-        else if (isRateLimit)           msg = 'Limita de cereri OpenAI a fost atinsă. Vă rog așteptați câteva secunde și încercați din nou.';
-        else if (isTimeout)             msg = `Timeout la generarea zilei ${dayNumber}. Conexiunea a durat prea mult. Reîncercați.`;
-        else                            msg = `Eroare OpenAI la ziua ${dayNumber}: ${openaiErr.message || 'eroare necunoscută'}`;
+          // Dacă e rate limit și mai avem încercări, așteptăm și reîncercăm
+          if (isRateLimit && attempt < MAX_RETRIES) {
+            // Backoff: 20s, 40s, 60s, 80s între încercări
+            const waitMs = attempt * 20000;
+            console.log(`[OpenAI] Rate limit la ziua ${dayNumber}, attempt ${attempt}/${MAX_RETRIES}. Așteptăm ${waitMs/1000}s...`);
+            await new Promise(resolve => setTimeout(resolve, waitMs));
+            continue;
+          }
 
-        throw new Error(msg);
+          let msg;
+          if (isNetwork || isOverloaded)  msg = 'Serviciul OpenAI nu este disponibil momentan. Vă rog încercați din nou în câteva minute.';
+          else if (isRateLimit)           msg = `Limita de cereri OpenAI depășită după ${MAX_RETRIES} încercări. Așteptați câteva minute înainte să generați din nou.`;
+          else if (isTimeout)             msg = `Timeout la generarea zilei ${dayNumber}. Conexiunea a durat prea mult. Reîncercați.`;
+          else                            msg = `Eroare OpenAI la ziua ${dayNumber}: ${openaiErr.message || 'eroare necunoscută'}`;
+
+          throw new Error(msg);
+        }
       }
 
       let content = rawContent.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
@@ -977,14 +1052,39 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
       userAgent,
       details: { clientId: clientData.clientId || null, clientName: clientData.name },
     });
+    
+    // Actualizează status în DB ca finalizat (fire-and-forget)
+    if (clientData.clientId) {
+      supabase
+        .from('generation_status')
+        .upsert({
+          client_id: clientData.clientId,
+          trainer_id: auth.userId,
+          status: 'completed',
+          current_step: 7,
+          total_steps: 7,
+          plan_id: savedPlanId,
+          completed_at: new Date().toISOString(),
+        }, { onConflict: 'client_id,trainer_id' })
+        .then(null, err => console.error('[generation_status] Complete update failed:', err));
+
+      // Creează notificare pentru trainer — AWAIT ca să fie în DB înainte de sendEvent
+      const { error: notifErr } = await supabase
+        .from('notifications')
+        .insert({
+          user_id: auth.userId,
+          type: 'plan_generated',
+          title: 'Plan alimentar generat',
+          message: `Planul alimentar pentru ${clientData.name} a fost generat cu succes`,
+          related_client_id: clientData.clientId,
+          related_plan_id: savedPlanId,
+          is_read: false,
+        });
+      if (notifErr) console.error('[notifications] Plan generated notification failed:', notifErr);
+    }
+    
     sendEvent({ type: 'complete', plan, nutritionalNeeds: targets, planId: savedPlanId });
         } catch (err) {
-          if (request.signal.aborted || err.name === 'AbortError') {
-
-            logCancelled({ clientId: clientData.clientId || null, clientName: clientData.name, reason: 'user_aborted' });
-            closeStream();
-            return;
-          }
           logActivity({
             action: 'meal_plan.generate',
             status: 'failure',
@@ -994,6 +1094,21 @@ RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații)
             userAgent,
             details: { clientId: clientData.clientId || null, clientName: clientData.name, error: err.message },
           });
+          
+          // Marchează ca eșuat în DB (fire-and-forget)
+          if (clientData.clientId) {
+            supabase
+              .from('generation_status')
+              .upsert({
+                client_id: clientData.clientId,
+                trainer_id: auth.userId,
+                status: 'failed',
+                error_message: err.message,
+                completed_at: new Date().toISOString(),
+              }, { onConflict: 'client_id,trainer_id' })
+              .then(null, error => console.error('[generation_status] Error update failed:', error));
+          }
+          
           sendEvent({ type: 'error', message: err.message });
         } finally {
           closeStream();

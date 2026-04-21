@@ -2,10 +2,11 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { sanitizeText, sanitizeNumber } from '@/app/lib/sanitize';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 export async function GET(request) {
@@ -118,10 +119,21 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    const { user_id, type, title, message, related_client_id, related_plan_id } = body;
+    let { user_id, type, title, message, related_client_id, related_plan_id } = body;
 
     if (!user_id || !type || !message) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Sanitizare input-uri (XSS protection)
+    try {
+      if (title) title = sanitizeText(title).slice(0, 200);
+      message = sanitizeText(message).slice(0, 1000);
+      user_id = sanitizeNumber(user_id, { min: 1, max: 999999999, allowFloat: false });
+      if (related_client_id) related_client_id = sanitizeNumber(related_client_id, { min: 1, max: 999999999, allowFloat: false });
+      if (related_plan_id) related_plan_id = sanitizeNumber(related_plan_id, { min: 1, max: 999999999, allowFloat: false });
+    } catch (sanitizeError) {
+      return NextResponse.json({ error: 'Date invalide: ' + sanitizeError.message }, { status: 400 });
     }
 
     const insertData = {

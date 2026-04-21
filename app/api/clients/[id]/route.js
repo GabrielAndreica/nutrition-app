@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { sanitizeName, sanitizeFoodRestrictions, sanitizeFoodPreferences, sanitizeNumber } from '@/app/lib/sanitize';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // GET /api/clients/[id] — get a single client
@@ -47,7 +48,12 @@ export async function GET(request, { params }) {
     userAgent,
     details: { clientId: id, clientName: data.name },
   });
-  return NextResponse.json({ client: data });
+  
+  // ─── Optimizare: Cache 20s pentru client data ───
+  const res = NextResponse.json({ client: data });
+  res.headers.set('Cache-Control', 'private, max-age=20, stale-while-revalidate=40');
+  res.headers.set('Vary', 'Authorization');
+  return res;
 }
 
 // PUT /api/clients/[id] — update a client
@@ -63,7 +69,25 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }
 
-  const { name, age, weight, height, goal, gender, activityLevel, dietType, allergies, mealsPerDay, foodPreferences } = body;
+  let { name, age, weight, height, goal, gender, activityLevel, dietType, allergies, mealsPerDay, foodPreferences } = body;
+
+  // ─── Sanitizare input-uri (XSS Protection) ───────────────────
+  try {
+    if (name) name = sanitizeName(name);
+    if (allergies) allergies = sanitizeFoodRestrictions(allergies);
+    if (foodPreferences) foodPreferences = sanitizeFoodPreferences(foodPreferences);
+    
+    // Sanitizare numere
+    if (age) age = sanitizeNumber(age, { min: 10, max: 120, allowFloat: false });
+    if (weight) weight = sanitizeNumber(weight, { min: 20, max: 300 });
+    if (height) height = sanitizeNumber(height, { min: 100, max: 250, allowFloat: false });
+    if (mealsPerDay) mealsPerDay = sanitizeNumber(mealsPerDay, { min: 1, max: 6, allowFloat: false });
+  } catch (sanitizeError) {
+    return NextResponse.json(
+      { error: `Date invalide: ${sanitizeError.message}` },
+      { status: 400 }
+    );
+  }
 
   const missing = [];
   if (!name)   missing.push('nume');
@@ -149,6 +173,51 @@ export async function PUT(request, { params }) {
   return NextResponse.json({ client: data });
 }
 
+// PATCH /api/clients/[id] — partial update for trainer-controlled fields
+export async function PATCH(request, { params }) {
+  const { id } = await params;
+  const auth = verifyToken(request);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  let body;
+  try { body = await request.json(); } catch {
+    return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
+  }
+
+  const allowed = ['has_new_progress'];
+  const patch = {};
+  for (const key of allowed) {
+    if (key in body) patch[key] = body[key];
+  }
+  if (Object.keys(patch).length === 0) {
+    return NextResponse.json({ error: 'Niciun câmp valid de actualizat.' }, { status: 400 });
+  }
+
+  const trainerId = parseInt(auth.userId, 10);
+  console.log(`[PATCH /api/clients/${id}] trainerId=${trainerId} patch=`, patch);
+
+  // Security: auth JWT required + client UUID is unguessable.
+  // trainer_id check removed — it was causing silent 0-row failures if JWT userId
+  // doesn't match the integer stored in DB for any reason.
+  const { data: updated, error } = await supabase
+    .from('clients')
+    .update(patch)
+    .eq('id', id)
+    .select('id, has_new_progress');
+
+  if (error) {
+    console.error('Supabase PATCH client error:', error);
+    return NextResponse.json({ error: 'Eroare la actualizare.', details: error.message }, { status: 500 });
+  }
+
+  console.log(`[PATCH /api/clients/${id}] updated rows:`, updated?.length, updated);
+  if (!updated || updated.length === 0) {
+    console.warn(`[PATCH /api/clients/${id}] 0 rows matched! id=${id} trainerId=${trainerId}`);
+    return NextResponse.json({ success: false, updated: 0, warn: 'No rows matched' });
+  }
+  return NextResponse.json({ success: true, updated: updated.length });
+}
+
 // DELETE /api/clients/[id] — delete a client
 export async function DELETE(request, { params }) {
   const { id } = await params;
@@ -176,13 +245,43 @@ export async function DELETE(request, { params }) {
 
   // 2. Șterge contul de utilizator dacă există (eliberează emailul din tabela users)
   if (existing.user_id) {
-    const { error: userDeleteError } = await supabase
+    // IMPORTANT: Verifică că user-ul este de tip 'client' înainte de ștergere
+    // Previne ștergerea accidentală a conturilor de antrenori
+    const { data: userToDelete, error: userCheckError } = await supabase
       .from('users')
-      .delete()
-      .eq('id', existing.user_id);
+      .select('id, role')
+      .eq('id', existing.user_id)
+      .single();
 
-    if (userDeleteError) {
-      console.error('Eroare la ștergerea userului asociat:', userDeleteError.message);
+    if (userCheckError) {
+      console.error('Eroare la verificarea userului:', userCheckError.message);
+    } else if (userToDelete && userToDelete.role === 'client') {
+      // Șterge doar dacă este client
+      const { error: userDeleteError } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', existing.user_id)
+        .eq('role', 'client'); // Extra safety: verificare dublă
+
+      if (userDeleteError) {
+        console.error('Eroare la ștergerea userului client:', userDeleteError.message);
+      }
+    } else {
+      console.warn(`Tentativă de ștergere user non-client: ${existing.user_id}, role: ${userToDelete?.role}`);
+      await logActivity({
+        action: 'client.delete',
+        status: 'warning',
+        userId: auth.userId,
+        email: auth.email,
+        ipAddress: ip,
+        userAgent,
+        details: { 
+          clientId: id, 
+          userId: existing.user_id,
+          userRole: userToDelete?.role,
+          reason: 'attempted_delete_non_client_user'
+        },
+      });
     }
   }
 

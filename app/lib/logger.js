@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 /**
@@ -29,6 +29,8 @@ export async function logActivity({
   details = null,
 }) {
   try {
+    console.log('[Logger] Attempting to log:', { action, status, userId, email });
+    
     const { error } = await supabase.from('activity_logs').insert([{
       action,
       status,
@@ -40,10 +42,12 @@ export async function logActivity({
     }]);
 
     if (error) {
-      console.error('[Logger] Eroare la inserare:', error.message);
+      console.error('[Logger] Eroare la inserare:', error.message, error);
+    } else {
+      console.log('[Logger] Success:', action);
     }
   } catch (err) {
-    console.error('[Logger] Eroare neașteptată:', err.message);
+    console.error('[Logger] Eroare neașteptată:', err.message, err);
   }
 }
 

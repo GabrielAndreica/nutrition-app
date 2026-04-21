@@ -2,12 +2,13 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { sanitizeEmail } from '@/app/lib/sanitize';
 import crypto from 'crypto';
 import { Resend } from 'resend';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // POST /api/clients/[id]/invite — trimite invitație client
@@ -17,6 +18,34 @@ export async function POST(request, { params }) {
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (auth.role !== 'trainer') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
+  // ─── CRITICAL: Rate Limiting pentru Email Sending ───────────
+  try {
+    const { data: rateLimitResult, error: rateLimitError } = await supabase
+      .rpc('check_rate_limit', {
+        p_user_id: String(auth.userId),
+        p_endpoint: 'send-invitation',
+        p_max_requests: 20,  // Max 20 invitații per oră (previne spam)
+        p_window_minutes: 60
+      });
+
+    if (rateLimitError) {
+      console.error('Rate limit check error:', rateLimitError);
+    } else if (rateLimitResult && rateLimitResult.length > 0) {
+      const { allowed, remaining, reset_at } = rateLimitResult[0];
+      
+      if (!allowed) {
+        const resetDate = new Date(reset_at);
+        const minutesRemaining = Math.ceil((resetDate - new Date()) / 60000);
+        return NextResponse.json(
+          { error: `Ai atins limita de 20 invitații per oră. Poți trimite din nou în ${minutesRemaining} minute.` },
+          { status: 429, headers: { 'Retry-After': String(minutesRemaining * 60) } }
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Rate limit exception:', err);
+  }
+
   let body;
   try {
     body = await request.json();
@@ -24,16 +53,17 @@ export async function POST(request, { params }) {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }
 
-  const { email } = body;
+  let { email } = body;
 
-  if (!email || !email.trim()) {
-    return NextResponse.json({ error: 'Email-ul clientului este obligatoriu.' }, { status: 400 });
+  // Sanitizare și validare email
+  try {
+    email = sanitizeEmail(email);
+  } catch (err) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
   }
 
-  // Validare email
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return NextResponse.json({ error: 'Format de email invalid.' }, { status: 400 });
+  if (!email) {
+    return NextResponse.json({ error: 'Email-ul clientului este obligatoriu.' }, { status: 400 });
   }
 
   const { ip, userAgent } = getRequestMeta(request);

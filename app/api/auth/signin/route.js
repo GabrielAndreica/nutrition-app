@@ -6,7 +6,7 @@ import { sanitizeEmail } from '@/app/lib/sanitize';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
@@ -25,10 +25,6 @@ const validateEmail = (email) => {
 const validatePassword = (password) => {
   if (!password) return 'Parola este obligatorie';
   return null;
-};
-
-const sanitizeInput = (input) => {
-  return input.trim().replace(/[<>]/g, '');
 };
 
 const checkRateLimit = (email) => {
@@ -81,8 +77,24 @@ export async function POST(request) {
 
     let { email, password } = body;
 
-    // Sanitize inputs
-    email = sanitizeInput(email || '');
+    // Sanitizare email (XSS protection)
+    try {
+      email = sanitizeEmail(email || '');
+    } catch (sanitizeError) {
+      await logActivity({ 
+        action: 'auth.signin', 
+        status: 'failure', 
+        email: email || 'unknown', 
+        ipAddress: ip, 
+        userAgent, 
+        details: { reason: 'sanitization_error', message: sanitizeError.message } 
+      });
+      return new Response(
+        JSON.stringify({ error: sanitizeError.message }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    
     password = password || '';
 
     // Validate email

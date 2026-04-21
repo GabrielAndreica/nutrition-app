@@ -4,7 +4,7 @@ import { verifyToken } from '@/app/lib/verifyToken';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // GET /api/meal-plans — returnează planuri (toate pentru trainer, doar ale sale pentru client)
