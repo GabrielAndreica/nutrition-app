@@ -51,6 +51,7 @@ function DashboardContent() {
   const [viewingPlanId, setViewingPlanId] = useState(null);
   const [viewingProgressClientId, setViewingProgressClientId] = useState(null);
   const [generatingPlanClientId, setGeneratingPlanClientId] = useState(null);
+  const [addingClient, setAddingClient] = useState(false);
 
   useEffect(() => {
     // ─── Optimizare: Prefetch routes + preload data cu cache ───────
@@ -517,19 +518,22 @@ function DashboardContent() {
         <main ref={mainRef} className={styles.main}>
           {!viewingPlanId && !viewingProgressClientId && !generatingPlanClientId && (
             <>
-              <div className={styles.hero}>
-                <h2 className={styles.heroHeading}>
-                  Bună ziua, <span className={styles.accent}>{firstName}</span>.
-                </h2>
-                <p className={styles.heroSub}>
-                  Gestionează clienții și generează planuri alimentare personalizate.
-                </p>
-              </div>
+              {!addingClient && (
+                <div className={styles.hero}>
+                  <h2 className={styles.heroHeading}>
+                    Bună ziua, <span className={styles.accent}>{firstName}</span>.
+                  </h2>
+                  <p className={styles.heroSub}>
+                    Gestionează clienții și generează planuri alimentare personalizate.
+                  </p>
+                </div>
+              )}
               <ClientsList
                 noPadding
                 onViewPlan={(planId) => setViewingPlanId(planId)}
                 onViewProgress={(clientId) => setViewingProgressClientId(clientId)}
                 onGeneratePlan={(clientId) => setGeneratingPlanClientId(clientId)}
+                onAddFormChange={(isOpen) => setAddingClient(isOpen)}
               />
             </>
           )}

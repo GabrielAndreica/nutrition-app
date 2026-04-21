@@ -114,7 +114,7 @@ const CheckIcon = memo(function CheckIcon() {
   );
 });
 
-export default function ClientsList({ noPadding = false, onViewPlan, onGeneratePlan, onViewProgress }) {
+export default function ClientsList({ noPadding = false, onViewPlan, onGeneratePlan, onViewProgress, onAddFormChange }) {
   const router = useRouter();
 
   const [clients,    setClients]    = useState([]);
@@ -137,11 +137,14 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
   // Ţine pageRef sincronizat pentru folosire în closures
   useEffect(() => { pageRef.current = page; }, [page]);
 
+  const [showAddForm,   setShowAddForm]   = useState(false);
   const [modalOpen,     setModalOpen]     = useState(false);
   const [editingClient, setEditingClient] = useState(null);
   const [form,          setForm]          = useState(EMPTY_FORM);
   const [saving,        setSaving]        = useState(false);
   const [formError,     setFormError]     = useState(null);
+  const [fieldErrors,   setFieldErrors]   = useState({});
+  const [formSubmitted, setFormSubmitted] = useState(false);
 
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
@@ -406,13 +409,31 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
   }, [loading, clients]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openAdd = () => {
+    if (showAddForm) {
+      setShowAddForm(false);
+      setForm(EMPTY_FORM);
+      setFormError(null);
+      onAddFormChange?.(false);
+      return;
+    }
     setEditingClient(null);
     setForm(EMPTY_FORM);
     setFormError(null);
-    setModalOpen(true);
+    setShowAddForm(true);
+    onAddFormChange?.(true);
+  };
+
+  const closeAddForm = () => {
+    setShowAddForm(false);
+    setForm(EMPTY_FORM);
+    setFormError(null);
+    setFieldErrors({});
+    setFormSubmitted(false);
+    onAddFormChange?.(false);
   };
 
   const openEdit = (client) => {
+    setShowAddForm(false);
     setEditingClient(client);
     setForm({
       name:          client.name           || '',
@@ -706,10 +727,28 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
+    if (fieldErrors[name]) setFieldErrors(prev => ({ ...prev, [name]: null }));
+  };
+
+  const validateClientForm = (f) => {
+    const errs = {};
+    if (!f.name?.trim()) errs.name = 'Numele este obligatoriu';
+    if (!f.age || isNaN(f.age) || f.age < 18 || f.age > 100) errs.age = 'Vârsta trebuie să fie între 18 și 100';
+    if (!f.weight || isNaN(f.weight) || f.weight < 30 || f.weight > 300) errs.weight = 'Greutatea trebuie să fie între 30 și 300 kg';
+    if (!f.height || isNaN(f.height) || f.height < 100 || f.height > 250) errs.height = 'Înălțimea trebuie să fie între 100 și 250 cm';
+    return errs;
   };
 
   const handleSave = async (e) => {
     e.preventDefault();
+    setFormSubmitted(true);
+
+    if (!editingClient) {
+      const errs = validateClientForm(form);
+      setFieldErrors(errs);
+      if (Object.keys(errs).length > 0) return;
+    }
+
     setSaving(true);
     setFormError(null);
     try {
@@ -727,7 +766,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
         setPage(1);
         setClients(prev => [data.client, ...prev].slice(0, LIMIT));
         setTotal(t => t + 1);
-        closeModal();
+        closeAddForm();
       }
     } catch (err) {
       setFormError(err.message);
@@ -771,6 +810,190 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       setGenerating(false);
     }
   };
+
+  if (showAddForm) {
+    return (
+      <div className={styles.addPage}>
+
+        <div className={styles.addPageNav}>
+          <button className={styles.addFormBackBtn} onClick={closeAddForm} aria-label="Inapoi">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+          </button>
+          <span className={styles.addPageTitle}>Client nou</span>
+        </div>
+
+        <form onSubmit={handleSave} className={styles.addPageForm} noValidate>
+
+          {/* 01 Informații personale */}
+          <div className={styles.addSection}>
+            <div className={styles.addSectionHeader}>
+              <span className={styles.addSectionNum}>01</span>
+              <span className={styles.addSectionTitle}>Informații personale</span>
+            </div>
+
+            <div className={styles.addField}>
+              <label>Nume complet *</label>
+              <input name="name" value={form.name} onChange={handleFormChange}
+                placeholder="ex. Ion Popescu" autoFocus
+                className={formSubmitted && fieldErrors.name ? styles.addFieldErrorInput : ''} />
+            </div>
+
+            <div className={styles.addField}>
+              <label>Gen</label>
+              <div className={styles.seg}>
+                {['M','F'].map(g => (
+                  <button key={g} type="button"
+                    className={`${styles.segBtn} ${form.gender === g ? styles.segOn : ''}`}
+                    onClick={() => setForm(p => ({ ...p, gender: g }))}>
+                    {g === 'M' ? 'Masculin' : 'Feminin'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={styles.addRow3}>
+              <div className={styles.addField}>
+                <label>Vârstă *</label>
+                <div className={styles.inputUnit}>
+                  <input name="age" type="number" min="18" max="100"
+                    value={form.age} onChange={handleFormChange} placeholder="25"
+                    className={formSubmitted && fieldErrors.age ? styles.addFieldErrorInput : ''} />
+                  <span>ani</span>
+                </div>
+              </div>
+              <div className={styles.addField}>
+                <label>Greutate *</label>
+                <div className={styles.inputUnit}>
+                  <input name="weight" type="number" step="0.1" min="30" max="300"
+                    value={form.weight} onChange={handleFormChange} placeholder="75"
+                    className={formSubmitted && fieldErrors.weight ? styles.addFieldErrorInput : ''} />
+                  <span>kg</span>
+                </div>
+              </div>
+              <div className={styles.addField}>
+                <label>Înălțime *</label>
+                <div className={styles.inputUnit}>
+                  <input name="height" type="number" min="100" max="250"
+                    value={form.height} onChange={handleFormChange} placeholder="175"
+                    className={formSubmitted && fieldErrors.height ? styles.addFieldErrorInput : ''} />
+                  <span>cm</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 02 Obiective */}
+          <div className={styles.addSection}>
+            <div className={styles.addSectionHeader}>
+              <span className={styles.addSectionNum}>02</span>
+              <span className={styles.addSectionTitle}>Obiective și stil de viață</span>
+            </div>
+
+            <div className={styles.addField}>
+              <label>Obiectiv principal</label>
+              <div className={styles.goalGrid}>
+                {[
+                  { v: 'weight_loss', l: 'Slăbit' },
+                  { v: 'muscle_gain', l: 'Masă musculară' },
+                  { v: 'maintenance', l: 'Menținere' },
+                ].map(({ v, l }) => (
+                  <button key={v} type="button"
+                    className={`${styles.goalCard} ${form.goal === v ? styles.goalOn : ''}`}
+                    onClick={() => setForm(p => ({ ...p, goal: v }))}>
+                    <span className={styles.goalL}>{l}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={styles.addField}>
+              <label>Nivel de activitate</label>
+              <div className={styles.actGrid}>
+                {[
+                  { v: 'sedentary',   l: 'Sedentar',     sub: 'fără sport' },
+                  { v: 'light',       l: 'Ușor activ',   sub: '1–2×/săpt' },
+                  { v: 'moderate',    l: 'Moderat',       sub: '3–4×/săpt' },
+                  { v: 'very_active', l: 'Foarte activ', sub: '5–6×/săpt' },
+                ].map(({ v, l, sub }) => (
+                  <button key={v} type="button"
+                    className={`${styles.actCard} ${form.activityLevel === v ? styles.actOn : ''}`}
+                    onClick={() => setForm(p => ({ ...p, activityLevel: v }))}>
+                    <span className={styles.actL}>{l}</span>
+                    <span className={styles.actSub}>{sub}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 03 Preferințe */}
+          <div className={styles.addSection}>
+            <div className={styles.addSectionHeader}>
+              <span className={styles.addSectionNum}>03</span>
+              <span className={styles.addSectionTitle}>Preferințe alimentare</span>
+            </div>
+
+            <div className={styles.addRow2}>
+              <div className={styles.addField}>
+                <label>Tip dietă</label>
+                <div className={styles.seg}>
+                  {[
+                    { v: 'omnivore',   l: 'Omnivor' },
+                    { v: 'vegetarian', l: 'Vegetarian' },
+                    { v: 'vegan',      l: 'Vegan' },
+                  ].map(({ v, l }) => (
+                    <button key={v} type="button"
+                      className={`${styles.segBtn} ${form.dietType === v ? styles.segOn : ''}`}
+                      onClick={() => setForm(p => ({ ...p, dietType: v }))}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.addField}>
+                <label>Mese pe zi</label>
+                <div className={styles.seg}>
+                  {['3','4','5'].map(n => (
+                    <button key={n} type="button"
+                      className={`${styles.segBtn} ${form.mealsPerDay === n ? styles.segOn : ''}`}
+                      onClick={() => setForm(p => ({ ...p, mealsPerDay: n }))}>
+                      {n} mese
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.addField}>
+              <label>Alergii / intoleranțe</label>
+              <input name="allergies" value={form.allergies} onChange={handleFormChange}
+                placeholder="ex. gluten, lactate, nuci" />
+            </div>
+
+            <div className={styles.addField}>
+              <label>Preferințe alimentare <span className={styles.opt}>(opțional)</span></label>
+              <textarea name="foodPreferences" value={form.foodPreferences}
+                onChange={handleFormChange} rows="2"
+                placeholder="ex. Îmi place puiul. Nu îmi plac ciupercile."
+              />
+            </div>
+          </div>
+
+          {formError && <div className={styles.formError}>{formError}</div>}
+
+          <div className={styles.addFooter}>
+            <button type="submit" className={styles.saveBtn} disabled={saving}>
+              {saving ? <><span className={styles.savingSpinner} />Se salvează...</> : 'Adaugă client'}
+            </button>
+          </div>
+
+        </form>
+      </div>
+    );
+  }
 
   return (
     <>
