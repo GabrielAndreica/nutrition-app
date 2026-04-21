@@ -276,6 +276,25 @@
   color: #d62800;
 }
 
+.badgeGenerating {
+  background: rgba(183, 255, 0, 0.15);
+  border: 1px solid rgba(183, 255, 0, 0.35);
+  color: #5a7000;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.badgeProgress {
+  background: rgba(183, 255, 0, 0.15);
+  border: 1px solid rgba(183, 255, 0, 0.35);
+  color: #5a7000;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 .clientQuickInfo {
   font-size: 13px;
   color: rgba(0, 0, 0, 0.55);
@@ -564,6 +583,25 @@
   background: linear-gradient(90deg, #1c1c1c 25%, #2a2a2a 50%, #1c1c1c 75%);
   background-size: 400px 100%;
   animation: shimmer 1.4s ease infinite;
+}
+
+/* ─── Loading More (infinite scroll) ─────────────────────── */
+.loadingMore {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 28px 0 16px;
+}
+.loadingMoreSpinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--gray-200);
+  border-top-color: #0a0a0a;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ─── Pagination ──────────────────────────────────────────── */
@@ -1698,4 +1736,94 @@
     width: 100%;
     justify-content: center;
   }
+}
+
+/* ── Plan Ready Toast ─────────────────────────────────────── */
+.planReadyToast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  z-index: 1100;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: planToastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.planReadyToast.hiding {
+  animation: planToastOut 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes planToastIn {
+  from { opacity: 0; transform: translateX(40px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes planToastOut {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(40px) scale(0.95); }
+}
+
+.planToastHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.planToastTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+}
+
+.planToastIcon {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, #b7ff00, #9be000);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.planToastClose {
+  width: 26px;
+  height: 26px;
+  background: #f5f5f7;
+  border: none;
+  border-radius: 50%;
+  font-size: 12px;
+  color: #86868b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.planToastClose:hover {
+  background: #e8e8ed;
+  color: #1d1d1f;
+}
+
+.planToastBody {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.planToastBody strong {
+  color: #1d1d1f;
 }

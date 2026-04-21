@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
-
 // GET /api/activate/[token] — verifică token și returnează detalii invitație
-export async function GET(request, { params }) {
+export async function GET(request, {
+params }) {
+  const supabase = getSupabase();
   const { token } = await params;
   const { ip, userAgent } = getRequestMeta(request);
 

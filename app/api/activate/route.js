@@ -1,19 +1,43 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 
 // POST /api/activate — activează contul clientului
 export async function POST(request) {
+  const supabase = getSupabase();
   const { ip, userAgent } = getRequestMeta(request);
+
+  // ─── Rate Limiting pentru Activation (previne brute force pe tokens) ───
+  try {
+    const { data: rateLimitResult, error: rateLimitError } = await supabase
+      .rpc('check_rate_limit', {
+        p_user_id: ip || 'unknown',  // Use IP pentru rate limiting înainte de autentificare
+        p_endpoint: 'auth-activate',
+        p_max_requests: 10,  // Max 10 încercări de activare per oră per IP
+        p_window_minutes: 60
+      });
+
+    if (rateLimitError) {
+      console.error('Rate limit check error:', rateLimitError);
+    } else if (rateLimitResult && rateLimitResult.length > 0) {
+      const { allowed, remaining, reset_at } = rateLimitResult[0];
+      
+      if (!allowed) {
+        const resetDate = new Date(reset_at);
+        const minutesRemaining = Math.ceil((resetDate - new Date()) / 60000);
+        return NextResponse.json(
+          { error: `Prea multe încercări de activare. Încearcă din nou în ${minutesRemaining} minute.` },
+          { status: 429, headers: { 'Retry-After': String(minutesRemaining * 60) } }
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Rate limit exception:', err);
+  }
 
   let body;
   try {
@@ -22,12 +46,21 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }
 
-  const { token, password, name } = body;
+  let { token, password, name } = body;
 
   // Validare
   if (!token || !password || !name) {
     return NextResponse.json({ 
       error: 'Token, parolă și nume sunt obligatorii.' 
+    }, { status: 400 });
+  }
+
+  // Sanitizare nume (previne XSS)
+  try {
+    name = sanitizeName(name);
+  } catch (err) {
+    return NextResponse.json({ 
+      error: 'Nume invalid: ' + err.message 
     }, { status: 400 });
   }
 
@@ -37,11 +70,14 @@ export async function POST(request) {
     }, { status: 400 });
   }
 
-  if (name.trim().length < 2) {
+  if (name.length < 2) {
     return NextResponse.json({ 
       error: 'Numele trebuie să aibă cel puțin 2 caractere.' 
     }, { status: 400 });
   }
+
+  // Sanitizare token (previne injection)
+  token = sanitizeText(token).slice(0, 200);
 
   // Găsește invitația
   const { data: invitation, error: inviteError } = await supabase
@@ -97,7 +133,6 @@ export async function POST(request) {
         if (notificationError) {
           console.error('Eroare la crearea notificării de expirare:', notificationError);
         } else {
-          console.log(`✅ Notificare de expirare creată pentru trainer ${clientData.trainer_id}`);
         }
       }
     }
@@ -120,7 +155,7 @@ export async function POST(request) {
   const { data: newUser, error: userError } = await supabase
     .from('users')
     .insert([{
-      name: name.trim(),
+      name: name,
       email: invitation.client_email,
       password: hashedPassword,
       role: 'client', // rol special pentru clienți
@@ -187,7 +222,6 @@ export async function POST(request) {
     if (notificationError) {
       console.error('Eroare la crearea notificării de activare:', notificationError);
     } else {
-      console.log(`✅ Notificare de activare creată pentru trainer ${clientData.trainer_id}`);
     }
   }
 

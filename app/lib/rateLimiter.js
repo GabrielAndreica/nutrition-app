@@ -15,7 +15,9 @@ const CONFIG = {
   MAX_REQUESTS_PER_USER_PER_HOUR: 20,
   
   // Global concurrency (OpenAI rate limits)
-  MAX_CONCURRENT_REQUESTS: 10,
+  // Setăm la 1 pentru a genera planurile SECVENȚIAL - unul după altul
+  // Astfel nu se depășește niciodată rate limit-ul OpenAI
+  MAX_CONCURRENT_REQUESTS: 1,
   
   // Queue settings
   MAX_QUEUE_SIZE: 100,

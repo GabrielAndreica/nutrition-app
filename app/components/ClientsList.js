@@ -1,7 +1,8 @@
 ﻿'use client';
 
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@supabase/supabase-js';
 import styles from '@/app/clients/clients.module.css';
 
 const LIMIT = 20;
@@ -118,14 +119,23 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
 
   const [clients,    setClients]    = useState([]);
   const [planMap,    setPlanMap]    = useState({});
+  const [generatingClients, setGeneratingClients] = useState(new Set());
+  const [justFinishedClients, setJustFinishedClients] = useState(new Set());
+  const [generatingInitialized, setGeneratingInitialized] = useState(false);
   const [loading,    setLoading]    = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error,      setError]      = useState(null);
   const [total,      setTotal]      = useState(0);
-  const [totalPages, setTotalPages] = useState(0);
+  const [hasMore,    setHasMore]    = useState(false);
+  const sentinelRef = useRef(null);
+  const pageRef     = useRef(1);  // ref pentru closures stale
 
   const [page,            setPage]            = useState(1);
   const [search,          setSearch]          = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Ţine pageRef sincronizat pentru folosire în closures
+  useEffect(() => { pageRef.current = page; }, [page]);
 
   const [modalOpen,     setModalOpen]     = useState(false);
   const [editingClient, setEditingClient] = useState(null);
@@ -135,6 +145,10 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
 
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
+
+  const [generateConfirmClientId, setGenerateConfirmClientId] = useState(null);
+  const [generatingBusyModal, setGeneratingBusyModal] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteClientId, setInviteClientId] = useState(null);
@@ -159,40 +173,226 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
   }), []);
 
   useEffect(() => {
+    // ─── Optimizare: Debounce 150ms (mai rapid decât 300ms) ───────
     const t = setTimeout(() => {
       setDebouncedSearch(search);
       setPage(1);
-    }, 300);
+    }, 150);
     return () => clearTimeout(t);
   }, [search]);
 
-  const fetchClients = useCallback(async (pageNum, searchQuery, signal) => {
-    setLoading(true);
+  // Silent refresh care păstrează toți clienții încărcați (pentru polling)
+  const fetchClientsRange = useCallback(async (limit) => {
+    try {
+      const params = new URLSearchParams({ page: 1, limit });
+      const res = await fetch(`/api/clients?${params}`, { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      setClients(data.clients || []);
+      setPlanMap(data.plans || {});
+      setTotal(data.total || 0);
+      setHasMore((data.total || 0) > limit);
+    } catch {}
+  }, [authHeaders]);
+
+  const fetchClients = useCallback(async (pageNum, searchQuery, silent = false) => {
+    const isFirstPage = pageNum === 1;
+    if (!silent) {
+      if (isFirstPage) setLoading(true);
+      else setLoadingMore(true);
+    }
     setError(null);
+    
+    // ─── Optimizare: Timeout 8s pentru fetch ───────
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    
     try {
       const params = new URLSearchParams({ page: pageNum, limit: LIMIT });
       if (searchQuery) params.set('search', searchQuery);
-      const res = await fetch(`/api/clients?${params}`, { headers: authHeaders(), signal });
-      if (signal?.aborted) return;
+      
+      const res = await fetch(`/api/clients?${params}`, { 
+        headers: authHeaders(), 
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (controller.signal.aborted) return;
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Eroare la incarcare');
-      setClients(data.clients    || []);
-      setPlanMap(data.plans      || {});
-      setTotal(data.total        || 0);
-      setTotalPages(data.totalPages || 0);
+      
+      const newClients = data.clients || [];
+      const newPlans   = data.plans   || {};
+      
+      if (silent) {
+        // Silent refresh: înlocuiește complet (sync cu serverul)
+        setClients(newClients);
+        setPlanMap(newPlans);
+      } else if (isFirstPage) {
+        setClients(newClients);
+        setPlanMap(newPlans);
+      } else {
+        // Infinite scroll: append cu deduplicare după id
+        setClients(prev => {
+          const existingIds = new Set(prev.map(c => c.id));
+          const unique = newClients.filter(c => !existingIds.has(c.id));
+          return [...prev, ...unique];
+        });
+        setPlanMap(prev => ({ ...prev, ...newPlans }));
+      }
+      
+      const fetchedTotal = data.total || 0;
+      setTotal(fetchedTotal);
+      setHasMore(pageNum * LIMIT < fetchedTotal);
     } catch (err) {
-      if (err.name === 'AbortError') return;
+      clearTimeout(timeoutId);
+      if (err.name === 'AbortError') {
+        setError('Timeout la încărcarea clienților. Încearcă din nou.');
+        return;
+      }
       setError(err.message);
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!controller.signal.aborted) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   }, [authHeaders]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetchClients(page, debouncedSearch, controller.signal);
-    return () => controller.abort();
+    fetchClients(page, debouncedSearch);
   }, [page, debouncedSearch, fetchClients]);
+
+  // Nota: nu folosim focus/visibilitychange - suprascriu clientii adaugati local
+
+  // Infinite scroll: incarca urmatoarea pagina cand sentinelul e vizibil
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
+          setPage(prev => prev + 1);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loading, loadingMore]);
+
+  useEffect(() => {
+    let previousGeneratingIds = new Set();
+    let intervalRef = null;
+    let pollCount = 0;
+    const mountTime = Date.now();
+
+    const checkGenerating = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        const res = await fetch('/api/generation-status', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const generatingIds = new Set(data.generations?.map(g => g.client_id) || []);
+
+          // Detectează când o generare s-a terminat
+          const finishedIds = Array.from(previousGeneratingIds).filter(id => !generatingIds.has(id));
+          if (finishedIds.length > 0) {
+            // Protejează clienții finalizați de flash-ul "Fără plan" până vine planMap din DB
+            setJustFinishedClients(prev => new Set([...prev, ...finishedIds]));
+            // Fetch toţi clienţii încărcaţi curent (nu doar page 1)
+            const loadedLimit = pageRef.current * LIMIT;
+            fetchClientsRange(loadedLimit).then(() => {
+              // Planul e acum în planMap — eliberează protecția
+              setJustFinishedClients(prev => {
+                const next = new Set(prev);
+                finishedIds.forEach(id => next.delete(id));
+                return next;
+              });
+            });
+            setTimeout(() => fetchClientsRange(loadedLimit), 2000);
+            // Notifică dashboard-ul să re-fetch notificări imediat
+            window.dispatchEvent(new Event('generationFinished'));
+          }
+
+          previousGeneratingIds = generatingIds;
+          setGeneratingClients(generatingIds);
+          setGeneratingInitialized(true);
+
+          // Dacă nu mai e nicio generare activă, oprește polling-ul (economisește resurse)
+          // Așteptăm minim 10s de la mount înainte să oprim — acoperă latency API la start
+          pollCount++;
+          const elapsed = Date.now() - mountTime;
+          if (generatingIds.size === 0 && intervalRef && elapsed > 10000) {
+            clearInterval(intervalRef);
+            intervalRef = null;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking generation status:', error);
+      }
+    };
+
+    // Prima verificare la mount + pornește polling imediat (se oprește singur dacă nu e nimic activ)
+    const init = async () => {
+      await checkGenerating();
+      // Pornește întotdeauna polling-ul la mount — se oprește singur când generatingIds.size === 0
+      if (!intervalRef) {
+        intervalRef = setInterval(checkGenerating, 1500);
+      }
+    };
+
+    init();
+
+    // Listener: când se pornește o generare nouă (buton apăsat), repornește polling-ul
+    const handleGenerationStarted = () => {
+      if (!intervalRef) {
+        intervalRef = setInterval(checkGenerating, 1500);
+      }
+    };
+    window.addEventListener('generationStarted', handleGenerationStarted);
+
+    return () => {
+      if (intervalRef) clearInterval(intervalRef);
+      window.removeEventListener('generationStarted', handleGenerationStarted);
+    };
+  }, [page, debouncedSearch, fetchClients]);
+
+  // Polling 10s pentru has_new_progress — simplu și fiabil
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/clients/progress-status', { headers: authHeaders() });
+        if (!res.ok) return;
+        const { statuses } = await res.json();
+        if (!statuses?.length) return;
+        // Actualizează doar clienții unde has_new_progress s-a schimbat
+        setClients(prev => {
+          const map = Object.fromEntries(statuses.map(s => [s.id, s.has_new_progress]));
+          let changed = false;
+          const next = prev.map(c => {
+            if (c.id in map && c.has_new_progress !== map[c.id]) {
+              changed = true;
+              return { ...c, has_new_progress: map[c.id] };
+            }
+            return c;
+          });
+          return changed ? next : prev;
+        });
+      } catch {}
+    };
+
+    const interval = setInterval(poll, 10000);
+    // Rulează imediat la mount (după ce clienții s-au încărcat)
+    const initial = setTimeout(poll, 2000);
+    return () => { clearInterval(interval); clearTimeout(initial); };
+  }, [authHeaders]);
 
   // Auto-open progress view when navigated from meal plan page
   useEffect(() => {
@@ -400,10 +600,30 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
     setProgressModalSaving(false);
   };
 
-  const handleProgressContinue = () => {
+  const handleProgressContinue = async () => {
+    const clientId = progressModalClient?.id;
+    // Optimistic update imediat
     setClients(prev => prev.map(c =>
-      c.id === progressModalClient.id ? { ...c, has_new_progress: false } : c
+      c.id === clientId ? { ...c, has_new_progress: false } : c
     ));
+    // Persist în DB Înainte de a închide modalul — evită race condition cu re-fetch
+    if (clientId) {
+      try {
+        const res = await fetch(`/api/clients/${clientId}`, {
+          method: 'PATCH',
+          headers: authHeaders(),
+          body: JSON.stringify({ has_new_progress: false }),
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          console.error('[handleProgressContinue] PATCH failed:', res.status, json);
+        } else {
+          console.log('[handleProgressContinue] PATCH ok, updated:', json.updated);
+        }
+      } catch (err) {
+        console.error('[handleProgressContinue] PATCH error:', err);
+      }
+    }
     closeProgressModal();
   };
 
@@ -437,6 +657,12 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
           cl.id === c.id ? { ...cl, has_new_progress: false } : cl
         ));
       }
+      // Persist has_new_progress=false in DB so polling doesn't restore the badge
+      fetch(`/api/clients/${c.id}`, {
+        method: 'PATCH',
+        headers: authHeaders(),
+        body: JSON.stringify({ has_new_progress: false }),
+      }).catch(() => {});
 
       // Stochează datele de progres pentru generator
       sessionStorage.setItem('clientProgress', JSON.stringify({
@@ -468,7 +694,9 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       setProgressModalStagnation(0);
       setProgressModalNewWeight('');
       setProgressModalSaving(false);
-      router.push(`/generator-plan?clientId=${c.id}&fromProgress=true`);
+      if (onGeneratePlan) {
+        onGeneratePlan(c.id, true);
+      }
     } catch (err) {
       setProgressModalError(err.message);
       setProgressModalSaving(false);
@@ -526,9 +754,22 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
     }
   };
 
-  const goToPage = (newPage) => {
-    setPage(newPage);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const handleGenerateConfirm = async () => {
+    if (!generateConfirmClientId) return;
+    setGenerating(true);
+    try {
+      if (onGeneratePlan) {
+        await onGeneratePlan(generateConfirmClientId);
+      }
+      // Repornește polling-ul de generare
+      window.dispatchEvent(new Event('generationStarted'));
+      setGenerateConfirmClientId(null);
+    } catch (err) {
+      console.error('Eroare la generarea planului:', err);
+      setGenerateConfirmClientId(null);
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (
@@ -552,7 +793,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
               spellCheck="false"
             />
             {search && (
-              <button className={styles.searchClear} onClick={() => setSearch('')} aria-label="Sterge cautare">
+              <button className={styles.searchClear} onClick={() => { setSearch(''); setLoading(true); }} aria-label="Sterge cautare">
                 x
               </button>
             )}
@@ -594,7 +835,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
                   <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
                 <p>Niciun client gasit pentru <strong>"{search}"</strong></p>
-                <button className={styles.clearSearchBtn} onClick={() => setSearch('')}>Sterge filtrul</button>
+                <button className={styles.clearSearchBtn} onClick={() => { setSearch(''); setLoading(true); }}>Sterge filtrul</button>
               </>
             ) : (
               <>
@@ -617,6 +858,8 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
               const isPending = client.invitation_status === 'pending';
               const plan = planMap[client.id];
               const hasNewProgress = client.has_new_progress;
+              const isGenerating = generatingClients.has(String(client.id));
+              const isJustFinished = justFinishedClients.has(String(client.id));
 
               return (
               <div key={client.id} className={styles.clientCard}>
@@ -632,9 +875,18 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
                       <span className={`${styles.accountBadge} ${hasAccount ? styles.badgeActive : (isPending ? styles.badgePending : styles.badgeInactive)}`}>
                         {hasAccount ? 'Activ' : (isPending ? 'Invitat' : 'Neinvitat')}
                       </span>
-                      {!plan && (
+                      {isGenerating ? (
+                        <span className={`${styles.accountBadge} ${styles.badgeGenerating}`}>
+                          Se generează plan...
+                        </span>
+                      ) : !plan && generatingInitialized && !isJustFinished && (
                         <span className={`${styles.accountBadge} ${styles.badgeNoPlan}`}>
                           Fără plan alimentar
+                        </span>
+                      )}
+                      {hasNewProgress && (
+                        <span className={`${styles.accountBadge} ${styles.badgeProgress}`}>
+                          Progres în așteptare
                         </span>
                       )}
                     </div>
@@ -651,14 +903,6 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
                   {plan ? `Ultimul plan: ${formatPlanTime(plan.createdAt)}` : 'Nu există plan generat'}
                 </div>
 
-                {/* Status progres */}
-                {hasNewProgress && (
-                  <div className={styles.clientProgressStatus}>
-                    <ClockIcon />
-                    <span>Progres în așteptare</span>
-                  </div>
-                )}
-
                 {/* Butoane */}
                 <div className={styles.clientActions}>
                   <div className={styles.secondaryActions}>
@@ -673,14 +917,28 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
                       </button>
                     )}
                   </div>
-                  {planMap[client.id] ? (
+                  {plan || isGenerating ? (
                     <button className={styles.viewPlanBtn}
-                      onClick={() => onViewPlan ? onViewPlan(planMap[client.id].planId) : router.push(`/meal-plan/${planMap[client.id].planId}`)}>
+                      disabled={isGenerating}
+                      style={isGenerating ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+                      onClick={() => {
+                        if (isGenerating) {
+                          return; // Butonul e disabled, nu face nimic
+                        } else {
+                          onViewPlan && onViewPlan(planMap[client.id].planId);
+                        }
+                      }}>
                       Vizualizeaza plan <ArrowIcon />
                     </button>
                   ) : (
                     <button className={styles.generateBtn}
-                      onClick={() => onGeneratePlan ? onGeneratePlan(client.id) : router.push(`/generator-plan?clientId=${client.id}`)}>
+                      onClick={() => {
+                        if (generatingClients.size > 0) {
+                          setGeneratingBusyModal(true);
+                        } else {
+                          setGenerateConfirmClientId(client.id);
+                        }
+                      }}>
                       Genereaza plan <ArrowIcon />
                     </button>
                   )}
@@ -691,19 +949,11 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
           </div>
         )}
 
-        {!loading && totalPages > 1 && (
-          <div className={styles.pagination}>
-            <button className={styles.pageBtn} disabled={page === 1} onClick={() => goToPage(page - 1)}>
-              Anterior
-            </button>
-            <span className={styles.pageInfo}>
-              Pagina <strong>{page}</strong> din <strong>{totalPages}</strong>
-              <span className={styles.pageDot}>·</span>
-              {total} clienti
-            </span>
-            <button className={styles.pageBtn} disabled={page === totalPages} onClick={() => goToPage(page + 1)}>
-              Urmator
-            </button>
+        {/* Sentinel infinite scroll */}
+        {!loading && <div ref={sentinelRef} style={{ height: 1 }} />}
+        {loadingMore && (
+          <div className={styles.loadingMore}>
+            <div className={styles.loadingMoreSpinner} />
           </div>
         )}
       </div>
@@ -819,6 +1069,50 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
               <button className={styles.cancelBtn} onClick={() => setDeleteId(null)}>Anuleaza</button>
               <button className={styles.deleteBtnConfirm} onClick={handleDelete} disabled={deleting}>
                 {deleting ? 'Se sterge...' : 'Sterge definitiv'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {generatingBusyModal && (
+        <div className={styles.modalOverlay} onClick={() => setGeneratingBusyModal(false)}>
+          <div className={styles.confirmModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.confirmIcon}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+            </div>
+            <h3>Plan în curs de generare</h3>
+            <p>Există deja un plan alimentar care se generează. Așteptați să se termine înainte de a genera un plan nou.</p>
+            <div className={styles.confirmActions}>
+              <button className={styles.saveBtn} onClick={() => setGeneratingBusyModal(false)}>Am înțeles</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {generateConfirmClientId && (
+        <div className={styles.modalOverlay} onClick={() => setGenerateConfirmClientId(null)}>
+          <div className={styles.confirmModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.confirmIcon}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="12" y1="18" x2="12" y2="12"/>
+                <line x1="9" y1="15" x2="15" y2="15"/>
+              </svg>
+            </div>
+            <h3>Generezi plan alimentar?</h3>
+            <p>Se va genera un plan alimentar personalizat pentru acest client pe baza datelor completate.</p>
+            <div className={styles.confirmActions}>
+              <button className={styles.cancelBtn} onClick={() => setGenerateConfirmClientId(null)}>Anuleaza</button>
+              <button className={styles.saveBtn} onClick={handleGenerateConfirm} disabled={generating}>
+                {generating ? 'Se genereaza...' : 'Genereaza plan'}
               </button>
             </div>
           </div>

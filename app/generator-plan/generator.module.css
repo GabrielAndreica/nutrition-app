@@ -96,7 +96,7 @@
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-xl);
+  padding: 0;
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
@@ -154,9 +154,42 @@
 /* ── Loading Progress ───────────────────────────────────────── */
 .loadingWrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 80px 20px;
+  gap: 24px;
+  position: relative;
+}
+
+.loadingBackBtn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  z-index: 100;
+}
+
+.loadingBackBtn:hover {
+  background: #f8f8f8;
+  border-color: rgba(0, 0, 0, 0.15);
+  transform: translateX(-2px);
+}
+
+.loadingBackBtn svg {
+  flex-shrink: 0;
 }
 
 .loadingBox {
@@ -179,6 +212,23 @@
   margin: 0 0 28px;
   min-height: 22px;
   font-weight: 500;
+}
+
+.queueStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.1);
+  padding: 6px 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.queueIcon {
+  font-size: 16px;
 }
 
 .progressTrack {

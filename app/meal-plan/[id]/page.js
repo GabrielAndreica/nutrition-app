@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { FEATURES, getDefaultRedirectURL } from '@/app/config/features';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import AppHeader from '@/app/components/AppHeader';
 import styles from '../meal-plan-view.module.css';
@@ -67,6 +68,21 @@ function SkeletonMealPlan() {
 function MealPlanViewContent() {
   const router = useRouter();
   const { id } = useParams();
+
+  // Dacă legacy routes nu sunt permise, redirecționează imediat
+  if (!FEATURES.ALLOW_LEGACY_ROUTES) {
+    useEffect(() => {
+      router.replace(getDefaultRedirectURL());
+    }, [router]);
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', color: '#666' }}>Redirecționare...</div>
+        </div>
+      </div>
+    );
+  }
+
   const [mealPlan, setMealPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
@@ -126,10 +142,19 @@ function MealPlanViewContent() {
       return;
     }
 
+    // ─── Optimizare: Timeout pentru fetch + abort controller ───────
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 10000); // 10s timeout
+
     fetch(`/api/meal-plans/${id}`, {
       headers: { 'Authorization': `Bearer ${token}` },
+      signal: abortController.signal,
     })
-      .then(res => res.json())
+      .then(res => {
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error('Eroare la încărcarea planului.');
+        return res.json();
+      })
       .then(data => {
         if (!data.mealPlan) throw new Error(data.error || 'Planul nu a fost găsit.');
         const { plan_data, daily_targets, client_id } = data.mealPlan;
@@ -151,8 +176,20 @@ function MealPlanViewContent() {
           foodPreferences: c.food_preferences || '',
         });
       })
-      .catch(err => setError(err.message))
+      .catch(err => {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          setError('Timeout la încărcarea planului. Încearcă din nou.');
+        } else {
+          setError(err.message);
+        }
+      })
       .finally(() => setLoading(false));
+    
+    return () => {
+      clearTimeout(timeoutId);
+      abortController.abort();
+    };
   }, [id]);
 
   // Oprește regenerarea dacă utilizatorul navighează
@@ -278,8 +315,8 @@ function MealPlanViewContent() {
         <div className={styles.navRow}>
           <button
             className={styles.navBackBtn}
-            onClick={() => router.push('/clients')}
-            aria-label="Înapoi la clienți"
+            onClick={() => router.back()}
+            aria-label="Înapoi"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
@@ -352,7 +389,7 @@ function MealPlanViewContent() {
             plan={mealPlan}
             clientData={clientData}
             nutritionalNeeds={nutritionalNeeds}
-            onReset={() => router.push('/clients')}
+            onReset={() => router.back()}
             onRegenerate={handleRegenerate}
             onViewProgress={() => {
               if (clientData?.clientId) {

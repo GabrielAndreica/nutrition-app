@@ -1,16 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+import { getSupabase } from '@/app/lib/supabase';
 
 /**
  * Health check endpoint pentru monitoring
  * Public - nu necesită autentificare
  */
 export async function GET() {
+  const supabase = getSupabase();
   const checks = {
     status: 'healthy',
     timestamp: new Date().toISOString(),

@@ -1,12 +1,7 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import bcrypt from 'bcrypt';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeEmail, sanitizeName } from '@/app/lib/sanitize';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
 
 // Validation rules
 const ValidationRules = {
@@ -65,21 +60,62 @@ const validateName = (name) => {
   return null;
 };
 
-const sanitizeInput = (input) => {
-  return input.trim().replace(/[<>]/g, '');
-};
-
 export async function POST(request) {
+  const supabase = getSupabase();
   const { ip, userAgent } = getRequestMeta(request);
+
+  // ─── Rate Limiting pentru Signup (previne spam accounts) ───────
+  try {
+    const { data: rateLimitResult, error: rateLimitError } = await supabase
+      .rpc('check_rate_limit', {
+        p_user_id: ip || 'unknown',  // Use IP pentru rate limiting înainte de autentificare
+        p_endpoint: 'auth-signup',
+        p_max_requests: 5,  // Max 5 înregistrări per oră per IP
+        p_window_minutes: 60
+      });
+
+    if (rateLimitError) {
+      console.error('Rate limit check error:', rateLimitError);
+    } else if (rateLimitResult && rateLimitResult.length > 0) {
+      const { allowed, remaining, reset_at } = rateLimitResult[0];
+      
+      if (!allowed) {
+        const resetDate = new Date(reset_at);
+        const minutesRemaining = Math.ceil((resetDate - new Date()) / 60000);
+        return new Response(
+          JSON.stringify({ error: `Prea multe încercări de înregistrare. Încearcă din nou în ${minutesRemaining} minute.` }),
+          { status: 429, headers: { 'Content-Type': 'application/json', 'Retry-After': String(minutesRemaining * 60) } }
+        );
+      }
+    }
+  } catch (err) {
+    console.error('Rate limit exception:', err);
+  }
 
   try {
     const body = await request.json();
 
     let { name, email, password } = body;
 
-    // Sanitize inputs
-    name = sanitizeInput(name || '');
-    email = sanitizeInput(email || '');
+    // Sanitizare input-uri (XSS protection)
+    try {
+      name = sanitizeName(name || '');
+      email = sanitizeEmail(email || '');
+    } catch (sanitizeError) {
+      await logActivity({ 
+        action: 'auth.signup', 
+        status: 'failure', 
+        email: email || 'unknown', 
+        ipAddress: ip, 
+        userAgent, 
+        details: { reason: 'sanitization_error', message: sanitizeError.message } 
+      });
+      return new Response(
+        JSON.stringify({ error: sanitizeError.message }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    
     password = password || '';
 
     // Validate name

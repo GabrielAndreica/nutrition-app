@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
+import { createClient } from '@supabase/supabase-js';
 import styles from './dashboard.module.css';
 import ClientsList from '@/app/components/ClientsList';
 
@@ -52,16 +53,27 @@ function DashboardContent() {
   const [generatingPlanClientId, setGeneratingPlanClientId] = useState(null);
 
   useEffect(() => {
-    // Prefetch critical routes pentru navigare rapidă
+    // ─── Optimizare: Prefetch routes + preload data cu cache ───────
     router.prefetch('/clients');
     router.prefetch('/generator-plan');
     
-    // Prefetch date pentru clienți în fundal
+    // Prefetch clienți în fundal cu timeout
     const token = localStorage.getItem('token');
     if (token) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
       fetch('/api/clients?page=1&limit=10', {
         headers: { Authorization: `Bearer ${token}` },
-      }).catch(() => {});
+        signal: controller.signal,
+      })
+        .then(() => clearTimeout(timeoutId))
+        .catch(() => clearTimeout(timeoutId));
+      
+      return () => {
+        clearTimeout(timeoutId);
+        controller.abort();
+      };
     }
   }, [router]);
 
@@ -69,16 +81,24 @@ function DashboardContent() {
   const handleLogout = () => { logout(); router.push('/'); };
   const handleNav = (path) => { setSidebarOpen(false); router.push(path); };
 
+  const fetchNotificationsRef = useRef(null);
+
   // Fetch notifications from API
-  const fetchNotifications = async () => {
+  const fetchNotifications = async ({ limit = 5 } = {}) => {
     setLoadingNotifications(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('/api/notifications?limit=50', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      
+      // ─── Optimizare: Timeout 5s pentru notificări ───────
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch(`/api/notifications?limit=${limit}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        signal: controller.signal,
       });
+      
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
@@ -88,6 +108,7 @@ function DashboardContent() {
           if (notif.type === 'progress_update') type = 'progress';
           if (notif.type === 'client_activated') type = 'client';
           if (notif.type === 'invitation_expired') type = 'warning';
+          if (notif.type === 'plan_generated') type = 'plan';
           
           return {
             id: notif.id,
@@ -96,6 +117,7 @@ function DashboardContent() {
             time: formatNotificationTime(notif.created_at),
             unread: !notif.is_read,
             clientId: notif.related_client_id,
+            planId: notif.related_plan_id,
             clientName: notif.clients?.name || null
           };
         });
@@ -105,11 +127,16 @@ function DashboardContent() {
         console.error('Failed to fetch notifications:', response.status, errorData);
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      if (error.name === 'AbortError') {
+        console.warn('Notifications fetch timeout');
+      } else {
+        console.error('Error fetching notifications:', error);
+      }
     } finally {
       setLoadingNotifications(false);
     }
   };
+  fetchNotificationsRef.current = fetchNotifications;
 
   // Format notification time (relative)
   const formatNotificationTime = (createdAt) => {
@@ -206,15 +233,85 @@ function DashboardContent() {
         mainRef.current.scrollTop = 0;
       }
     }
+
+    // Navigate to meal plan if it's a plan_generated notification
+    if (notification.type === 'plan' && notification.planId) {
+      setNotificationsOpen(false);
+      setViewingProgressClientId(null);
+      setGeneratingPlanClientId(null);
+      setViewingPlanId(notification.planId);
+      if (mainRef.current) mainRef.current.scrollTop = 0;
+    }
   };
 
-  // Fetch notifications on mount
+  // Fetch notifications on mount + Supabase Realtime subscription
   useEffect(() => {
-    fetchNotifications();
-    
-    // Refresh notifications every 60 seconds
-    const interval = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(interval);
+    fetchNotifications({ limit: 5 });
+
+    // ─── Supabase Realtime: notificare instantă la INSERT ───────
+    const supabaseUrl  = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    const token = localStorage.getItem('token');
+    let trainerId = null;
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      trainerId = payload.userId || payload.id || payload.sub;
+    } catch {}
+
+    let supabaseClient = null;
+    let channel = null;
+    if (supabaseUrl && supabaseAnon && trainerId) {
+      supabaseClient = createClient(supabaseUrl, supabaseAnon);
+      channel = supabaseClient
+        .channel('notifications-' + trainerId)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `trainer_id=eq.${trainerId}`,
+          },
+          () => {
+            // Nouă notificare apărută — reîncarcă lista
+            fetchNotifications({ limit: 5 });
+          }
+        )
+        .subscribe();
+    }
+
+    // Fallback polling la 30s (dacă Realtime nu e disponibil)
+    const intervalId = setInterval(() => fetchNotifications({ limit: 5 }), 30000);
+
+    return () => {
+      clearInterval(intervalId);
+      if (channel && supabaseClient) supabaseClient.removeChannel(channel);
+    };
+  }, []);
+
+  // Polling mai rapid când panoul de notificări e deschis
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    fetchNotifications({ limit: 5 }); // refresh imediat la deschidere
+    const id = setInterval(() => fetchNotifications({ limit: 5 }), 15000);
+    return () => clearInterval(id);
+  }, [notificationsOpen]);
+
+  // Fetch notificări imediat când o generare tocmai s-a terminat
+  useEffect(() => {
+    const handler = () => fetchNotificationsRef.current?.({ limit: 5 });
+    window.addEventListener('generationFinished', handler);
+    return () => window.removeEventListener('generationFinished', handler);
+  }, []);
+
+  // Check if returning to view generating plan
+  useEffect(() => {
+    const viewGeneratingClientId = sessionStorage.getItem('viewGeneratingClientId');
+    if (viewGeneratingClientId) {
+      sessionStorage.removeItem('viewGeneratingClientId');
+      setGeneratingPlanClientId(viewGeneratingClientId);
+    }
   }, []);
 
   // Infinite scroll handler

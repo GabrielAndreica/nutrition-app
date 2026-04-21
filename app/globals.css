@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@keyframes slideInRight {
+  from { transform: translateX(120%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
 :root {
   /* Primary Colors */
   --primary-orange: #b7ff00;

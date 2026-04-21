@@ -1,14 +1,11 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+import { sanitizeText, sanitizeNumber } from '@/app/lib/sanitize';
 
 export async function GET(request) {
+  const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -31,11 +28,7 @@ export async function GET(request) {
         related_client_id,
         related_plan_id,
         is_read,
-        created_at,
-        clients:related_client_id (
-          id,
-          name
-        )
+        created_at
       `)
       .eq('user_id', auth.userId)
       .order('created_at', { ascending: false })
@@ -61,6 +54,7 @@ export async function GET(request) {
 
 // Mark notifications as read
 export async function PATCH(request) {
+  const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -110,6 +104,7 @@ export async function PATCH(request) {
 }
 
 export async function POST(request) {
+  const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) {
     console.error('[Notifications POST] Auth error:', auth.error);
@@ -118,12 +113,21 @@ export async function POST(request) {
 
   try {
     const body = await request.json();
-    console.log('[Notifications POST] Request body:', body);
-    const { user_id, type, title, message, related_client_id, related_plan_id } = body;
+    let { user_id, type, title, message, related_client_id, related_plan_id } = body;
 
     if (!user_id || !type || !message) {
-      console.error('[Notifications POST] Missing required fields:', { user_id, type, message });
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Sanitizare input-uri (XSS protection)
+    try {
+      if (title) title = sanitizeText(title).slice(0, 200);
+      message = sanitizeText(message).slice(0, 1000);
+      user_id = sanitizeNumber(user_id, { min: 1, max: 999999999, allowFloat: false });
+      if (related_client_id) related_client_id = sanitizeNumber(related_client_id, { min: 1, max: 999999999, allowFloat: false });
+      if (related_plan_id) related_plan_id = sanitizeNumber(related_plan_id, { min: 1, max: 999999999, allowFloat: false });
+    } catch (sanitizeError) {
+      return NextResponse.json({ error: 'Date invalide: ' + sanitizeError.message }, { status: 400 });
     }
 
     const insertData = {
@@ -135,8 +139,6 @@ export async function POST(request) {
       related_plan_id: related_plan_id || null,
       is_read: false
     };
-    
-    console.log('[Notifications POST] Inserting:', insertData);
 
     const { data: notification, error: insertError } = await supabase
       .from('notifications')
@@ -148,8 +150,6 @@ export async function POST(request) {
       console.error('[Notifications POST] Insert error:', insertError);
       return NextResponse.json({ error: 'Failed to create notification', details: insertError.message }, { status: 500 });
     }
-
-    console.log('[Notifications POST] Success:', notification);
     
     // Log pentru acțiunile antrenorului
     const { ip, userAgent } = getRequestMeta(request);
