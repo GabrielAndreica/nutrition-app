@@ -114,6 +114,7 @@ function DashboardContent() {
           return {
             id: notif.id,
             type,
+            title: notif.title || null,
             message: notif.message,
             time: formatNotificationTime(notif.created_at),
             unread: !notif.is_read,
@@ -503,6 +504,7 @@ function DashboardContent() {
                     )}
                   </div>
                   <div className={styles.notificationContent}>
+                    {notif.title && <div className={styles.notificationTitle}>{notif.title}</div>}
                     <p className={styles.notificationMessage}>{notif.message}</p>
                     <span className={styles.notificationTime}>{notif.time}</span>
                   </div>

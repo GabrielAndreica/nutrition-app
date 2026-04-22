@@ -344,9 +344,10 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
     setPlanContinued(true);
     setShowBanner(true);
 
+    const token = localStorage.getItem('token');
+
     // Șterge badge-ul din DB
     try {
-      const token = localStorage.getItem('token');
       await fetch(`/api/clients/${clientId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -354,6 +355,27 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
       });
     } catch (err) {
       console.error('[handleContinue] PATCH error:', err);
+    }
+
+    // Trimite notificare clientului că antrenorul a verificat progresul
+    try {
+      const notifRes = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          type: 'plan_continued',
+          title: 'Progres verificat',
+          message: 'Antrenorul tău ți-a verificat progresul. Continuă tot așa!',
+          related_client_id: clientId,
+          related_plan_id: planId || null,
+        }),
+      });
+      if (!notifRes.ok) {
+        const err = await notifRes.json().catch(() => ({}));
+        console.error('[handleContinue] Notification failed:', err);
+      }
+    } catch (err) {
+      console.error('[handleContinue] Notification error:', err);
     }
   };
 

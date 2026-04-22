@@ -226,7 +226,7 @@
 }
 
 .loadingStep {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--text-secondary, #86868b);
   margin: 0 0 28px;
   min-height: 22px;
@@ -344,14 +344,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   background: transparent;
   border: 1px solid #e8e8ed;
   border-radius: 8px;
   color: #666;
   cursor: pointer;
   flex-shrink: 0;
+  touch-action: manipulation;
   transition: background 0.14s, border-color 0.14s, color 0.14s;
 }
 .navBackBtn:hover {
@@ -374,11 +375,11 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
+  padding: 8px 14px;
   border: none;
   border-radius: 7px;
   background: transparent;
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 600;
   color: #86868b;
   cursor: pointer;
@@ -386,6 +387,8 @@
   font-family: inherit;
   letter-spacing: -0.1px;
   white-space: nowrap;
+  min-height: 44px;
+  touch-action: manipulation;
 }
 .planTab:hover:not(:disabled) {
   background: rgba(0, 0, 0, 0.04);
@@ -401,4 +404,50 @@
 .planTab:disabled {
   cursor: not-allowed;
   opacity: 0.4;
+}
+
+/* ── Mobile ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .container {
+    min-height: 100dvh;
+  }
+
+  .content {
+    padding: 0 0 calc(34px + env(safe-area-inset-bottom, 0px)) 0;
+  }
+
+  .navRow {
+    padding: 16px 0 8px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .planTabsToggle {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    flex: 1;
+  }
+  .planTabsToggle::-webkit-scrollbar { display: none; }
+
+  .planTab {
+    font-size: 15px;
+    padding: 8px 12px;
+    flex-shrink: 0;
+  }
+
+  .success {
+    margin: 12px 0;
+    font-size: 15px;
+    padding: 14px 16px;
+  }
+
+  .loadingStep {
+    font-size: 15px;
+  }
+
+  .error {
+    margin: 12px 0;
+    font-size: 15px;
+  }
 }

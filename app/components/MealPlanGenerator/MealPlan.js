@@ -198,6 +198,177 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
     ? Math.ceil((cooldownDate - new Date()) / (1000 * 60 * 60 * 24))
     : 0;
 
+  /* ── Inline Progress Page (client mode) ── */
+  if (showProgress && onSubmitProgress) {
+    return (
+      <div className={styles.progressInlinePage}>
+        {/* Nav */}
+        <div className={styles.progressInlineNav}>
+          <button className={styles.progressInlineBackBtn} onClick={() => setShowProgress(false)}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <span className={styles.progressInlineTitle}>Trimite actualizare progres</span>
+        </div>
+
+        {/* 3-column grid */}
+        <div className={styles.progressInlineGrid}>
+
+          {/* Secțiunea 01 — Greutate */}
+          <div className={styles.progressInlineSection}>
+            <div className={styles.progressInlineSectionHeader}>
+              <span className={styles.progressInlineNum}>01</span>
+              <span className={styles.progressInlineSectionTitle}>Greutate curentă</span>
+            </div>
+
+            {clientData?.goal && (
+              <div className={styles.progressInlineGoalBadge}>
+                <span>Obiectiv:</span>
+                <strong>{goalLabels[clientData.goal] || clientData.goal}</strong>
+              </div>
+            )}
+
+            <div className={styles.progressInlineField}>
+              <label>Greutate (kg) *</label>
+              <input
+                type="number"
+                name="currentWeight"
+                value={progressData.currentWeight}
+                onChange={handleProgressChange}
+                step="0.1" min="30" max="300"
+                placeholder="ex: 73.5"
+                className={progressErrors.currentWeight ? styles.progressInlineInputError : ''}
+              />
+              {progressErrors.currentWeight && (
+                <span className={styles.progressInlineError}>{progressErrors.currentWeight}</span>
+              )}
+              {!progressErrors.currentWeight && clientData?.weight && progressData.currentWeight && (
+                <span className={styles.progressInlineWeightDiff}>
+                  {(() => {
+                    const diff = (parseFloat(progressData.currentWeight) - parseFloat(clientData.weight)).toFixed(1);
+                    return `${diff > 0 ? '+' : ''}${diff} kg față de ultima înregistrare`;
+                  })()}
+                </span>
+              )}
+            </div>
+
+            {/* Istoric greutate */}
+            {loadingHistory && (
+              <p className={styles.progressInlineLoading}>Se încarcă istoricul...</p>
+            )}
+            {weightHistory.length > 0 && (
+              <div className={styles.progressInlineHistoryWrap}>
+                <span className={styles.progressInlineHistoryLabel}>Istoric recent</span>
+                <div className={styles.progressInlineHistoryList}>
+                  {weightHistory.slice(0, 6).map((entry, idx) => (
+                    <div key={entry.id || idx} className={styles.progressInlineHistoryRow}>
+                      <span className={styles.progressInlineHistoryDate}>
+                        {new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
+                      </span>
+                      <span className={styles.progressInlineHistoryVal}>{entry.weight} kg</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Secțiunea 02 — Cum te-ai simțit */}
+          <div className={styles.progressInlineSection}>
+            <div className={styles.progressInlineSectionHeader}>
+              <span className={styles.progressInlineNum}>02</span>
+              <span className={styles.progressInlineSectionTitle}>Cum te-ai simțit</span>
+            </div>
+
+            <div className={styles.progressInlineField}>
+              <label>Respectare plan *</label>
+              <div className={styles.progressInlineSeg}>
+                {[
+                  { v: 'complet', l: 'Complet' },
+                  { v: 'partial', l: 'Parțial' },
+                  { v: 'deloc', l: 'Deloc' },
+                ].map(({ v, l }) => (
+                  <button key={v} type="button"
+                    className={`${styles.progressInlineSegBtn} ${progressData.adherence === v ? styles.progressInlineSegOn : ''} ${progressErrors.adherence ? styles.progressInlineSegError : ''}`}
+                    onClick={() => { setProgressData(p => ({ ...p, adherence: v })); setProgressErrors(e => ({ ...e, adherence: undefined })); }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              {progressErrors.adherence && <span className={styles.progressInlineError}>{progressErrors.adherence}</span>}
+            </div>
+
+            <div className={styles.progressInlineField}>
+              <label>Nivel energie *</label>
+              <div className={styles.progressInlineSeg}>
+                {[
+                  { v: 'scazut', l: 'Scăzut' },
+                  { v: 'normal', l: 'Normal' },
+                  { v: 'ridicat', l: 'Ridicat' },
+                ].map(({ v, l }) => (
+                  <button key={v} type="button"
+                    className={`${styles.progressInlineSegBtn} ${progressData.energyLevel === v ? styles.progressInlineSegOn : ''} ${progressErrors.energyLevel ? styles.progressInlineSegError : ''}`}
+                    onClick={() => { setProgressData(p => ({ ...p, energyLevel: v })); setProgressErrors(e => ({ ...e, energyLevel: undefined })); }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              {progressErrors.energyLevel && <span className={styles.progressInlineError}>{progressErrors.energyLevel}</span>}
+            </div>
+
+            <div className={styles.progressInlineField}>
+              <label>Nivel foame *</label>
+              <div className={styles.progressInlineSeg}>
+                {[
+                  { v: 'normal', l: 'Normal' },
+                  { v: 'crescut', l: 'Crescut' },
+                  { v: 'extrem', l: 'Extrem' },
+                ].map(({ v, l }) => (
+                  <button key={v} type="button"
+                    className={`${styles.progressInlineSegBtn} ${progressData.hungerLevel === v ? styles.progressInlineSegOn : ''} ${progressErrors.hungerLevel ? styles.progressInlineSegError : ''}`}
+                    onClick={() => { setProgressData(p => ({ ...p, hungerLevel: v })); setProgressErrors(e => ({ ...e, hungerLevel: undefined })); }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+              {progressErrors.hungerLevel && <span className={styles.progressInlineError}>{progressErrors.hungerLevel}</span>}
+            </div>
+          </div>
+
+          {/* Secțiunea 03 — Mesaj */}
+          <div className={styles.progressInlineSection}>
+            <div className={styles.progressInlineSectionHeader}>
+              <span className={styles.progressInlineNum}>03</span>
+              <span className={styles.progressInlineSectionTitle}>Mesaj pentru antrenor</span>
+            </div>
+
+            <div className={`${styles.progressInlineField} ${styles.progressInlineFieldGrow}`}>
+              <label>Observații <span className={styles.progressInlineOpt}>(opțional)</span></label>
+              <textarea
+                name="notes"
+                value={progressData.notes}
+                onChange={handleProgressChange}
+                placeholder="Notează cum a decurs săptămâna, ce a mers bine sau ce a fost dificil..."
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className={styles.progressInlineFooter}>
+            {progressSubmitError && (
+              <span className={styles.progressInlineSubmitError}>{progressSubmitError}</span>
+            )}
+            <button className={styles.progressInlineSubmitBtn} onClick={handleProgressSubmit} disabled={progressSubmitting}>
+              {progressSubmitting ? 'Se trimite...' : 'Trimite progresul'}
+            </button>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.container}>
       {/* Client Header */}

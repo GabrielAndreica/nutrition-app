@@ -8,6 +8,328 @@
   position: relative;
 }
 
+/* ── Inline Progress Page (client mode) ─────────────────── */
+.progressInlinePage {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+}
+
+.progressInlineNav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.progressInlineBackBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  background: transparent;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  color: #555;
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s;
+  flex-shrink: 0;
+}
+.progressInlineBackBtn:hover {
+  background: #f5f5f7;
+  border-color: #d1d5db;
+}
+
+.progressInlineTitle {
+  font-size: 20px;
+  font-weight: 700;
+  color: #0a0a0a;
+  letter-spacing: -0.4px;
+}
+
+.progressInlineGrid {
+  display: grid;
+  grid-template-columns: 1fr 1.618fr 1fr;
+  gap: 21px;
+  align-items: stretch;
+}
+
+.progressInlineSection {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 21px;
+  padding: 21px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
+}
+
+.progressInlineSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid #f0f0f5;
+}
+
+.progressInlineNum {
+  font-size: 10px;
+  font-weight: 800;
+  color: #b7ff00;
+  background: #0a0a0a;
+  border-radius: 6px;
+  padding: 3px 7px;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+}
+
+.progressInlineSectionTitle {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0a0a0a;
+  letter-spacing: -0.2px;
+}
+
+.progressInlineGoalBadge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 13px;
+  background: #f9f9f9;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 15px;
+  color: #555;
+}
+.progressInlineGoalBadge strong {
+  color: #0a0a0a;
+  font-weight: 700;
+}
+
+.progressInlineField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progressInlineFieldGrow {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.progressInlineFieldGrow textarea {
+  flex: 1;
+  min-height: 80px;
+  resize: none;
+}
+
+.progressInlineField label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.progressInlineField input,
+.progressInlineField textarea {
+  padding: 10px 13px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 13px;
+  font-size: 15px;
+  color: #0a0a0a;
+  background: #fafafa;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+  line-height: 1.618;
+}
+
+.progressInlineField input:focus,
+.progressInlineField textarea:focus {
+  border-color: #b7ff00;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
+}
+
+.progressInlineInputError {
+  border-color: #e05252 !important;
+}
+
+.progressInlineError {
+  font-size: 15px;
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.progressInlineWeightDiff {
+  font-size: 15px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.progressInlineLoading {
+  font-size: 15px;
+  color: #9ca3af;
+}
+
+.progressInlineHistoryWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.progressInlineHistoryLabel {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #9ca3af;
+}
+
+.progressInlineHistoryList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border: 1px solid #f0f0f5;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.progressInlineHistoryRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 15px;
+  border-bottom: 1px solid #f5f5f7;
+}
+.progressInlineHistoryRow:last-child { border-bottom: none; }
+
+.progressInlineHistoryDate { color: #6b7280; }
+.progressInlineHistoryVal { font-weight: 700; color: #0a0a0a; }
+
+/* Segmented buttons */
+.progressInlineSeg {
+  display: flex;
+  background: #f3f4f6;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 13px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.progressInlineSegBtn {
+  flex: 1;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+  touch-action: manipulation;
+}
+.progressInlineSegBtn:hover:not(.progressInlineSegOn) { color: #374151; }
+
+.progressInlineSegOn {
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+.progressInlineSegError {
+  border-color: #e05252 !important;
+}
+
+.progressInlineOpt {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Footer */
+.progressInlineFooter {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 13px;
+  padding-top: 5px;
+}
+
+.progressInlineSubmitError {
+  font-size: 15px;
+  color: #dc2626;
+  margin-right: auto;
+}
+
+.progressInlineCancelBtn {
+  padding: 11px 21px;
+  background: transparent;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 13px;
+  color: #555;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.14s, border-color 0.14s;
+}
+.progressInlineCancelBtn:hover { background: #f5f5f7; border-color: #d1d5db; }
+.progressInlineCancelBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.progressInlineSubmitBtn {
+  padding: 11px 28px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 13px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.14s, transform 0.12s, box-shadow 0.14s;
+  letter-spacing: -0.1px;
+  touch-action: manipulation;
+  min-height: 48px;
+}
+.progressInlineSubmitBtn:hover:not(:disabled) {
+  background: #1a1a1a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+.progressInlineSubmitBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .progressInlineGrid {
+    grid-template-columns: 1fr;
+  }
+  .progressInlineFooter {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .progressInlineCancelBtn,
+  .progressInlineSubmitBtn {
+    width: 100%;
+    justify-content: center;
+    min-height: 48px;
+  }
+}
+
 /* Left Column - Sidebar (hidden, kept for legacy JSX) */
 .leftColumn {
   display: none;
@@ -1001,7 +1323,7 @@
 
   .updateProgressBtn {
     padding: 9px 14px;
-    font-size: 12px;
+    font-size: 15px;
     min-height: 44px;
   }
 
@@ -1047,7 +1369,7 @@
   }
 
   .clientSub {
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .clientStats {
@@ -1098,7 +1420,7 @@
     flex: 1;
     justify-content: center;
     padding: 10px 12px;
-    font-size: 12px;
+    font-size: 15px;
   }
 
   .downloadBtn {
@@ -1110,9 +1432,11 @@
     flex: 1;
     min-width: 0;
     text-align: center;
-    padding: 9px 4px;
-    font-size: 12px;
+    padding: 10px 4px;
+    font-size: 13px;
     border-radius: 10px;
+    min-height: 44px;
+    touch-action: manipulation;
   }
 
   .mealsGrid {
@@ -1167,7 +1491,7 @@
   }
 
   .mealCalories {
-    font-size: 13px;
+    font-size: 15px;
     padding: 5px 10px;
   }
 
@@ -1177,11 +1501,11 @@
   }
 
   .foodName {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .foodMacros {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .dailyTotals {
@@ -1217,12 +1541,12 @@
   .mealTotals {
     padding: 10px 16px;
     gap: 16px;
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .preparation {
     padding: 12px 16px;
-    font-size: 13px;
+    font-size: 15px;
   }
 
   .rightColumn {

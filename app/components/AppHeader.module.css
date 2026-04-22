@@ -13,7 +13,18 @@
   top: 0;
   z-index: 50;
   /* Push content below notch / Dynamic Island */
-  padding-top: env(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
 }
 
 .inner {
@@ -206,5 +217,24 @@
 
   .pageTitle {
     max-width: 130px;
+    font-size: 15px;
+  }
+
+  .logoutBtn {
+    min-height: 44px;
+    font-size: 15px;
+    touch-action: manipulation;
+  }
+
+  .backBtn {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .notificationsBtn {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
   }
 }
