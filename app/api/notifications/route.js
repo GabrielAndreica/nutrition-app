@@ -115,8 +115,33 @@ export async function POST(request) {
     const body = await request.json();
     let { user_id, type, title, message, related_client_id, related_plan_id } = body;
 
-    if (!user_id || !type || !message) {
+    if (!type || !message) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    // Dacă nu avem user_id direct, îl căutăm din clients.user_id pe baza client_id
+    if (!user_id && related_client_id) {
+      const { data: clientRow, error: clientErr } = await supabase
+        .from('clients')
+        .select('user_id')
+        .eq('id', related_client_id)
+        .single();
+
+      if (clientErr || !clientRow) {
+        console.error('[Notifications POST] Client lookup error:', clientErr);
+        return NextResponse.json({ error: 'Client negăsit' }, { status: 404 });
+      }
+
+      if (!clientRow.user_id) {
+        // Clientul nu are cont activat — notificarea nu poate fi trimisă
+        return NextResponse.json({ message: 'Client fără cont activat, notificare ignorată' }, { status: 200 });
+      }
+
+      user_id = clientRow.user_id;
+    }
+
+    if (!user_id) {
+      return NextResponse.json({ error: 'Missing user_id or related_client_id' }, { status: 400 });
     }
 
     // Sanitizare input-uri (XSS protection)
@@ -124,8 +149,13 @@ export async function POST(request) {
       if (title) title = sanitizeText(title).slice(0, 200);
       message = sanitizeText(message).slice(0, 1000);
       user_id = sanitizeNumber(user_id, { min: 1, max: 999999999, allowFloat: false });
-      if (related_client_id) related_client_id = sanitizeNumber(related_client_id, { min: 1, max: 999999999, allowFloat: false });
-      if (related_plan_id) related_plan_id = sanitizeNumber(related_plan_id, { min: 1, max: 999999999, allowFloat: false });
+      // related_client_id și related_plan_id sunt UUID-uri — nu le trecem prin sanitizeNumber
+      if (related_client_id && typeof related_client_id !== 'string') {
+        related_client_id = String(related_client_id);
+      }
+      if (related_plan_id && typeof related_plan_id !== 'string') {
+        related_plan_id = String(related_plan_id);
+      }
     } catch (sanitizeError) {
       return NextResponse.json({ error: 'Date invalide: ' + sanitizeError.message }, { status: 400 });
     }

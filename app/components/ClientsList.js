@@ -651,6 +651,26 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       } catch (err) {
         console.error('[handleProgressContinue] PATCH error:', err);
       }
+
+      // Trimite notificare clientului că antrenorul a verificat progresul
+      try {
+        const notifRes = await fetch('/api/notifications', {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({
+            type: 'plan_continued',
+            title: 'Progres verificat',
+            message: 'Antrenorul tău ți-a verificat progresul. Continuă tot așa!',
+            related_client_id: clientId,
+          }),
+        });
+        if (!notifRes.ok) {
+          const err = await notifRes.json().catch(() => ({}));
+          console.error('[handleProgressContinue] Notification failed:', err);
+        }
+      } catch (err) {
+        console.error('[handleProgressContinue] Notification error:', err);
+      }
     }
     closeProgressModal();
   };
@@ -983,7 +1003,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
                 placeholder="ex. gluten, lactate, nuci" />
             </div>
 
-            <div className={styles.addField}>
+            <div className={`${styles.addField} ${styles.addFieldGrow}`}>
               <label>Preferințe alimentare <span className={styles.opt}>(opțional)</span></label>
               <textarea name="foodPreferences" value={form.foodPreferences}
                 onChange={handleFormChange} rows="2"

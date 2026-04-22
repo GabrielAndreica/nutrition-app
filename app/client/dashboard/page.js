@@ -556,7 +556,7 @@ function ClientDashboardContent() {
                     let type = 'system';
                     if (notif.type === 'progress_update') type = 'progress';
                     if (notif.type === 'new_meal_plan') type = 'plan';
-                    if (notif.type === 'plan_continued') type = 'plan';
+                    if (notif.type === 'plan_continued') type = 'continued';
 
                     return (
                       <div
@@ -568,6 +568,10 @@ function ClientDashboardContent() {
                           {type === 'progress' ? (
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                            </svg>
+                          ) : type === 'continued' ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12"/>
                             </svg>
                           ) : type === 'plan' ? (
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
