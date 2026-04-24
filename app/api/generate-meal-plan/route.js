@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
@@ -16,6 +16,51 @@ let foodsCache = null;
 let foodsCacheTimestamp = 0;
 const FOODS_CACHE_TTL = 5 * 60 * 1000; // 5 minute
 
+// Cache rețete
+let recipesCache = null;
+let recipesCacheTimestamp = 0;
+
+// Map: nume slot masă → meal_type din tabelul recipes
+const DISPLAY_TO_MEAL_TYPE = {
+  'Mic dejun': 'breakfast',
+  'Gustare 1': 'snack',
+  'Gustare 2': 'snack',
+  'Prânz':     'lunch',
+  'Cină':      'dinner',
+};
+
+// Capuri maxime pe categorii (gramaj per ingredient per masă)
+const MAX_GRAMS_BY_CATEGORY = {
+  meat:       150, // 150g carne — restul proteinei din lactate/ouă
+  fish:       150, // la fel
+  eggs:       120, // ~2 ouă 
+  dairy:      150,
+  grains:      70, // 70g crude = ~200g fiert — realist
+  legumes:     80,
+  starch:     150,
+  vegetables: 150,
+  fruits:     150,
+  nuts:        30,
+  fats:        12,
+  other:       80,
+};
+
+/**
+ * Normalizează un string pentru căutare în foodsMap:
+ * lowercase + fără diacritice + elimină calificatoare (crud), (fiert), etc.
+ */
+function normalizeKey(str) {
+  return (str || '')
+    .toLowerCase()
+    .replace(/[ăâ]/g, 'a')
+    .replace(/î/g, 'i')
+    .replace(/[șş]/g, 's')
+    .replace(/[țţ]/g, 't')
+    .replace(/\s*\([^)]*\)\s*/g, ' ')  // elimină (crud), (fiert), (0%), etc.
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
 /**
  * Încarcă alimentele din Supabase, filtrate după tipul de dietă și alergii
  * @param {string} dietType - 'omnivore', 'vegetarian', 'vegan'
@@ -32,7 +77,7 @@ async function loadFoodsFromSupabase(dietType = 'omnivore', allergiesText = '') 
   const supabase = getSupabase();
   const { data: foods, error } = await supabase
     .from('foods')
-    .select('name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, category, diet_types, allergens, max_amount_per_meal')
+    .select('name, aliases, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, category, diet_types, allergens, max_amount_per_meal')
     .eq('is_active', true)
     .order('category')
     .order('name');
@@ -79,6 +124,228 @@ function filterFoods(foods, dietType, allergiesText) {
 }
 
 /**
+ * Încarcă rețetele din Supabase, filtrate după tipul de dietă
+ */
+async function loadRecipesFromSupabase(dietType = 'omnivore') {
+  const now = Date.now();
+  if (recipesCache && (now - recipesCacheTimestamp) < FOODS_CACHE_TTL) {
+    return filterRecipes(recipesCache, dietType);
+  }
+  const supabase = getSupabase();
+  const { data: recipes, error } = await supabase
+    .from('recipes')
+    .select('id, name, meal_type, diet_types, protein_source, preparation, ingredients')
+    .order('meal_type')
+    .order('name');
+  if (error) {
+    console.error('Eroare la încărcarea rețetelor din Supabase:', error.message);
+    return [];
+  }
+  recipesCache = recipes;
+  recipesCacheTimestamp = now;
+  return filterRecipes(recipes, dietType);
+}
+
+function filterRecipes(recipes, dietType) {
+  return recipes.filter(r => Array.isArray(r.diet_types) && r.diet_types.includes(dietType));
+}
+
+/**
+ * Generează contextul text al rețetelor disponibile pentru GPT (grupate pe tip masă)
+ */
+function buildRecipesContext(recipes, mealSlots) {
+  const usedTypes = new Set(mealSlots.map(slot => DISPLAY_TO_MEAL_TYPE[slot] || 'lunch'));
+  const byType = { breakfast: [], lunch: [], dinner: [], snack: [] };
+  recipes.forEach(r => { if (byType[r.meal_type]) byType[r.meal_type].push(r); });
+  const typeLabels = { breakfast: 'MIC DEJUN', lunch: 'PRÂNZ', dinner: 'CINĂ', snack: 'GUSTARE' };
+  let ctx = '';
+  for (const mealType of usedTypes) {
+    ctx += `\n=== ${typeLabels[mealType] || mealType.toUpperCase()} ===\n`;
+    (byType[mealType] || []).forEach(r => {
+      ctx += `[${r.id}] ${r.name} (proteină: ${r.protein_source || 'mixed'})\n`;
+    });
+  }
+  return ctx;
+}
+
+/**
+ * Scalează o rețetă la un număr țintă de calorii folosind ratio_pct per ingredient.
+ * Gramaj ingredient = (targetCalories × ratio_pct) / (calorii_per_100g / 100)
+ */
+// Categorii de garnish — cantități fixe (nu se scalează cu caloriile targetate)
+// Legumele/fructele au densitate calorică mică (18-40kcal/100g) → scalarea calorică produce gramaje absurde
+const GARNISH_CATEGORIES = new Set(['vegetables', 'fruits']);
+
+/**
+ * Returnează gramajul fix pentru un ingredient de garnish, bazat pe ratio_pct.
+ * Nu se scalează cu targetul caloric.
+ */
+function getGarnishBaseGrams(ratioPct, maxGrams) {
+  // ratio_pct → ghidează proporția relativă, nu cantitatea absolută
+  let base;
+  if (ratioPct <= 0.05)      base = 60;
+  else if (ratioPct <= 0.10) base = 100;
+  else if (ratioPct <= 0.15) base = 130;
+  else                       base = 150;
+  return roundToNearest5(Math.min(base, maxGrams));
+}
+
+function scaleRecipeToCalories(recipe, targetCalories, foodsMap) {
+  const garnishItems = [];
+  const mainItems = [];
+
+  for (const ing of (recipe.ingredients || [])) {
+    const food = foodsMap[ing.food_name] || foodsMap[normalizeKey(ing.food_name)];
+    if (!food || !food.calories_per_100g) continue;
+    const entry = { food, ratio: ing.ratio_pct };
+    if (GARNISH_CATEGORIES.has(food.category)) garnishItems.push(entry);
+    else mainItems.push(entry);
+  }
+
+  // Pas 1: stabilesc cantitățile fixe pentru garnish (legume/fructe)
+  let garnishCalTotal = 0;
+  const garnishFoods = garnishItems.map(({ food, ratio }) => {
+    const maxGrams = food.max_amount_per_meal || MAX_GRAMS_BY_CATEGORY[food.category] || 150;
+    const grams = getGarnishBaseGrams(ratio, maxGrams);
+    garnishCalTotal += food.calories_per_100g * grams / 100;
+    return { food, grams };
+  });
+
+  // Pas 2: distribui caloriile rămase ingredientelor principale (proteină, cereale, grăsimi)
+  const remainingCal = Math.max(targetCalories - garnishCalTotal, targetCalories * 0.5);
+  const mainRatioSum = mainItems.reduce((s, i) => s + i.ratio, 0) || 1;
+
+  // Primul sub-pas: calculează gramajele fără capuri
+  const mainFoodsRaw = mainItems.map(({ food, ratio }) => {
+    const myCal  = remainingCal * (ratio / mainRatioSum);
+    const gramsRaw = myCal / (food.calories_per_100g / 100);
+    return { food, ratio, gramsRaw };
+  });
+
+  // Al doilea sub-pas: aplică capuri + redistribuie deficitul către ingredientele necăpățite
+  let cappedCal = 0;
+  let uncappedRatioSum = 0;
+  const mainFoodsIntermediate = mainFoodsRaw.map(item => {
+    const maxGrams = item.food.max_amount_per_meal || MAX_GRAMS_BY_CATEGORY[item.food.category] || 300;
+    if (item.gramsRaw > maxGrams) {
+      cappedCal += maxGrams * item.food.calories_per_100g / 100;
+      return { ...item, grams: maxGrams, capped: true };
+    }
+    uncappedRatioSum += item.ratio;
+    return { ...item, capped: false };
+  });
+
+  const redistributeCal = remainingCal - cappedCal;
+  const mainFoods = mainFoodsIntermediate.map(item => {
+    if (item.capped) return { food: item.food, grams: item.grams };
+    const maxGrams = item.food.max_amount_per_meal || MAX_GRAMS_BY_CATEGORY[item.food.category] || 300;
+    const myCal    = uncappedRatioSum > 0 ? redistributeCal * (item.ratio / uncappedRatioSum) : 0;
+    const gramsRaw = myCal / (item.food.calories_per_100g / 100);
+    return { food: item.food, grams: Math.min(Math.max(5, gramsRaw), maxGrams) };
+  });
+
+  // Construiește lista finală de ingrediente
+  const foods = [];
+  for (const { food, grams } of [...mainFoods, ...garnishFoods]) {
+    const g = roundToNearest5(grams);
+    const factor = g / 100;
+    foods.push({
+      name:      food.name,
+      amount:    g,
+      unit:      'g',
+      calories:  Math.round(food.calories_per_100g * factor),
+      protein:   Math.round((food.protein_per_100g  || 0) * factor),
+      carbs:     Math.round((food.carbs_per_100g    || 0) * factor),
+      fat:       Math.round((food.fat_per_100g      || 0) * factor),
+      _category: food.category,
+      // Densitate per gram — necesar pentru ajustări precise de macro în adjustDayToTargets
+      _calPerG:  food.calories_per_100g / 100,
+      _protPerG: (food.protein_per_100g  || 0) / 100,
+      _carbPerG: (food.carbs_per_100g    || 0) / 100,
+      _fatPerG:  (food.fat_per_100g      || 0) / 100,
+    });
+  }
+  return {
+    mealType:    recipe.name,
+    preparation: recipe.preparation || '',
+    foods,
+    mealTotals: {
+      calories: foods.reduce((s, f) => s + f.calories, 0),
+      protein:  foods.reduce((s, f) => s + f.protein,  0),
+      carbs:    foods.reduce((s, f) => s + f.carbs,    0),
+      fat:      foods.reduce((s, f) => s + f.fat,      0),
+    },
+  };
+}
+
+/**
+ * Calculează ajustarea calorică în funcție de rata reală de schimbare a greutății.
+ *
+ * Principiu: ajustarea e proporțională cu abaterea față de intervalul optim.
+ * 1 kg ≈ 7700 kcal; o abatere de ~0.5%/săptămână față de optim → ~100-150 kcal diferență.
+ *
+ * @param {'weight_loss'|'muscle_gain'|'maintenance'} goal
+ * @param {number} weightChangePercent - schimbarea greutății în % față de greutatea inițială
+ * @returns {{ adjustment: number, reason: string }}
+ */
+function calculateCalorieAdjustment(goal, weightChangePercent, weekNumber = 99) {
+  const pct = weightChangePercent; // alias scurt
+
+  if (goal === 'weight_loss') {
+    const isEarlyCut = weekNumber <= 2;
+    if (isEarlyCut) {
+      if (pct >= 1.0)  return { adjustment: -350, reason: 'Creștere rapidă în greutate (+≥1%) — deficit caloric mare necesar.' };
+      if (pct >= 0.5)  return { adjustment: -275, reason: 'Creștere moderată (+0.5…1%) — deficit caloric semnificativ.' };
+      if (pct >= 0.0)  return { adjustment: -200, reason: 'Greutate stabilă sau ușor crescută — deficit caloric moderat.' };
+      if (pct >= -0.2) return { adjustment: -150, reason: 'Pierdere foarte lentă (0…0.2%) — deficit ușor crescut.' };
+      if (pct >= -2.5) return { adjustment:    0, reason: `Săpt. ${weekNumber} de cut — pierdere rapidă (${Math.abs(pct).toFixed(1)}%) e normală în faza inițială (apă + glicogen). Planul se menține.` };
+      if (pct >= -3.5) return { adjustment: +150, reason: `Săpt. ${weekNumber} de cut — pierdere foarte rapidă (${Math.abs(pct).toFixed(1)}%) chiar și în faza inițială — creștere moderată de calorii.` };
+      return              { adjustment: +250, reason: `Săpt. ${weekNumber} de cut — pierdere extremă (${Math.abs(pct).toFixed(1)}%) — creștere importantă de calorii.` };
+    }
+    // Săpt. 3+: interval normal -0.2% … -1.0%
+    if (pct >= 1.0)  return { adjustment: -350, reason: 'Creștere rapidă în greutate (+≥1%) — deficit caloric mare necesar.' };
+    if (pct >= 0.5)  return { adjustment: -275, reason: 'Creștere moderată (+0.5…1%) — deficit caloric semnificativ.' };
+    if (pct >= 0.0)  return { adjustment: -200, reason: 'Greutate stabilă sau ușor crescută — deficit caloric moderat.' };
+    if (pct >= -0.2) return { adjustment: -150, reason: 'Pierdere foarte lentă (0…0.2%) — deficit ușor crescut.' };
+    if (pct >= -1.3) return { adjustment: +100, reason: 'Pierdere ușor prea rapidă (1.0…1.3%) — creștere mică de calorii.' };
+    if (pct >= -1.8) return { adjustment: +175, reason: 'Pierdere rapidă (1.3…1.8%) — creștere moderată de calorii.' };
+    if (pct >= -2.5) return { adjustment: +250, reason: 'Pierdere foarte rapidă (1.8…2.5%) — creștere importantă de calorii.' };
+    return              { adjustment: +325, reason: `Pierdere extremă (>${Math.abs(pct).toFixed(1)}%) — creștere mare de calorii pentru a preveni catabolismul.` };
+  }
+
+  if (goal === 'muscle_gain') {
+    const isEarlyBulk = weekNumber <= 2;
+    if (isEarlyBulk) {
+      if (pct <= -0.5) return { adjustment: +300, reason: 'Pierdere în greutate pe masă (≤-0.5%) — surplus caloric mare necesar.' };
+      if (pct <= 0.0)  return { adjustment: +225, reason: 'Greutate stabilă sau ușor scăzută pe masă — surplus caloric semnificativ.' };
+      if (pct <= 0.25) return { adjustment: +150, reason: 'Creștere prea lentă (0…0.25%) — surplus caloric moderat.' };
+      if (pct <= 1.5)  return { adjustment:    0, reason: `Săpt. ${weekNumber} de bulk — creștere rapidă (${pct.toFixed(1)}%) e normală în faza inițială (glicogen + apă). Planul se menține.` };
+      if (pct <= 2.0)  return { adjustment: -125, reason: `Săpt. ${weekNumber} de bulk — creștere excesivă (${pct.toFixed(1)}%) chiar și în faza inițială — reducere mică de calorii.` };
+      return              { adjustment: -200, reason: `Săpt. ${weekNumber} de bulk — creștere extremă (${pct.toFixed(1)}%) — reducere importantă de calorii.` };
+    }
+    // Săpt. 3+: interval normal +0.25% … +0.5%
+    if (pct <= -0.5) return { adjustment: +300, reason: 'Pierdere în greutate pe masă (≤-0.5%) — surplus caloric mare necesar.' };
+    if (pct <= 0.0)  return { adjustment: +225, reason: 'Greutate stabilă sau ușor scăzută pe masă — surplus caloric semnificativ.' };
+    if (pct <= 0.25) return { adjustment: +150, reason: 'Creștere prea lentă (0…0.25%) — surplus caloric moderat.' };
+    if (pct <= 0.75) return { adjustment: -100, reason: 'Creștere ușor prea rapidă (0.5…0.75%) — reducere mică de calorii.' };
+    if (pct <= 1.0)  return { adjustment: -150, reason: 'Creștere rapidă (0.75…1%) — reducere moderată pentru a controla grăsimea.' };
+    return              { adjustment: -200, reason: `Creștere excesivă (>${pct.toFixed(1)}%) — reducere semnificativă pentru a limita acumularea de grăsime.` };
+  }
+
+  if (goal === 'maintenance') {
+    if (pct >= 1.0)  return { adjustment: -225, reason: 'Creștere rapidă în greutate (≥1%) pe menținere.' };
+    if (pct >= 0.5)  return { adjustment: -175, reason: 'Creștere moderată (0.5…1%) pe menținere.' };
+    if (pct >= 0.3)  return { adjustment: -100, reason: 'Ușoară creștere (0.3…0.5%) pe menținere.' };
+    // Interval optim: -0.3% … +0.3%
+    if (pct >= -0.5) return { adjustment: +100, reason: 'Ușoară scădere (0.3…0.5%) pe menținere.' };
+    if (pct >= -1.0) return { adjustment: +175, reason: 'Scădere moderată (0.5…1%) pe menținere.' };
+    return              { adjustment: +225, reason: `Scădere rapidă (>${Math.abs(pct).toFixed(1)}%) pe menținere.` };
+  }
+
+  return { adjustment: 0, reason: 'Obiectiv necunoscut — fără ajustare.' };
+}
+
+/**
  * Generează contextul cu alimentele pentru prompt
  */
 function generateFoodsContext(foods) {
@@ -114,7 +381,8 @@ function generateFoodsContext(foods) {
     if (grouped[catKey] && grouped[catKey].length > 0) {
       context += `\n── ${catName} ──\n`;
       grouped[catKey].forEach(food => {
-        context += `- ${food.name}: ${food.calories_per_100g} kcal, ${food.protein_per_100g}g P, ${food.carbs_per_100g}g C, ${food.fat_per_100g}g G per 100g\n`;
+        const maxNote = food.max_amount_per_meal ? ` [MAX ${food.max_amount_per_meal}g per masă]` : '';
+        context += `- ${food.name}: ${food.calories_per_100g} kcal, ${food.protein_per_100g}g P, ${food.carbs_per_100g}g C, ${food.fat_per_100g}g G per 100g${maxNote}\n`;
       });
     }
   }
@@ -464,12 +732,19 @@ export async function POST(request) {
 
       if (!isOptimalProgress && !hasSpecialCase && !forceRegenerate) {
         if (goal === 'weight_loss') {
-          // Cut: -0.2% până la -1.0% pe săptămână e progres bun (cu ajustare pentru adherență)
-          const minLoss = -1.0 * weightToleranceMultiplier; // poate fi -1.5% dacă adherență parțială
-          const maxLoss = -0.2 / weightToleranceMultiplier; // poate fi -0.13% dacă adherență parțială
+          // Cut: -0.2% până la -1.0% pe săptămână e progres bun
+          // Săpt. 1-2: extins la -2.5% (water weight + glicogen — e normal în faza inițială)
+          const isEarlyCut = weekNumber <= 2;
+          const minLoss = isEarlyCut
+            ? -2.5 * weightToleranceMultiplier
+            : -1.0 * weightToleranceMultiplier;
+          const maxLoss = -0.2 / weightToleranceMultiplier;
           if (weightChangePercent >= minLoss && weightChangePercent <= maxLoss) {
             isOptimalProgress = true;
-            progressMessage = `Progres excelent! Ai slăbit ${Math.abs(weightChangePercent).toFixed(2)}% (${(newWeight - oldWeight).toFixed(1)} kg) - planul funcționează, continuă!${adherence === 'partial' ? ' Încearcă să respecți mai bine planul pentru rezultate mai constante.' : ''}`;
+            const earlyNote = isEarlyCut && weightChangePercent < -1.0
+              ? ' (pierdere rapidă normală în faza inițială — apă + glicogen)'
+              : '';
+            progressMessage = `Progres excelent! Ai slăbit ${Math.abs(weightChangePercent).toFixed(2)}% (${(newWeight - oldWeight).toFixed(1)} kg) - planul funcționează, continuă!${earlyNote}${adherence === 'partial' ? ' Încearcă să respecți mai bine planul pentru rezultate mai constante.' : ''}`;
           }
         } else if (goal === 'maintenance') {
           // Menținere: ±0.3% e stabil (cu ajustare pentru adherență)
@@ -568,54 +843,76 @@ export async function POST(request) {
         },
       });
 
-      let calorieAdjustment = 0;
-      
-      // Ajustări bazate pe schimbarea greutății
+      // ─── Determină săptămâna de cut (nr. de intrări în weight_history pentru acest client) ───
+      let weekNumber = 99; // implicit: nu e în faza inițială
       if (goal === 'weight_loss') {
-        if (weightChangePercent > -0.4) {
-          // Nu a slăbit destul - scade calorii
-          calorieAdjustment = -125; // -100 până la -150
-        } else if (weightChangePercent < -0.8) {
-          // A slăbit prea mult - crește calorii
-          calorieAdjustment = 125;
-        }
-      } else if (goal === 'maintenance') {
-        if (weightChangePercent > 0.3) {
-          // A luat în greutate - scade calorii
-          calorieAdjustment = -100;
-        } else if (weightChangePercent < -0.3) {
-          // A slăbit - crește calorii
-          calorieAdjustment = 100;
-        }
-      } else if (goal === 'muscle_gain') {
-        if (weightChangePercent < 0.25) {
-          // Nu a luat destul - crește calorii
-          calorieAdjustment = 125;
-        } else if (weightChangePercent > 0.50) {
-          // A luat prea mult (risc de grăsime) - scade calorii
-          calorieAdjustment = -100;
-        }
+        const { count: whCount } = await supabase
+          .from('weight_history')
+          .select('id', { count: 'exact', head: true })
+          .eq('client_id', clientData.clientId);
+        // whCount e numărul de intrări EXISTENTE înainte de actualizarea curentă
+        // +1 pentru că intrarea curentă nu a fost încă adăugată
+        weekNumber = (whCount || 0) + 1;
       }
+
+      // ─── Ajustare calorică proporțională cu rata reală de schimbare ───
+      const { adjustment: weightBasedAdjustment, reason: weightAdjustReason } = calculateCalorieAdjustment(goal, weightChangePercent, weekNumber);
+      let calorieAdjustment = weightBasedAdjustment;
 
       // ─── Adaugă ajustările speciale de foame și stagnare ───
-      // Foamea are prioritate - adăugăm caloriile pentru foame
+      // Foamea adaugă întotdeauna (se cumulează cu ajustarea bazată pe greutate)
       if (hungerAdjustment > 0) {
         calorieAdjustment += hungerAdjustment;
-
       }
-      
-      // Stagnarea se aplică doar dacă nu avem deja o ajustare mare
-      if (stagnationAdjustment !== 0 && Math.abs(calorieAdjustment) < 150) {
-        calorieAdjustment = stagnationAdjustment; // înlocuiește cu ajustarea de stagnare
 
+      // Stagnarea înlocuiește ajustarea bazată pe greutate DOAR dacă
+      // ajustarea calculată e mai mică în magnitudine decât cea de stagnare
+      if (stagnationAdjustment !== 0 && Math.abs(weightBasedAdjustment) < Math.abs(stagnationAdjustment)) {
+        calorieAdjustment = stagnationAdjustment + (hungerAdjustment || 0);
       }
+
+      // ─── CAP ±350 kcal per sesiune de ajustare (previne schimbări prea drastice) ───
+      const MAX_ADJUSTMENT = 350;
+      if (Math.abs(calorieAdjustment) > MAX_ADJUSTMENT) {
+        const cappedSign = calorieAdjustment > 0 ? 1 : -1;
+        calorieAdjustment = cappedSign * MAX_ADJUSTMENT;
+      }
+
+      // Log detaliat pentru transparență
+      logActivity({
+        action: 'progress.calorie_adjustment_calculated',
+        status: 'success',
+        userId: auth.userId,
+        email: auth.email,
+        ipAddress: ip,
+        userAgent,
+        details: {
+          clientId: clientData.clientId,
+          clientName: name,
+          goal,
+          weightChangePercent: weightChangePercent.toFixed(2),
+          weekNumber,
+          weightBasedAdjustment,
+          weightAdjustReason,
+          hungerAdjustment,
+          stagnationAdjustment,
+          finalCalorieAdjustment: calorieAdjustment,
+        },
+      });
 
       // Stochează flag-ul pentru redistribuție carbo (foame extremă + energie scăzută)
       if (needsCarbRedistribution) {
         clientData._needsCarbRedistribution = true;
       }
 
-      // Stochează ajustarea pentru a o folosi în calculul caloriilor
+      // Construiește mesajul complet de recomandare (pentru prompt + log)
+      const adjustmentReasonParts = [weightAdjustReason];
+      if (hungerMessage) adjustmentReasonParts.push(hungerMessage);
+      if (stagnationMessage) adjustmentReasonParts.push(stagnationMessage);
+      if (Math.abs(calorieAdjustment) === MAX_ADJUSTMENT && Math.abs(weightBasedAdjustment + (hungerAdjustment || 0)) > MAX_ADJUSTMENT) {
+        adjustmentReasonParts.push(`Ajustare limitată la ±${MAX_ADJUSTMENT} kcal per sesiune pentru siguranță.`);
+      }
+      clientData._adjustmentReason = adjustmentReasonParts.filter(Boolean).join(' ');
       clientData._calorieAdjustment = calorieAdjustment;
     }
 
@@ -636,12 +933,25 @@ export async function POST(request) {
         targetCalories += clientData._calorieAdjustment;
       }
     }
+
+    // ─── PODEA MINIMĂ DE CALORII (safety guard) ───
+    // Sub aceste valori riscul de deficit de macronutrienți și catabolism e ridicat
+    const CALORIE_FLOOR = clientData.gender === 'M' ? 1500 : 1300;
+    if (targetCalories < CALORIE_FLOOR) {
+      clientData._floorApplied = true;
+      clientData._floorValue = CALORIE_FLOOR;
+      clientData._adjustmentReason = (clientData._adjustmentReason || '') +
+        ` Plan ajustat la minimul de siguranță de ${CALORIE_FLOOR} kcal (${clientData.gender === 'M' ? 'bărbat' : 'femeie'}) — sub această valoare riscul de deficit nutritiv e ridicat.`;
+      targetCalories = CALORIE_FLOOR;
+    }
     
     // Folosește cache pentru macros
     const macros = cachedCalculateMacros(clientData.goal, effectiveWeight, targetCalories, calculateMacros);
     proteinGrams = macros.protein;
     carbsGrams = macros.carbs;
     fatGrams = macros.fat;
+
+    console.log(`[TARGETS] goal=${clientData.goal} weight=${effectiveWeight}kg cal=${targetCalories} → P:${proteinGrams}g C:${carbsGrams}g F:${fatGrams}g`);
 
     const sex = clientData.gender === 'M' ? 'Masculin' : 'Feminin';
     const mealsNum = parseInt(mealsPerDay) || 3;
@@ -666,9 +976,46 @@ export async function POST(request) {
       fat:      Math.round(fatGrams),
     };
 
-    // Încarcă alimentele din Supabase, filtrate după dietă și alergii
+    // Încarcă alimentele și rețetele din Supabase
     const availableFoods = await loadFoodsFromSupabase(dietType || 'omnivore', allergies || '');
-    const foodsContext = generateFoodsContext(availableFoods);
+    const availableRecipes = await loadRecipesFromSupabase(dietType || 'omnivore');
+
+    // Map food_name → food object (O(1) lookup pentru scalare)
+    // Indexează după: nume exact, nume normalizat, fiecare alias, fiecare alias normalizat
+    const foodsMap = {};
+    availableFoods.forEach(f => {
+      foodsMap[f.name] = f;
+      const normName = normalizeKey(f.name);
+      if (normName) foodsMap[normName] = f;
+      if (Array.isArray(f.aliases)) {
+        f.aliases.forEach(alias => {
+          if (alias) {
+            foodsMap[alias] = f;
+            const normAlias = normalizeKey(alias);
+            if (normAlias) foodsMap[normAlias] = f;
+          }
+        });
+      }
+    });
+
+    // foodMaxMap pentru adjustDayToTargets (corectare macro zilnică)
+    const foodMaxMap = {};
+    availableFoods.forEach(food => {
+      const key = food.name.toLowerCase();
+      foodMaxMap[key] = food.max_amount_per_meal ||
+        MAX_GRAMS_BY_CATEGORY[food.category] || null;
+    });
+
+    // Map recipe_id → recipe object
+    const recipesById = {};
+    availableRecipes.forEach(r => { recipesById[r.id] = r; });
+
+    // Anti-repetiție pe durata generării întregii săptămâni
+    const usedRecipeIds = { breakfast: new Set(), lunch: new Set(), dinner: new Set(), snack: new Set() };
+
+    // Context rețete pentru GPT (grupate pe tip masă)
+    const mealSlots = Object.keys(mealDistribution);
+    const recipesContext = buildRecipesContext(availableRecipes, mealSlots);
 
     // Surse de proteine rotative pe zile — forțează varietatea
     const proteinSources = [
@@ -687,7 +1034,48 @@ export async function POST(request) {
       vegan: `DIETĂ VEGANĂ — INTERZIS: orice produs animal (carne, pește, ouă, lapte, brânză, iaurt, miere, unt).
               PERMIS DOAR: legume, fructe, cereale, leguminoase, tofu, tempeh, lapte vegetal, nuci, semințe.`,
       omnivore: '',
-};
+    };
+
+    // ─── System message STATIC (trimis o dată, cache-uit de OpenAI pentru batch-urile următoare) ───
+    const staticSystemMessage = [
+      `Ești un nutriționist AI expert. Selectezi rețete pre-definite pentru un plan alimentar săptămânal.`,
+      `Returnezi EXCLUSIV ID-uri de rețete din lista furnizată. Nu inventezi rețete sau cantități.`,
+      ``,
+      `CLIENT: ${name}, ${age} ani, ${sex}, ${weight}kg, ${height}cm`,
+      `Obiectiv: ${goal === 'weight_loss' ? 'Slăbit' : goal === 'muscle_gain' ? 'Creștere masă musculară' : goal === 'maintenance' ? 'Menținere' : 'Recompoziție corporală'}`,
+      `Dietă: ${getDietLabel(dietType)}${dietType === 'vegetarian' ? ' (Fără carne și pește)' : dietType === 'vegan' ? ' (Fără orice produs animal)' : ''}`,
+      allergies ? `Alergii/restricții: ${sanitizeForPrompt(allergies)}` : '',
+      dietRestrictions[dietType] || '',
+      ``,
+      `NECESAR ZILNIC: ${targets.calories} kcal | P:${targets.protein}g | C:${targets.carbs}g | G:${targets.fat}g`,
+      ``,
+      foodPreferences ? [
+        `═══ PREFERINȚE ALIMENTARE ═══`,
+        sanitizeForPrompt(foodPreferences),
+        `═══ SFÂRȘIT PREFERINȚE ═══`,
+      ].join('\n') : '',
+      progress ? [
+        `═══ CONTEXT PROGRES CLIENT ═══`,
+        `Greutate curentă: ${progress.currentWeight || weight}kg`,
+        `Respectare plan anterior: ${progress.adherence || 'N/A'}`,
+        `Nivel energie: ${progress.energyLevel || 'N/A'} | Foame: ${progress.hungerLevel || 'N/A'}`,
+        progress.notes ? `Observații antrenor: ${sanitizeForPrompt(progress.notes)}` : '',
+        clientData._adjustmentReason ? [
+          `═══ RECOMANDARE SISTEM ═══`,
+          clientData._adjustmentReason,
+          `Calorii ajustate la: ${targets.calories} kcal/zi${clientData._floorApplied ? ` (minim siguranță ${clientData._floorValue} kcal)` : ''}`,
+          `═══ SFÂRȘIT RECOMANDARE ═══`,
+        ].join('\n') : '',
+        `═══ SFÂRȘIT CONTEXT PROGRES ═══`,
+      ].filter(Boolean).join('\n') : '',
+      ``,
+      `═══ REGULI DE SELECȚIE ═══`,
+      `1. Selectezi EXACT câte o rețetă per masă per zi — câte un recipe_id din lista furnizată în user message`,
+      `2. VARIETATE MAXIMĂ — nu repeta aceeași rețetă în aceeași săptămână dacă există alternative`,
+      `3. Respectă orientativ sursa de proteină indicată pentru fiecare zi`,
+      `4. Returnezi EXCLUSIV JSON ARRAY pur, fără text suplimentar, fără markdown`,
+      `═══ SFÂRȘIT REGULI ═══`,
+    ].filter(s => s !== '').join('\n');
 
     const encoder = new TextEncoder();
     const responseStream = new ReadableStream({
@@ -720,8 +1108,6 @@ export async function POST(request) {
         };
         try {
     const days = [];
-    // Stochează mesele anterioare ca combinații complete pentru anti-repetiție
-    const previousMeals = [];
 
     // Scrie imediat în DB că generarea a început — AWAIT pentru a garanta că e în DB
     // înainte ca clientul să poată naviga înapoi și să facă polling
@@ -738,225 +1124,223 @@ export async function POST(request) {
       if (initErr) console.error('[generation_status] Init failed:', initErr);
     }
 
-    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
-      const dayNumber = dayIndex + 1;
-      const dayName = dayNames[dayIndex];
-      sendEvent({ type: 'progress', day: dayNumber, total: 7 });
-      
-      // Actualizează progresul în DB (fire-and-forget - non-blocking)
-      if (clientData.clientId) {
-        supabase
-          .from('generation_status')
-          .upsert({
-            client_id: clientData.clientId,
-            trainer_id: auth.userId,
-            status: 'generating',
-            current_step: dayNumber,
-            total_steps: 7,
-          }, { onConflict: 'client_id,trainer_id' })
-          .then(null, err => console.error('[generation_status] Update failed:', err));
-      }
-
-      const avoidMealsStr = previousMeals.length > 0
-        ? `\nMESE DEJA FOLOSITE ÎN ZILELE ANTERIOARE (nu repeta aceleași combinații):
-${previousMeals.slice(-9).join('\n')}`
-        : '';
-
-      const dayPrompt = `TASK: Generează mese cu alimente și gramaje astfel încât suma să fie EXACT:
-- Calorii: ${targets.calories} kcal
-- Proteine: ${targets.protein}g
-- Carbohidrați: ${targets.carbs}g
-- Grăsimi: ${targets.fat}g
-
-REGULA #1: Nu ai voie să reduci cantitățile pentru că "par prea mari". Dacă targetul e 3000 kcal, generezi 3000 kcal.
-REGULA #2: Calculează fiecare aliment matematic. Dacă ai nevoie de 352g carbohidrați și ai deja 200g, adaugă alimente până ajungi la 352g.
-REGULA #3: FOLOSEȘTE DOAR alimentele din LISTA DE ALIMENTE DISPONIBILE de mai jos.
-Valorile nutriționale sunt per 100g și TREBUIE respectate exact cum sunt în listă.
-NU inventa alimente sau valori nutriționale - folosește DOAR ce e în lista de mai jos.
-
-═══ LISTA DE ALIMENTE DISPONIBILE (folosește DOAR aceste alimente cu valorile exacte) ═══
-${foodsContext}
-═══ SFÂRȘIT LISTĂ ALIMENTE ═══
-
-REGULA #4: Fiecare masă trebuie să fie o REȚETĂ reală, nu o simplă combinație de ingrediente.
-  - Masa principală: omletă cu spanac și roșii, ovăz cu iaurt și fructe de pădure, toast integral cu avocado și ou, orez cu pui și legume la tigaie, salată cu pui, avocado și dressing de iaurt, paste integrale cu sos de roșii și busuioc, cartofi dulci la cuptor cu pui și salată, quinoa cu legume și pui, somon la cuptor cu broccoli și morcovi, pui la cuptor cu cartofi dulci și salată, omletă cu legume și brânză slabă, supă cremă de legume cu semințe, etc.
-  - Gustare: iaurt grecesc cu fructe și semințe, măr cu unt de arahide, shake proteic cu banană, hummus cu morcovi și castraveți, nuci și migdale crude, brânză cottage cu fructe, batoane de ovăz făcute acasă, smoothie cu banană și unt de arahide, budincă de chia cu lapte și fructe, etc.
-  - EVITĂ combinații banale gen "pui fiert + orez fiert + broccoli fiert"
-  - Fiecare rețetă trebuie să aibă MINIM 3 ingrediente
-  - Instrucțiunile de preparare trebuie să fie clare și detaliate (3-4 pași)
-
-  REGULA #5: Fiecare aliment din lista "foods" trebuie să fie UN SINGUR ingredient simplu.
-  - GREȘIT: {"name": "Creveți cu orez și legume", "amount": 305, ...}
-  - CORECT: 
-    {"name": "Creveți", "amount": 150, ...},
-    {"name": "Orez fiert", "amount": 100, ...},
-    {"name": "Broccoli", "amount": 55, ...}
-  - NICIODATĂ nu combina mai multe ingrediente într-un singur obiect
-  - Numele alimentului = ingredient simplu, nu denumirea rețetei
-  - Denumirea rețetei merge în câmpul "mealType", nu în "foods"
-
-SURSA DE PROTEINE PENTRU ZIUA ${dayNumber} — OBLIGATORIU: ${proteinSources[dayIndex]}
-Nu folosi altă sursă de proteine principală în afara celei specificate.
-
-CLIENT: ${name}, ${age} ani, ${sex}, ${weight}kg, ${height}cm
-Ziua ${dayNumber} (${dayName}) | Dietă: ${getDietLabel(dietType)}${
-  dietType === 'vegetarian' ? ' (IMPORTANT: Fără carne și fără pește)' :
-  dietType === 'vegan'      ? ' (IMPORTANT: Fără produse animale - carne, pește, ouă, lactate, miere)' : ''
-}${allergies ? `
-RESTRICȚII ALIMENTARE (alimente de evitat complet): ${sanitizeForPrompt(allergies)}` : ''}${foodPreferences ? `
-
-═══ PREFERINȚE ALIMENTARE ALE CLIENTULUI (FOARTE IMPORTANT) ═══
-Clientul a specificat următoarele preferințe: ${sanitizeForPrompt(foodPreferences)}
-- Dă PRIORITATE alimentelor pe care clientul le preferă
-- EVITĂ alimentele pe care clientul a menționat că nu îi plac
-- Folosește alimentele preferate cât mai des posibil în planul alimentar
-═══ SFÂRȘIT PREFERINȚE ═══` : ''}
-${progress ? `
-CONTEXT IMPORTANT — REGENERARE PE BAZA PROGRESULUI CLIENTULUI:
-- Obiectiv client: ${goal === 'weight_loss' ? 'Slăbit' : goal === 'muscle_gain' ? 'Creștere masă musculară' : goal === 'maintenance' ? 'Menținere' : goal === 'recomposition' ? 'Recompoziție corporală' : goal}
-- Greutate curentă: ${progress.currentWeight || weight}kg${progress.currentWeight && weight ? ` (anterior: ${weight}kg, diferență: ${(parseFloat(progress.currentWeight) - parseFloat(weight)).toFixed(1)}kg)` : ''}
-- Respectare plan anterior: ${progress.adherence === 'complet' ? 'Complet' : progress.adherence === 'partial' ? 'Parțial' : progress.adherence === 'deloc' ? 'Deloc' : progress.adherence || 'N/A'}
-- Nivel energie: ${progress.energyLevel === 'scazut' ? 'Scăzut' : progress.energyLevel === 'normal' ? 'Normal' : progress.energyLevel === 'ridicat' ? 'Ridicat' : progress.energyLevel || 'N/A'}
-- Nivel foame: ${progress.hungerLevel === 'normal' ? 'Normal' : progress.hungerLevel === 'crescut' ? 'Crescut (foame constantă)' : progress.hungerLevel === 'extrem' ? 'Extrem (foame + oboseală)' : progress.hungerLevel || 'N/A'}
-- Săptămâni fără schimbare: ${progress.weeksNoChange === '0' ? 'Prima săptămână' : progress.weeksNoChange === '1' ? '1 săptămână' : progress.weeksNoChange === '2' ? '2+ săptămâni' : progress.weeksNoChange || 'N/A'}
-- Observații antrenor: ${sanitizeForPrompt(progress.notes) || 'Fără observații'}
-ADAPTEAZĂ planul alimentar ținând cont de acest progres și OBIECTIVUL clientului:
-${parseFloat(progress.currentWeight) < parseFloat(weight) ? '- Clientul a slăbit → menține direcția sau ajustează ușor în sus dacă pierderea e prea rapidă' : ''}
-${parseFloat(progress.currentWeight) > parseFloat(weight) ? '- Clientul a luat în greutate → ajustează planul pentru a fi mai restrictiv sau mai echilibrat' : ''}
-${progress.adherence === 'deloc' ? '- NU a respectat planul → fă mesele FOARTE SIMPLE, cu ingrediente comune și ușor de găsit, porții clare' : ''}
-${progress.adherence === 'partial' ? '- A respectat parțial → simplificare ușoară, rețete mai rapide de pregătit' : ''}
-${progress.adherence === 'complet' ? '- A respectat complet → menține nivelul de complexitate, introduce varietate nouă' : ''}
-${progress.energyLevel === 'scazut' ? '- Energie scăzută → adaugă mai mulți carbohidrați complecși și asigură-te că mesele sunt bine distribuite' : ''}
-${progress.energyLevel === 'normal' ? '- Energie normală → planul actual e echilibrat, menține structura' : ''}
-${progress.energyLevel === 'ridicat' ? '- Energie ridicată → planul funcționează bine, poți introduce variații mai interesante' : ''}
-${progress.hungerLevel === 'crescut' || progress.hungerLevel === 'extrem' ? `
-ATENȚIE FOAME ${progress.hungerLevel === 'extrem' ? 'EXTREMĂ' : 'CONSTANTĂ'}:
-- Include mai multe legume cu volum mare (salate, supă, castraveți, roșii) pentru sațietate
-- Proteine la FIECARE masă pentru saț prolongat
-- Evită carbohidrații rafinați - folosește doar carbohidrați complecși cu fibre (ovăz, quinoa, legume)
-- Include gustări sărace în calorii dar voluminoase între mese` : ''}
-${progress.hungerLevel === 'extrem' && progress.energyLevel === 'scazut' ? `
-REDISTRIBUȚIE CARBOHIDRAȚI OBLIGATORIE (foame extremă + energie scăzută):
-- Concentrează 50-60% din carbohidrați la MICUL DEJUN și PRÂNZ
-- Cină mai săracă în carbohidrați dar bogată în proteine și grăsimi sănătoase
-- Include surse de energie cu eliberare lentă: ovăz, cartofi dulci, quinoa
-- Adaugă grăsimi sănătoase pentru energie susținută: avocado, nuci, ulei de măsline` : ''}
-${progress.weeksNoChange === '2' ? `
-STAGNARE DETECTATĂ (2+ săptămâni fără schimbare):
-- Variază tipurile de alimente pentru a "șoca" metabolismul
-- Schimbă structura meselor (dacă înainte era 3 mese mari, fă 4-5 mese mai mici)
-- Include alimente noi pe care clientul nu le-a consumat anterior` : ''}
-IMPORTANT: Generează un plan COMPLET NOU și DIFERIT de planul anterior, adaptat la progresul clientului.
-` : ''}${avoidMealsStr}
-
-DISTRIBUȚIE OBLIGATORIE PE ${mealsNum} MESE:
-${mealTargetsStr}
-
-METODĂ DE CALCUL OBLIGATORIE:
-1. Pentru fiecare masă știi exact câte calorii și macros trebuie
-2. Alegi alimentele și calculezi gramajele matematic
-3. Verifici suma înainte să returnezi
-4. Dacă suma nu e corectă, ajustezi gramajele — NU schimbi targetul
-
-RETURNEAZĂ DOAR JSON VALID (fără markdown, fără \`\`\`, fără explicații):
-{
-  "day": ${dayNumber},
-  "meals": [
-    {
-      "mealType": "Terci de ovaz cu lapte si miere",
-      "foods": [
-        {"name":"Fulgi de ovăz","amount":100,"unit":"g","calories":390,"protein":15,"carbs":65,"fat":7},
-        {"name":"Lapte 1.5%","amount":300,"unit":"ml","calories":140,"protein":10,"carbs":15,"fat":5}
-      ],
-      "preparation": "Fierbe fulgii în lapte 5 minute la foc mic. Adaugă miere și scorțișoară după gust. Servește cald cu fructe proaspete deasupra.",
-      "mealTotals": {"calories":530,"protein":25,"carbs":80,"fat":12}
-    }
-  ],
-  "dailyTotals": {"calories":${targets.calories},"protein":${targets.protein},"carbs":${targets.carbs},"fat":${targets.fat}}
-}`;
-
-      let rawContent;
-      // Retry cu backoff exponențial pentru rate limit (429) - max 5 încercări
-      const MAX_RETRIES = 5;
+    // Retry helper reutilizabil pentru apeluri OpenAI
+    const MAX_RETRIES = 5;
+    const callOpenAI = async (messages, maxTokens, label) => {
       for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
         try {
-          const message = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: 'system',
-                content: `Ești un asistent AI specializat în planificare culinară și nutriție. Returnează DOAR JSON valid pentru o singură zi de mese. Fără markdown, fără blocuri de cod. Ziua trebuie să totalizeze aproximativ ${targets.calories} kcal cu proteine: ${targets.protein}g, carbohidrați: ${targets.carbs}g, grăsimi: ${targets.fat}g. Folosește nume de alimente și rețete în limba română. Creează mese variate, echilibrate și gustoase.${progress ? ' Acest plan este ajustat pe baza feedback-ului și progresului clientului menționat în instrucțiuni.' : ''}`,
-              },
-              {
-                role: 'user',
-                content: dayPrompt,
-              },
-            ],
-            temperature: 0.7,
-            max_tokens: 3000,
+          const resp = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages,
+            temperature: 0.5,
+            max_tokens: maxTokens,
           });
-          rawContent = message.choices[0].message.content;
-          break; // succes - ieșim din retry loop
+          return resp.choices[0].message.content;
         } catch (openaiErr) {
           const isRateLimit = openaiErr.status === 429;
           const isOverloaded = openaiErr.status === 503;
           const isNetwork = openaiErr.code === 'ECONNREFUSED' || openaiErr.code === 'ENOTFOUND' || openaiErr.type === 'request_error';
           const isTimeout = openaiErr.code === 'ETIMEDOUT' || openaiErr.message?.includes('timeout');
-
-          // Dacă e rate limit și mai avem încercări, așteptăm și reîncercăm
           if (isRateLimit && attempt < MAX_RETRIES) {
-            // Backoff: 20s, 40s, 60s, 80s între încercări
             const waitMs = attempt * 20000;
-            console.log(`[OpenAI] Rate limit la ziua ${dayNumber}, attempt ${attempt}/${MAX_RETRIES}. Așteptăm ${waitMs/1000}s...`);
-            await new Promise(resolve => setTimeout(resolve, waitMs));
+            console.log(`[OpenAI] Rate limit la ${label}, attempt ${attempt}/${MAX_RETRIES}. Aștept ${waitMs/1000}s...`);
+            await new Promise(r => setTimeout(r, waitMs));
             continue;
           }
-
           let msg;
-          if (isNetwork || isOverloaded)  msg = 'Serviciul OpenAI nu este disponibil momentan. Vă rog încercați din nou în câteva minute.';
-          else if (isRateLimit)           msg = `Limita de cereri OpenAI depășită după ${MAX_RETRIES} încercări. Așteptați câteva minute înainte să generați din nou.`;
-          else if (isTimeout)             msg = `Timeout la generarea zilei ${dayNumber}. Conexiunea a durat prea mult. Reîncercați.`;
-          else                            msg = `Eroare OpenAI la ziua ${dayNumber}: ${openaiErr.message || 'eroare necunoscută'}`;
-
+          if (isNetwork || isOverloaded) msg = 'Serviciul OpenAI nu este disponibil momentan. Vă rog încercați din nou.';
+          else if (isRateLimit)          msg = `Limita OpenAI depășită după ${MAX_RETRIES} încercări. Așteptați câteva minute.`;
+          else if (isTimeout)            msg = `Timeout la ${label}. Reîncercați.`;
+          else                           msg = `Eroare OpenAI la ${label}: ${openaiErr.message || 'eroare necunoscută'}`;
           throw new Error(msg);
         }
       }
+    };
 
-      let content = rawContent.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+    const parseJsonArray = (raw, label) => {
+      let c = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+      const s = c.indexOf('['); const e = c.lastIndexOf(']');
+      if (s !== -1 && e !== -1) c = c.slice(s, e + 1);
+      else { const js = c.indexOf('{'); const je = c.lastIndexOf('}'); if (js !== -1 && je !== -1) c = '[' + c.slice(js, je + 1) + ']'; }
+      try { const r = JSON.parse(c); return Array.isArray(r) ? r : [r]; }
+      catch { throw new Error(`${label}: răspuns JSON invalid de la OpenAI. Reîncercați.`); }
+    };
 
-      // Strip any leading non-JSON text (e.g. explanatory sentences before {)
-      const jsonStart = content.indexOf('{');
-      if (jsonStart > 0) content = content.slice(jsonStart);
-      const jsonEnd = content.lastIndexOf('}');
-      if (jsonEnd !== -1 && jsonEnd < content.length - 1) content = content.slice(0, jsonEnd + 1);
+    // ─── PROMPT 1: Selectare rețete pentru toate 7 zilele (1 apel API) ───────
+    sendEvent({ type: 'progress', day: 1, total: 7 });
+    if (clientData.clientId) {
+      supabase.from('generation_status').upsert({
+        client_id: clientData.clientId, trainer_id: auth.userId,
+        status: 'generating', current_step: 1, total_steps: 7,
+      }, { onConflict: 'client_id,trainer_id' }).then(null, err => console.error('[generation_status]', err));
+    }
 
-      let dayPlan;
-      try {
-        dayPlan = JSON.parse(content);
-      } catch (parseErr) {
-        console.error(`Day ${dayNumber}: Invalid JSON from OpenAI:`, content.slice(0, 200));
-        throw new Error(
-          `Ziua ${dayNumber}: OpenAI a returnat un răspuns invalid (JSON corupt). Reîncercați — se întâmplă ocazional.`
-        );
+    const daysInfoAll = dayNames.map((dn, i) =>
+      `Ziua ${i+1} (${dn}): proteină preferată = ${proteinSources[i]}`
+    ).join('\n');
+
+    const recipeSelectionPrompt = `Selectează rețete pentru toate cele 7 zile.
+Returnează JSON ARRAY cu 7 obiecte (fără markdown):
+[{"day":1,"meals":[{"meal":"Mic dejun","recipe_id":"uuid"},...]},...]
+
+ZILE:
+${daysInfoAll}
+
+MESE PER ZI (în această ordine): ${mealSlots.join(', ')}
+
+RETETE DISPONIBILE:
+${recipesContext}
+RETURNEAZĂ: JSON ARRAY pur, fără niciun text înainte sau după.`;
+
+    const raw1 = await callOpenAI(
+      [{ role: 'system', content: staticSystemMessage }, { role: 'user', content: recipeSelectionPrompt }],
+      7 * 400, 'Prompt 1 (selectare rețete)'
+    );
+    const allSelections = parseJsonArray(raw1, 'Prompt 1');
+
+    // Construiește lista meselor selectate cu rețeta corespunzătoare
+    const selectedMealSlots = []; // [{day, slotName, recipe, mealPct}]
+    for (const selection of allSelections) {
+      const dayNumber = Number(selection.day);
+      for (const [mealName, mealPct] of Object.entries(mealDistribution)) {
+        const mealTypeKey = DISPLAY_TO_MEAL_TYPE[mealName] || 'lunch';
+        const selMeal = selection.meals?.find(m => m.meal === mealName);
+        let recipe = selMeal?.recipe_id ? recipesById[selMeal.recipe_id] : null;
+        if (!recipe) {
+          const typeRecipes = availableRecipes.filter(r => r.meal_type === mealTypeKey);
+          const usedSet = usedRecipeIds[mealTypeKey] || new Set();
+          const unused = typeRecipes.filter(r => !usedSet.has(r.id));
+          recipe = unused.length > 0
+            ? unused[Math.floor(Math.random() * unused.length)]
+            : typeRecipes[Math.floor(Math.random() * typeRecipes.length)];
+        }
+        if (recipe) {
+          if (!usedRecipeIds[mealTypeKey]) usedRecipeIds[mealTypeKey] = new Set();
+          usedRecipeIds[mealTypeKey].add(recipe.id);
+          selectedMealSlots.push({ day: dayNumber, slotName: mealName, recipe, mealPct });
+        }
       }
+    }
 
-      recalculateDayTotals(dayPlan);
-      adjustDayToTargets(dayPlan, targets);
+    // ─── PROMPT 2: Generare cantități realiste (1 apel API) ──────────────────
+    sendEvent({ type: 'progress', day: 2, total: 7 });
 
+    // Construiește contextul pentru Prompt 2: fiecare masă cu ingredientele și targetul caloric
+    const quantityLines = [];
+    for (const { day, slotName, recipe, mealPct } of selectedMealSlots) {
+      const mT = {
+        calories: Math.round(targets.calories * mealPct),
+        protein:  Math.round(targets.protein  * mealPct),
+        carbs:    Math.round(targets.carbs    * mealPct),
+        fat:      Math.round(targets.fat      * mealPct),
+      };
+      quantityLines.push(`Ziua ${day} - ${slotName} (${recipe.name}) | target: ~${mT.calories}kcal P:${mT.protein}g C:${mT.carbs}g G:${mT.fat}g`);
+      for (const ing of (recipe.ingredients || [])) {
+        const food = foodsMap[ing.food_name] || foodsMap[normalizeKey(ing.food_name)];
+        if (!food) continue;
+        const maxG = food.max_amount_per_meal || MAX_GRAMS_BY_CATEGORY[food.category] || 200;
+        quantityLines.push(`  - ${food.name}: ${food.calories_per_100g}kcal/100g P:${food.protein_per_100g||0}g C:${food.carbs_per_100g||0}g G:${food.fat_per_100g||0}g [MAX:${maxG}g]`);
+      }
+    }
 
-      // Stochează mesele ca combinații complete pentru anti-repetiție
-      if (dayPlan.meals) {
-        dayPlan.meals.forEach(meal => {
-          const foodNames = meal.foods
-            ? meal.foods.map(f => f.name).join(', ')
-            : '';
-          previousMeals.push(`${meal.mealType}: ${foodNames}`);
+    const quantitySystemMessage = [
+      `Ești un nutriționist AI. Generezi gramaje REALISTE și NATURALE pentru ingredientele meselor unui plan săptămânal.`,
+      `REGULI OBLIGATORII:`,
+      `1. Alege cantități care arată ca o masă reală: 150g piept pui, 80g orez crud, 150g broccoli, 12g ulei.`,
+      `2. NU depăși cantitățile MAX indicate pentru fiecare ingredient.`,
+      `3. Încearcă să te apropii de targetul caloric al fiecărei mese (toleranță ±15%).`,
+      `4. Returnează EXCLUSIV JSON ARRAY, fără text suplimentar, fără markdown.`,
+    ].join('\n');
+
+    const quantityUserPrompt = `Generează gramaje pentru fiecare ingredient al meselor de mai jos.
+Returnează JSON ARRAY cu ${allSelections.length} obiecte:
+[{"day":1,"meals":[{"meal":"Mic dejun","foods":[{"name":"Ouă","amount":150},...]},...]},...]
+
+MESE:
+${quantityLines.join('\n')}
+
+RETURNEAZĂ: JSON ARRAY pur, fără niciun text înainte sau după.`;
+
+    const raw2 = await callOpenAI(
+      [{ role: 'system', content: quantitySystemMessage }, { role: 'user', content: quantityUserPrompt }],
+      selectedMealSlots.length * 120, 'Prompt 2 (cantități)'
+    );
+    let quantitySelections;
+    try { quantitySelections = parseJsonArray(raw2, 'Prompt 2'); }
+    catch { quantitySelections = []; } // fallback la scaleRecipeToCalories dacă GPT eșuează
+
+    // ─── Construiește zilele din cantitățile GPT + corecție matematică ────────
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      const dayNumber = dayIndex + 1;
+      const dayPlan = { day: dayNumber, meals: [], dailyTotals: {} };
+      const daySel = quantitySelections.find(s => Number(s.day) === dayNumber);
+
+      for (const [mealName, mealPct] of Object.entries(mealDistribution)) {
+        const mealSlot = selectedMealSlots.find(sm => sm.day === dayNumber && sm.slotName === mealName);
+        if (!mealSlot) continue;
+
+        const mealSel = daySel?.meals?.find(m => m.meal === mealName);
+        let foods = [];
+
+        if (mealSel?.foods?.length > 0) {
+          // Folosim cantitățile generate de GPT
+          for (const foodSel of mealSel.foods) {
+            const food = foodsMap[foodSel.name] || foodsMap[normalizeKey(foodSel.name)];
+            if (!food) continue;
+            const maxG = food.max_amount_per_meal || MAX_GRAMS_BY_CATEGORY[food.category] || 300;
+            const g = roundToNearest5(Math.max(5, Math.min(Number(foodSel.amount) || 50, maxG)));
+            const factor = g / 100;
+            foods.push({
+              name:      food.name,
+              amount:    g,
+              unit:      'g',
+              calories:  Math.round(food.calories_per_100g * factor),
+              protein:   Math.round((food.protein_per_100g  || 0) * factor),
+              carbs:     Math.round((food.carbs_per_100g    || 0) * factor),
+              fat:       Math.round((food.fat_per_100g      || 0) * factor),
+              _category: food.category,
+              _calPerG:  food.calories_per_100g / 100,
+              _protPerG: (food.protein_per_100g  || 0) / 100,
+              _carbPerG: (food.carbs_per_100g    || 0) / 100,
+              _fatPerG:  (food.fat_per_100g      || 0) / 100,
+            });
+          }
+        }
+
+        // Fallback la scaleRecipeToCalories dacă GPT nu a generat cantități pentru această masă
+        if (foods.length === 0) {
+          const mealTargetCal = Math.round(targets.calories * mealPct);
+          const scaled = scaleRecipeToCalories(mealSlot.recipe, mealTargetCal, foodsMap);
+          foods = scaled.foods;
+        }
+
+        dayPlan.meals.push({
+          mealType:    mealSlot.recipe.name,
+          slotName:    mealName,
+          preparation: mealSlot.recipe.preparation || '',
+          foods,
+          mealTotals: {
+            calories: foods.reduce((s, f) => s + f.calories, 0),
+            protein:  foods.reduce((s, f) => s + f.protein,  0),
+            carbs:    foods.reduce((s, f) => s + f.carbs,    0),
+            fat:      foods.reduce((s, f) => s + f.fat,      0),
+          },
         });
       }
 
+      recalculateDayTotals(dayPlan);
+      adjustDayToTargets(dayPlan, targets, foodsMap, mealDistribution);
       days.push(dayPlan);
-    }
 
+      await new Promise(r => setTimeout(r, 150));
+      sendEvent({ type: 'progress', day: dayNumber, total: 7 });
+      if (clientData.clientId) {
+        supabase.from('generation_status').upsert({
+          client_id: clientData.clientId, trainer_id: auth.userId,
+          status: 'generating', current_step: dayNumber, total_steps: 7,
+        }, { onConflict: 'client_id,trainer_id' }).then(null, err => console.error('[generation_status] Update failed:', err));
+      }
+    }
     const plan = { clientName: name, dailyTargets: targets, days };
 
     // Salvează planul în Supabase dacă există clientId
@@ -1159,40 +1543,296 @@ function roundToNearest5(value) {
   return Math.round(value / 5) * 5;
 }
 
-function adjustDayToTargets(day, targets) {
+// Limite implicite pe cuvinte cheie din numele alimentului (fallback)
+const KEYWORD_MAX_LIMITS = [
+  { keywords: ['orez', 'rice', 'paste', 'spaghete', 'penne', 'fusilli', 'tagliatelle', 'quinoa', 'mei', 'hrișcă', 'bulgur', 'couscous', 'fulgi de ovăz', 'ovăz', 'orz'], max: 80 },
+  { keywords: ['cartofi dulci', 'cartof dulce', 'cartofi', 'cartof'], max: 200 },
+  { keywords: ['pâine', 'toast', 'baghetă', 'lipie', 'tortilla'], max: 80 },
+  { keywords: ['piept de pui', 'pulpă de pui', 'pui', 'curcan', 'vită', 'porc', 'miel', 'somon', 'ton', 'tilapia', 'creveți', 'crap', 'păstrăv'], max: 200 },
+  { keywords: ['ou', 'ouă'], max: 150 },
+  { keywords: ['nuci', 'migdale', 'caju', 'fistic', 'alune', 'semințe', 'unt de arahide', 'unt de migdale'], max: 40 },
+  { keywords: ['ulei', 'unt ', 'ghee', 'untură'], max: 15 },
+  // Legume — o singură legumă per masă max 150g (adaugă varietate, nu cantitate)
+  { keywords: ['castraveți', 'castravete', 'roșii', 'roșie', 'ardei', 'broccoli', 'conopidă', 'dovlecel', 'vinete', 'spanac', 'salată', 'varză', 'morcovi', 'morcov', 'țelină', 'fasole verde', 'mazăre', 'ciuperci', 'ciupercă', 'sfeclă', 'avocado'], max: 150 },
+];
+
+function getFoodMaxByKeyword(foodName) {
+  const nameLower = (foodName || '').toLowerCase();
+  for (const rule of KEYWORD_MAX_LIMITS) {
+    if (rule.keywords.some(kw => nameLower.includes(kw))) {
+      return rule.max;
+    }
+  }
+  return Infinity;
+}
+
+/**
+ * Ajustează ziua la targetele macro lucrând PER MASĂ.
+ * Fiecare masă primește un sub-target proporțional și fillMacro
+ * se aplică doar pe alimentele din acea masă — capurile sunt per masă, nu per zi.
+ */
+function adjustDayToTargets(day, targets, foodsMap = {}, mealDistribution = {}) {
   if (!day.meals || day.meals.length === 0) return day;
 
-  let actualCal = 0, actualCarbs = 0, actualProtein = 0, actualFat = 0;
+  const VEGGIE_CATS = new Set(['vegetables', 'fruits']);
+  const PROT_CATS   = ['meat', 'fish', 'eggs', 'dairy', 'legumes'];
+  const CARB_CATS   = ['grains', 'starch', 'legumes'];
+  const FAT_CATS    = ['fats', 'nuts'];
+  const MIN_G = 5;
 
-  day.meals.forEach(meal => {
-    meal.foods.forEach(food => {
-      actualCal     += food.calories || 0;
-      actualCarbs   += food.carbs    || 0;
-      actualProtein += food.protein  || 0;
-      actualFat     += food.fat      || 0;
+  // Capuri realiste PER MASĂ
+  const MEAL_MAX = {
+    meat: 200, fish: 180, eggs: 150, dairy: 200,
+    grains: 130, starch: 220, legumes: 160,
+    nuts: 40, fats: 15, other: 100,
+  };
+
+  // Slab = fat/prot < 0.5
+  const isLean = f =>
+    (f._protPerG || 0) >= 0.06 &&
+    ((f._protPerG || 0) > 0.001 ? (f._fatPerG || 0) / (f._protPerG || 0) < 0.5 : true);
+
+  const defaultPct = 1 / day.meals.length;
+
+  for (const meal of day.meals) {
+    if (!meal.foods || meal.foods.length === 0) continue;
+
+    const mFoods = meal.foods;
+
+    // ── RESET ─────────────────────────────────────────────────────────────
+    mFoods.forEach(f => { f.amount = 0; f.calories = 0; f.protein = 0; f.carbs = 0; f.fat = 0; });
+
+    // ── PRUNE duplicates per rol macro (max 1 proteină, max 1 carbo, max 1 grăsime) ──
+    {
+      const PROT_GROUP = new Set(['meat', 'fish', 'eggs', 'dairy', 'legumes']);
+      const CARB_GROUP = new Set(['grains', 'starch']);
+      const FAT_GROUP  = new Set(['fats', 'nuts']);
+
+      const pruneGroup = (groupSet, sortFn) => {
+        const inGroup = mFoods.filter(f => groupSet.has(f._category));
+        if (inGroup.length <= 1) return;
+        const sorted = [...inGroup].sort(sortFn);
+        const remove = new Set(sorted.slice(1).map(f => f.name));
+        const kept = mFoods.filter(f => !remove.has(f.name));
+        mFoods.length = 0;
+        kept.forEach(f => mFoods.push(f));
+        meal.foods = mFoods;
+      };
+
+      pruneGroup(PROT_GROUP, (a, b) => {
+        // Preferă lean, apoi densitate proteică descrescătoare
+        const diff = (isLean(b) ? 1 : 0) - (isLean(a) ? 1 : 0);
+        return diff !== 0 ? diff : (b._protPerG || 0) - (a._protPerG || 0);
+      });
+      pruneGroup(CARB_GROUP, (a, b) => (b._carbPerG || 0) - (a._carbPerG || 0));
+      pruneGroup(FAT_GROUP,  (a, b) => (b._fatPerG  || 0) - (a._fatPerG  || 0));
+    }
+
+    // ── LEGUME / FRUCTE — portie fixă 80g ────────────────────────────────
+    mFoods.forEach(f => {
+      if (!VEGGIE_CATS.has(f._category) || !f._calPerG) return;
+      f.amount   = 80;
+      f.calories = 80 * f._calPerG;
+      f.protein  = 80 * (f._protPerG || 0);
+      f.carbs    = 80 * (f._carbPerG || 0);
+      f.fat      = 80 * (f._fatPerG  || 0);
     });
-  });
 
-  const calFactor     = actualCal     > 0 ? targets.calories / actualCal     : 1;
-  const proteinFactor = actualProtein > 0 ? targets.protein  / actualProtein : 1;
-  const carbsFactor   = actualCarbs   > 0 ? targets.carbs    / actualCarbs   : 1;
-  const fatFactor     = actualFat     > 0 ? targets.fat      / actualFat     : 1;
+    const pct = mealDistribution[meal.slotName] ?? defaultPct;
+    const mT = {
+      calories: targets.calories * pct,
+      protein:  targets.protein  * pct,
+      carbs:    targets.carbs    * pct,
+      fat:      targets.fat      * pct,
+    };
 
-  day.meals.forEach(meal => {
-    meal.foods.forEach(food => {
-      // Gramajul se rotunjește la multiplu de 5
-      food.amount   = roundToNearest5((food.amount   || 0) * calFactor);
-      // Macros se rotunjesc normal
-      food.calories = Math.round((food.calories || 0) * calFactor);
-      food.protein  = Math.round((food.protein  || 0) * proteinFactor);
-      food.carbs    = Math.round((food.carbs    || 0) * carbsFactor);
-      food.fat      = Math.round((food.fat      || 0) * fatFactor);
+    // ── HELPERS ───────────────────────────────────────────────────────────
+    const nonVeggie = () => mFoods.filter(f => !VEGGIE_CATS.has(f._category) && f._calPerG);
+    const totals = () => mFoods.reduce(
+      (a, f) => ({ cal: a.cal + f.calories, prot: a.prot + f.protein, carb: a.carb + f.carbs, fat: a.fat + f.fat }),
+      { cal: 0, prot: 0, carb: 0, fat: 0 }
+    );
+
+    // Injectează un aliment nou din DB dacă masa nu are o categorie necesară
+    const inject = (cats, dbKey, minDens) => {
+      const existing = new Set(mFoods.map(f => f.name));
+      const pool = Object.values(foodsMap).filter(fd =>
+        cats.includes(fd.category) &&
+        (fd[dbKey] || 0) / 100 >= minDens &&
+        fd.calories_per_100g > 0 &&
+        !existing.has(fd.name)
+      );
+      if (!pool.length) return null;
+      pool.sort((a, b) => (b[dbKey] || 0) - (a[dbKey] || 0));
+      const p = pool[Math.floor(Math.random() * Math.min(3, pool.length))];
+      const nf = {
+        name: p.name, amount: 0, unit: 'g',
+        calories: 0, protein: 0, carbs: 0, fat: 0,
+        _category: p.category,
+        _calPerG:  p.calories_per_100g / 100,
+        _protPerG: (p.protein_per_100g  || 0) / 100,
+        _carbPerG: (p.carbs_per_100g    || 0) / 100,
+        _fatPerG:  (p.fat_per_100g      || 0) / 100,
+      };
+      mFoods.push(nf);
+      meal.foods = mFoods;
+      return nf;
+    };
+
+    /**
+     * Scalează o singură ancoră pentru a absorbi `delta` grame de macro (densKey).
+     * Respectă MEAL_MAX. Returnează macro-ul efectiv absorbit.
+     */
+    const scaleAnchor = (food, delta, densKey) => {
+      const dens = food[densKey] || 0;
+      if (dens < 0.001 || Math.abs(delta) < 0.1) return 0;
+      const cap = MEAL_MAX[food._category] || 120;
+      let newAmt;
+      if (delta > 0) {
+        const gramsNeeded = delta / dens;
+        newAmt = Math.min(food.amount + gramsNeeded, cap);
+      } else {
+        const gramsToRemove = (-delta) / dens;
+        newAmt = Math.max(MIN_G, food.amount - gramsToRemove);
+      }
+      const diff = newAmt - food.amount;
+      if (Math.abs(diff) < 0.01) return 0;
+      food.amount   += diff;
+      food.calories += diff * (food._calPerG  || 0);
+      food.protein  += diff * (food._protPerG || 0);
+      food.carbs    += diff * (food._carbPerG || 0);
+      food.fat      += diff * (food._fatPerG  || 0);
+      return diff * dens; // macro absorbit efectiv
+    };
+
+    /**
+     * Waterfall fill: parcurge lista de ancore în ordine.
+     * Scala ancora 1 → dacă tot rămâne deficit, scala ancora 2, etc.
+     * Dacă toate ancorele primare sunt la cap și tot e deficit, injectează una nouă.
+     */
+    const waterfallFill = (anchors, delta, densKey, injectCats, injectDbKey, injectMinDens) => {
+      let rem = delta;
+      // Pasul 1: ancore existente
+      for (const food of anchors) {
+        if (Math.abs(rem) < 0.5) break;
+        rem -= scaleAnchor(food, rem, densKey);
+      }
+      // Pasul 2: injectează dacă tot mai e deficit și există categorii de injectat
+      if (rem > 2 && injectCats) {
+        const newFood = inject(injectCats, injectDbKey, injectMinDens);
+        if (newFood) rem -= scaleAnchor(newFood, rem, densKey);
+      }
+      return rem;
+    };
+
+    /**
+     * Construiește lista de ancore pentru un macro, în ordinea priorităților:
+     * [primare sortate desc density, secundare sortate desc density]
+     */
+    const buildAnchors = (primaryCats, densKey, extraFilter = () => true) => {
+      const nv = nonVeggie();
+      const primary   = nv.filter(f =>  primaryCats.includes(f._category) && (f[densKey] || 0) >= 0.02 && extraFilter(f))
+                          .sort((a, b) => (b[densKey] || 0) - (a[densKey] || 0));
+      const secondary = nv.filter(f => !primaryCats.includes(f._category) && (f[densKey] || 0) >= 0.01 && extraFilter(f))
+                          .sort((a, b) => (b[densKey] || 0) - (a[densKey] || 0));
+      return [...primary, ...secondary];
+    };
+
+    // ── WATERFALL + RETRY LOOP (max 7 iterații per masă) ─────────────────
+    const MAX_ITER = 7;
+    for (let iter = 0; iter < MAX_ITER; iter++) {
+      let t = totals();
+      const calOk  = Math.abs(t.cal  - mT.calories) <= 20;
+      const protOk = Math.abs(t.prot - mT.protein)  <= 4;
+      const fatOk  = Math.abs(t.fat  - mT.fat)      <= 3;
+      if (calOk && protOk && fatOk) break;
+
+      // ── FAZA 1: PROTEINĂ (numai surse lean, apoi secundare) ─────────────
+      const protAnchors = buildAnchors(PROT_CATS, '_protPerG',
+        f => iter === 0 ? isLean(f) : true  // prima iterație: numai lean; restul: toate
+      );
+      if (protAnchors.length === 0 && iter === 0)
+        inject(PROT_CATS, 'protein_per_100g', 0.20);
+
+      t = totals();
+      const protDelta = mT.protein - t.prot;
+      if (Math.abs(protDelta) > 2)
+        waterfallFill(buildAnchors(PROT_CATS, '_protPerG', f => iter === 0 ? isLean(f) : true),
+          protDelta, '_protPerG', PROT_CATS, 'protein_per_100g', 0.20);
+
+      // ── FAZA 2: GRĂSIMI ─────────────────────────────────────────────────
+      t = totals();
+      const fatDelta = mT.fat - t.fat;
+      if (fatDelta > 2) {
+        waterfallFill(buildAnchors(FAT_CATS, '_fatPerG'),
+          fatDelta, '_fatPerG', FAT_CATS, 'fat_per_100g', 0.30);
+      } else if (fatDelta < -2) {
+        // Prea mult fat — reducem cele mai grase non-veggie
+        const fattiest = nonVeggie()
+          .filter(f => f.amount > MIN_G && (f._fatPerG || 0) > 0.1)
+          .sort((a, b) => (b._fatPerG || 0) - (a._fatPerG || 0));
+        waterfallFill(fattiest, fatDelta, '_fatPerG');
+      }
+
+      // ── FAZA 3: CARBOHIDRAȚI = calorii rămase ───────────────────────────
+      t = totals();
+      const carbTarget = (mT.calories - t.prot * 4 - t.fat * 9) / 4;
+      const carbDelta  = carbTarget - t.carb;
+      if (Math.abs(carbDelta) > 2) {
+        waterfallFill(buildAnchors(CARB_CATS, '_carbPerG'),
+          carbDelta, '_carbPerG', CARB_CATS, 'carbs_per_100g', 0.10);
+      }
+
+      // ── FAZA 4: SAFETY NET caloric — scala proporțional toți non-veggie ─
+      t = totals();
+      const calDiff = mT.calories - t.cal;
+      if (Math.abs(calDiff) > 20) {
+        const scalable = nonVeggie().filter(f => f.amount > 0);
+        const totalCal = scalable.reduce((s, f) => s + f.calories, 0);
+        if (totalCal > 0) {
+          const factor = (totalCal + calDiff) / totalCal;
+          scalable.forEach(f => {
+            const cap    = MEAL_MAX[f._category] || 120;
+            const newAmt = Math.max(MIN_G, Math.min(f.amount * factor, cap));
+            f.amount   = newAmt;
+            f.calories = newAmt * (f._calPerG  || 0);
+            f.protein  = newAmt * (f._protPerG || 0);
+            f.carbs    = newAmt * (f._carbPerG || 0);
+            f.fat      = newAmt * (f._fatPerG  || 0);
+          });
+        }
+      }
+    }
+
+    // ── ROTUNJIRE LA 5g ───────────────────────────────────────────────────
+    mFoods.forEach(food => {
+      if (!food._calPerG) return;
+      const rounded = roundToNearest5(food.amount);
+      const factor  = food.amount > 0 ? rounded / food.amount : 1;
+      food.amount   = rounded;
+      food.calories = Math.max(0, Math.round(food.calories * factor));
+      food.protein  = Math.max(0, Math.round(food.protein  * factor));
+      food.carbs    = Math.max(0, Math.round(food.carbs    * factor));
+      food.fat      = Math.max(0, Math.round(food.fat      * factor));
     });
-  });
+
+    meal.foods = mFoods.filter(f => (f.amount || 0) >= MIN_G);
+    meal.mealTotals = {
+      calories: meal.foods.reduce((s, f) => s + f.calories, 0),
+      protein:  meal.foods.reduce((s, f) => s + f.protein,  0),
+      carbs:    meal.foods.reduce((s, f) => s + f.carbs,    0),
+      fat:      meal.foods.reduce((s, f) => s + f.fat,      0),
+    };
+  }
 
   recalculateDayTotals(day);
+
+  console.log(`[DAY ${day.day}] cal=${day.dailyTotals.calories} P=${day.dailyTotals.protein} C=${day.dailyTotals.carbs} F=${day.dailyTotals.fat} | target cal=${targets.calories} P=${targets.protein} C=${targets.carbs} F=${targets.fat}`);
+
   return day;
 }
+
+
 
 function recalculateDayTotals(day) {
   let dayCal = 0, dayP = 0, dayC = 0, dayF = 0;
@@ -1211,7 +1851,6 @@ function recalculateDayTotals(day) {
       });
     }
 
-    // Totalurile meselor și zilei se rotunjesc normal
     meal.mealTotals = {
       calories: Math.round(mealCal),
       protein:  Math.round(mealP),
@@ -1267,7 +1906,6 @@ function calculateTargetCalories(clientData) {
 }
 
 function getMacroSplit(goal) {
-  // Grăsimi: 1g/kg corp pentru toate obiectivele
   const splits = {
     weight_loss:   { proteinPerKg: 2.25, fatPerKg: 1.0 },
     muscle_gain:   { proteinPerKg: 1.9,  fatPerKg: 1.0 },
@@ -1279,26 +1917,23 @@ function getMacroSplit(goal) {
 
 function calculateMacros(goal, weightKg, targetCalories) {
   const split = getMacroSplit(goal);
-
   const proteinGrams = Math.round(split.proteinPerKg * weightKg);
   const fatGrams     = Math.round(split.fatPerKg * weightKg);
-
   const proteinCalories   = proteinGrams * 4;
   const fatCalories       = fatGrams * 9;
   const remainingCalories = targetCalories - proteinCalories - fatCalories;
   const carbsGrams        = Math.round(Math.max(remainingCalories, 0) / 4);
-
   return { protein: proteinGrams, carbs: carbsGrams, fat: fatGrams };
 }
 
 function getGoalLabel(goal) {
   const labels = {
-    weight_loss:   'Slăbit',
-    muscle_gain:   'Creștere masă musculară',
-    maintenance:   'Menținere',
-    recomposition: 'Recompoziție corporală',
+    weight_loss:   'Slabit',
+    muscle_gain:   'Crestere masa musculara',
+    maintenance:   'Mentinere',
+    recomposition: 'Recompozitie corporala',
   };
-  return labels[goal] || 'Menținere';
+  return labels[goal] || 'Mentinere';
 }
 
 function getDietLabel(diet) {
