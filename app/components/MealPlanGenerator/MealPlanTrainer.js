@@ -269,7 +269,7 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
               <div key={mealIndex} className={styles.mealCard}>
                 <div className={styles.mealCardHeader}>
                   <span className={styles.mealEmoji}>{emoji}</span>
-                  <h4>{name}</h4>
+                  <h4>{meal.name || name}</h4>
                   {meal.mealTotals && (
                     <span className={styles.mealCalories}>{meal.mealTotals.calories} kcal</span>
                   )}

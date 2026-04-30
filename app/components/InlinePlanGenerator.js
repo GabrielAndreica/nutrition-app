@@ -133,6 +133,7 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
             }
           } else if (event.type === 'complete') {
             setLoadingProgress(100);
+            setLoading(false); // Oprește loading imediat la complete
             
             // planId vine ca event.planId (nu event.plan.id)
             const planId = event.planId || event.plan?.id;
@@ -143,23 +144,57 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
             // Curăță sessionStorage pentru a semnala finalizarea generării
             if (clientId) {
               sessionStorage.removeItem(`generatingPlan_${clientId}`);
-              sessionStorage.setItem('generatedPlanResult', JSON.stringify({
-                plan: event.plan,
-                nutritionalNeeds: event.nutritionalNeeds,
-                clientId: clientId,
-                timestamp: Date.now()
-              }));
+              try {
+                sessionStorage.setItem('generatedPlanResult', JSON.stringify({
+                  plan: event.plan,
+                  nutritionalNeeds: event.nutritionalNeeds,
+                  clientId: clientId,
+                  timestamp: Date.now()
+                }));
+              } catch (e) {
+                console.warn('sessionStorage setItem failed (quota?):', e);
+              }
             }
             
             // Dacă vine din dashboard (clientId setat), tranziție automată spre vizualizare plan
-            if (onPlanGenerated && planId && clientId) {
+            if (onPlanGenerated && clientId) {
+              // Dacă nu avem planId din event, fetch-uim ultimul plan al clientului
+              let finalPlanId = planId;
+              if (!finalPlanId) {
+                try {
+                  const token = localStorage.getItem('token');
+                  const res = await fetch('/api/meal-plans', {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                  });
+                  if (res.ok) {
+                    const data = await res.json();
+                    finalPlanId = data.plans?.[clientId]?.planId || null;
+                  }
+                } catch (e) {
+                  console.error('Failed to fetch planId:', e);
+                }
+              }
+              console.log('[InlinePlanGenerator] complete event received, planId:', finalPlanId);
               redirecting = true;
               streamDone = true;
-              setTimeout(() => {
-                if (isMountedRef.current) {
-                  onPlanGenerated(planId);
-                }
-              }, 500);
+              // Dacă tot nu avem planId, retry după 1s (planul poate nu era încă indexat)
+              if (!finalPlanId) {
+                setTimeout(async () => {
+                  try {
+                    const token = localStorage.getItem('token');
+                    const res = await fetch('/api/meal-plans', {
+                      headers: { 'Authorization': `Bearer ${token}` },
+                    });
+                    if (res.ok) {
+                      const data = await res.json();
+                      finalPlanId = data.plans?.[clientId]?.planId || null;
+                    }
+                  } catch (e) { /* ignore */ }
+                  if (isMountedRef.current) onPlanGenerated(finalPlanId);
+                }, 1000);
+              } else {
+                onPlanGenerated(finalPlanId);
+              }
               break;
             }
             
@@ -282,12 +317,16 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
           activityLevel: c.activity_level || 'moderate',
           dietType: c.diet_type || 'omnivore',
           allergies: c.allergies || '',
-          mealsPerDay: String(c.meals_per_day || '3'),
+          mealsPerDay: String(c.meals_per_day || '5'),
           foodPreferences: c.food_preferences || '',
         };
         
         if (storedProgress) {
           formData.progress = storedProgress;
+          // Transmite ajustarea calorică recomandată de AI la generator
+          if (storedProgress.calorieAdjustment && storedProgress.calorieAdjustment !== 0) {
+            formData.calorieAdjustment = storedProgress.calorieAdjustment;
+          }
         }
         
         // Dacă avem necesarul anterior, adăugăm caloriile actuale pentru ajustare corectă

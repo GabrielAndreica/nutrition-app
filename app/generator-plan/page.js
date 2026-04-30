@@ -329,7 +329,7 @@ function GeneratorContent() {
           activityLevel: c.activity_level || 'moderate',
           dietType: c.diet_type || 'omnivore',
           allergies: c.allergies || '',
-          mealsPerDay: String(c.meals_per_day || '3'),
+          mealsPerDay: String(c.meals_per_day || '5'),
           foodPreferences: c.food_preferences || '',
         };
         if (storedProgress) {

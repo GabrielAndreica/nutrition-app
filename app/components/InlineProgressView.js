@@ -71,134 +71,178 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
     Authorization: `Bearer ${localStorage.getItem('token')}`,
   }), []);
 
+  // ─── Logică identică cu calculateCalorieAdjustment din route.js ───────────
+  // Orice modificare TREBUIE replicată și în app/api/generate-meal-plan/route.js
+  const calcWeightBasedAdjustment = useCallback((goal, weightChangePercent, weekNumber = 99) => {
+    const pct = weightChangePercent;
+
+    if (goal === 'weight_loss') {
+      const isEarlyCut = weekNumber <= 2;
+      if (isEarlyCut) {
+        // Săpt. 1-2: pierdere rapidă e normală (apă + glicogen) — interval optim extins la -2.5%
+        if (pct >= 1.0)  return { adj: -350, reason: `Creștere rapidă (+${pct.toFixed(1)}%) — deficit caloric mare necesar.` };
+        if (pct >= 0.5)  return { adj: -275, reason: `Creștere moderată (+${pct.toFixed(1)}%) — deficit caloric semnificativ.` };
+        if (pct >= 0.0)  return { adj: -200, reason: 'Greutate stabilă sau ușor crescută — deficit caloric moderat.' };
+        if (pct >= -0.2) return { adj: -150, reason: 'Pierdere foarte lentă (0–0.2%) — deficit ușor crescut.' };
+        if (pct >= -2.5) return { adj:    0, reason: `Săpt. ${weekNumber} de cut — pierdere rapidă (${Math.abs(pct).toFixed(1)}%) normală în faza inițială (apă + glicogen). Planul se menține.` };
+        if (pct >= -3.5) return { adj: +150, reason: `Săpt. ${weekNumber} de cut — pierdere foarte rapidă (${Math.abs(pct).toFixed(1)}%) chiar și în faza inițială.` };
+        return              { adj: +250, reason: `Săpt. ${weekNumber} de cut — pierdere extremă (${Math.abs(pct).toFixed(1)}%).` };
+      }
+      // Săpt. 3+: interval normal -0.2% … -1.0%
+      if (pct >= 1.0)  return { adj: -350, reason: `Creștere rapidă (+${pct.toFixed(1)}%) — deficit caloric mare necesar.` };
+      if (pct >= 0.5)  return { adj: -275, reason: `Creștere moderată (+${pct.toFixed(1)}%) — deficit caloric semnificativ.` };
+      if (pct >= 0.0)  return { adj: -200, reason: 'Greutate stabilă sau ușor crescută — deficit caloric moderat.' };
+      if (pct >= -0.2) return { adj: -150, reason: 'Pierdere foarte lentă (0–0.2%) — deficit ușor crescut.' };
+      // interval optim: -0.2% … -1.0%
+      if (pct >= -1.3) return { adj: +100, reason: `Pierdere ușor prea rapidă (${Math.abs(pct).toFixed(1)}%) — creștere mică de calorii.` };
+      if (pct >= -1.8) return { adj: +175, reason: `Pierdere rapidă (${Math.abs(pct).toFixed(1)}%) — creștere moderată de calorii.` };
+      if (pct >= -2.5) return { adj: +250, reason: `Pierdere foarte rapidă (${Math.abs(pct).toFixed(1)}%) — creștere importantă de calorii.` };
+      return              { adj: +325, reason: `Pierdere extremă (${Math.abs(pct).toFixed(1)}%) — creștere mare de calorii.` };
+    }
+
+    if (goal === 'muscle_gain') {
+      if (pct <= -0.5) return { adj: +300, reason: `Pierdere în greutate pe masă (${pct.toFixed(1)}%) — surplus caloric mare necesar.` };
+      if (pct <= 0.0)  return { adj: +225, reason: 'Greutate stabilă sau ușor scăzută pe masă — surplus caloric semnificativ.' };
+      if (pct <= 0.25) return { adj: +150, reason: `Creștere prea lentă (${pct.toFixed(1)}%) — surplus caloric moderat.` };
+      // interval optim: +0.25% … +0.5%
+      if (pct <= 0.75) return { adj: -100, reason: `Creștere ușor prea rapidă (${pct.toFixed(1)}%) — reducere mică de calorii.` };
+      if (pct <= 1.0)  return { adj: -150, reason: `Creștere rapidă (${pct.toFixed(1)}%) — reducere moderată pentru a controla grăsimea.` };
+      return              { adj: -200, reason: `Creștere excesivă (${pct.toFixed(1)}%) — reducere semnificativă.` };
+    }
+
+    if (goal === 'maintenance') {
+      // interval optim: ±0.3%
+      if (pct >= 1.0)  return { adj: -225, reason: `Creștere rapidă (+${pct.toFixed(1)}%) pe menținere.` };
+      if (pct >= 0.5)  return { adj: -175, reason: `Creștere moderată (+${pct.toFixed(1)}%) pe menținere.` };
+      if (pct >= 0.3)  return { adj: -100, reason: `Ușoară creștere (+${pct.toFixed(1)}%) pe menținere.` };
+      if (pct >= -0.3) return { adj:    0, reason: 'Greutate stabilă — planul funcționează perfect.' };
+      if (pct >= -0.5) return { adj: +100, reason: `Ușoară scădere (${Math.abs(pct).toFixed(1)}%) pe menținere.` };
+      if (pct >= -1.0) return { adj: +175, reason: `Scădere moderată (${Math.abs(pct).toFixed(1)}%) pe menținere.` };
+      return              { adj: +225, reason: `Scădere rapidă (${Math.abs(pct).toFixed(1)}%) pe menținere.` };
+    }
+
+    return { adj: 0, reason: 'Obiectiv necunoscut — fără ajustare.' };
+  }, []);
+
   // Memoized AI recommendation computation
   const computeAiRecommendation = useCallback((data, stagnationWeeks, client, nutritionalNeeds, weightHistory, previousPlanCalories) => {
     const goal = client?.goal || 'maintenance';
     const adherence = data.respectare?.toLowerCase();
     const energy = data.energie?.toLowerCase();
     const hunger = data.foame?.toLowerCase();
-    
-    // Dacă planul are previous_plan_calories (generat din progres), folosește acela pentru comparație
-    // Altfel folosește caloriile planului curent
+
     const currentCal = previousPlanCalories || nutritionalNeeds?.calories || null;
-    if (previousPlanCalories) {
-    } else {
-    }
 
     let action = 'continue';
     let calChange = 0;
     let reason = '';
 
-    // Calculează schimbarea de greutate față de greutatea anterioară [CLIENT]
+    // ─── Calculează schimbarea de greutate față de intrarea anterioară [CLIENT] ─
     let weightChangePercent = 0;
     const currentWeight = parseFloat(data.weight);
     let previousWeight = null;
-    
-    // Filtrează doar intrările [CLIENT] din istoric pentru comparație corectă
-    const clientEntries = weightHistory?.filter(e => e.notes?.startsWith('[CLIENT]')) || [];
-    
-    // Sortează descrescător după dată (cele mai recente primele)
-    clientEntries.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
-    
-    
-    // Intrarea curentă este cel mai recent [CLIENT] (indexul 0)
-    // Caută a doua intrare [CLIENT] pentru comparație (indexul 1)
+
+    const clientEntries = (weightHistory?.filter(e => e.notes?.startsWith('[CLIENT]')) || [])
+      .sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+
     if (clientEntries.length >= 2) {
-      const prevEntry = clientEntries[1];
-      previousWeight = parseFloat(prevEntry.weight);
+      previousWeight = parseFloat(clientEntries[1].weight);
     } else if (clientEntries.length === 1 && client?.weight) {
-      // Prima intrare de la client - comparăm cu greutatea inițială din profil
       previousWeight = parseFloat(client.weight);
     }
-    
+
     if (previousWeight && currentWeight && Math.abs(currentWeight - previousWeight) > 0.05) {
       weightChangePercent = ((currentWeight - previousWeight) / previousWeight) * 100;
+    }
+
+    // Săptămâna de cut = numărul de intrări [CLIENT] deja existente + 1 (cea curentă)
+    const needsWeekNum = goal === 'weight_loss' || goal === 'muscle_gain';
+    const weekNumber = needsWeekNum ? (clientEntries.length + 1) : 99;
+    const isEarlyCut  = goal === 'weight_loss'  && weekNumber <= 2;
+    const isEarlyBulk = goal === 'muscle_gain' && weekNumber <= 2;
+
+    // ─── Ajustare bazată pe greutate (trepte proporționale) ─────────────────
+    const { adj: weightAdj, reason: weightReason } = calcWeightBasedAdjustment(goal, weightChangePercent, weekNumber);
+
+    // Verifică dacă suntem în intervalul optim
+    const isOptimalWeight = (() => {
+      if (goal === 'weight_loss') {
+        const minLoss = isEarlyCut ? -2.5 : -1.0;
+        return weightChangePercent >= minLoss && weightChangePercent <= -0.2;
+      }
+      if (goal === 'muscle_gain') {
+        const maxGain = isEarlyBulk ? 1.5 : 0.5;
+        return weightChangePercent >= 0.25 && weightChangePercent <= maxGain;
+      }
+      if (goal === 'maintenance') return Math.abs(weightChangePercent) <= 0.3;
+      return false;
+    })();
+
+    // ─── Ajustare foame (se cumulează) ───────────────────────────────────────
+    let hungerAdj = 0;
+    let hungerReason = '';
+    if (hunger === 'extrem' || (hunger === 'crescut' && energy === 'scazut')) {
+      hungerAdj = 100;
+      hungerReason = hunger === 'extrem'
+        ? 'Foame extremă — deficit prea agresiv.'
+        : 'Foame crescută + energie scăzută — necesită ajustare.';
+    }
+
+    // ─── Ajustare stagnare (înlocuiește greutatea dacă e mai mare în magnitudine) ─
+    let stagnationAdj = 0;
+    let stagnationReason = '';
+    const isWeightStable = Math.abs(weightChangePercent) < 0.3;
+    if (stagnationWeeks >= 2 && isWeightStable) {
+      if (goal === 'weight_loss')  { stagnationAdj = -175; stagnationReason = `Stagnare ${stagnationWeeks} săptămâni pe cut — reducere deficit.`; }
+      if (goal === 'muscle_gain') { stagnationAdj = +175; stagnationReason = `Stagnare ${stagnationWeeks} săptămâni pe masă — creștere surplus.`; }
+    }
+
+    const hasSpecialCase = hungerAdj !== 0 || stagnationAdj !== 0;
+
+    if (!isOptimalWeight || hasSpecialCase) {
+      action = 'regenerate';
+
+      // Calculează ajustarea finală (aceeași logică ca în route.js)
+      let finalAdj = weightAdj;
+      if (hungerAdj > 0) finalAdj += hungerAdj;
+      if (stagnationAdj !== 0 && Math.abs(weightAdj) < Math.abs(stagnationAdj)) {
+        finalAdj = stagnationAdj + (hungerAdj || 0);
+      }
+
+      calChange = finalAdj;
+
+      // ─── CAP ±350 kcal per sesiune (identic cu backend) ───
+      const MAX_ADJ = 350;
+      if (Math.abs(calChange) > MAX_ADJ) {
+        calChange = calChange > 0 ? MAX_ADJ : -MAX_ADJ;
+        reason = (reason || '') + ' Ajustare limitată la ±350 kcal per sesiune pentru siguranță.';
+      }
+
+      reason = [weightReason, hungerReason, stagnationReason].filter(Boolean).join(' ');
+
+      // Dacă e optimal din greutate dar avem cazuri speciale, ajustăm mesajul
+      if (isOptimalWeight) {
+        reason = [hungerReason, stagnationReason].filter(Boolean).join(' ');
+      }
     } else {
-    }
-
-    // Verifică dacă schimbarea de greutate e în afara intervalului optim
-    let isWeightSuboptimal = false;
-    if (goal === 'weight_loss') {
-      // Cut: ar trebui -0.2% până la -1.0% pe săptămână
-      // Prea puțin sau creștere = suboptimal
-      if (weightChangePercent > -0.2) {
-        isWeightSuboptimal = true;
-        calChange = -125;
-        reason = weightChangePercent > 0 
-          ? `Greutate crescută cu ${weightChangePercent.toFixed(1)}% — reducere calorii necesară`
-          : 'Progres prea lent — reducere calorii pentru accelerare';
-        action = 'regenerate';
-      }
-      // Prea mult slăbit = suboptimal
-      else if (weightChangePercent < -1.0) {
-        isWeightSuboptimal = true;
-        calChange = +125;
-        reason = `Slăbire prea rapidă (${Math.abs(weightChangePercent).toFixed(1)}%) — creștere calorii pentru sustenabilitate`;
-        action = 'regenerate';
-      }
-    } else if (goal === 'maintenance') {
-      // Menținere: ±0.3% e ideal
-      const tolerance = 0.5; // toleranță extinsă
-      if (Math.abs(weightChangePercent) > tolerance) {
-        isWeightSuboptimal = true;
-        if (weightChangePercent > tolerance) {
-          calChange = -100;
-          reason = `Greutate crescută cu ${weightChangePercent.toFixed(1)}% — reducere calorii pentru menținere`;
-        } else {
-          calChange = +100;
-          reason = `Greutate scăzută cu ${Math.abs(weightChangePercent).toFixed(1)}% — creștere calorii pentru menținere`;
-        }
-        action = 'regenerate';
-      }
-    } else if (goal === 'muscle_gain') {
-      // Masă: +0.25% până la +0.50% e optim
-      if (weightChangePercent < 0.25) {
-        isWeightSuboptimal = true;
-        calChange = +125;
-        reason = weightChangePercent < 0
-          ? `Greutate scăzută (${weightChangePercent.toFixed(1)}%) — creștere surplus pentru masă`
-          : 'Progres prea lent — creștere surplus pentru creștere musculară';
-        action = 'regenerate';
-      } else if (weightChangePercent > 0.75) {
-        isWeightSuboptimal = true;
-        calChange = -100;
-        reason = `Creștere prea rapidă (${weightChangePercent.toFixed(1)}%) — risc grăsime, reducere surplus`;
-        action = 'regenerate';
-      }
-    }
-
-    // Dacă nu e suboptimal din greutate, verifică foamea și stagnarea
-    if (!isWeightSuboptimal) {
-      if (hunger === 'extrem' || (hunger === 'crescut' && energy === 'scazut')) {
-        action = 'regenerate';
-        calChange = goal === 'weight_loss' ? +100 : +150;
-        reason = hunger === 'extrem'
-          ? 'Foame extremă — deficit prea agresiv'
-          : 'Foame crescută + energie scăzută — necesită ajustare';
-      } else if (stagnationWeeks >= 2) {
-        action = 'regenerate';
-        if (goal === 'weight_loss') {
-          calChange = adherence === 'complet' ? -100 : -150;
-          reason = `Stagnare ${stagnationWeeks} săptămâni — reducere deficit`;
-        } else if (goal === 'muscle_gain') {
-          calChange = +100;
-          reason = `Stagnare ${stagnationWeeks} săptămâni — creștere surplus`;
-        } else {
-          calChange = 0;
-          reason = `Stagnare ${stagnationWeeks} săptămâni — reechilibrare macronutrienți`;
-        }
-      } else if (stagnationWeeks === 1 && adherence === 'complet') {
-        action = 'continue';
-        reason = 'O săptămână fără schimbare — este prea devreme pentru ajustare';
+      // Interval optim, fără cazuri speciale
+      if (stagnationWeeks === 1 && adherence === 'complet') {
+        reason = 'O săptămână fără schimbare — este prea devreme pentru ajustare.';
       } else {
-        action = 'continue';
-        reason = 'Progres conform așteptărilor — planul funcționează';
+        reason = weightReason || 'Progres conform așteptărilor — planul funcționează.';
       }
     }
 
     const targetCal = currentCal ? currentCal + calChange : null;
-    return { action, calChange, reason, targetCal, currentCal };
-  }, []); // Empty deps - pure calculation
+    // Avertizare podea calorică (doar pentru afișare, backend-ul aplică floor-ul efectiv)
+    const CALORIE_FLOOR = client?.gender === 'M' ? 1500 : 1300;
+    const floorApplied = targetCal !== null && targetCal < CALORIE_FLOOR;
+    const displayTargetCal = floorApplied ? CALORIE_FLOOR : targetCal;
+    if (floorApplied) {
+      reason = (reason || '') + ` Plan ajustat la minimul de siguranță de ${CALORIE_FLOOR} kcal — sub această valoare riscul de deficit nutritiv e ridicat.`;
+    }
+    return { action, calChange, reason, targetCal: displayTargetCal, currentCal, floorApplied };
+  }, [calcWeightBasedAdjustment]); // depends on calcWeightBasedAdjustment
 
   // Memoized AI recommendation result
   const aiRecommendation = useMemo(() => {
@@ -411,6 +455,7 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         notes: progressData.mesaj || '',
         weeksNoChange: String(stagnationWeeks),
         forceRegenerate: true, // Flag pentru a indica că antrenorul vrea explicit regenerare
+        calorieAdjustment: aiRecommendation?.calChange || 0, // ajustare calorică recomandată de AI
       }));
 
       // Stochează necesarul nutrițional curent pentru diff-ul macro după generare

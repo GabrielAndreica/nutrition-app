@@ -95,15 +95,15 @@ export function cachedCalculateCalories(clientData, calculateFn) {
 /**
  * Calculează macronutrienții cu caching
  */
-export function cachedCalculateMacros(goal, weight, calories, calculateFn) {
-  const key = generateMacrosKey(goal, weight, calories);
+export function cachedCalculateMacros(goal, weight, calories, activityLevel, calculateFn) {
+  const key = generateMacrosKey(goal, weight, calories) + `:${activityLevel || 'default'}`;
   
   const cached = get(key);
   if (cached !== null) {
     return cached;
   }
   
-  const result = calculateFn(goal, weight, calories);
+  const result = calculateFn(goal, weight, calories, activityLevel);
   set(key, result, CONFIG.MACROS_TTL_MS);
   return result;
 }
@@ -112,9 +112,9 @@ export function cachedCalculateMacros(goal, weight, calories, calculateFn) {
  * Cache pentru distribuția meselor (foarte statică)
  */
 const mealDistributionCache = new Map([
-  [3, { 'Masa 1': 0.40, 'Gustare': 0.15, 'Masa 2': 0.45 }],
-  [4, { 'Masa 1': 0.30, 'Gustare 1': 0.10, 'Masa 2': 0.45, 'Gustare 2': 0.15 }],
-  [5, { 'Masa 1': 0.25, 'Gustare 1': 0.10, 'Masa 2': 0.30, 'Gustare 2': 0.10, 'Masa 3': 0.25 }],
+  [3, { 'Mic dejun': 0.30, 'Prânz': 0.40, 'Cină': 0.30 }],
+  [4, { 'Mic dejun': 0.28, 'Gustare 1': 0.12, 'Prânz': 0.38, 'Cină': 0.22 }],
+  [5, { 'Mic dejun': 0.25, 'Gustare 1': 0.10, 'Prânz': 0.30, 'Gustare 2': 0.10, 'Cină': 0.25 }],
 ]);
 
 export function getCachedMealDistribution(mealsPerDay) {

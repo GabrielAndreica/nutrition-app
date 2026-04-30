@@ -1179,12 +1179,34 @@
   font-size: 28px;
 }
 
+.mealCardHeaderText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mealTypeLabel {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 500;
+  color: #6e6e73;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .mealCardHeader h4 {
   margin: 0;
   font-size: 17px;
   font-weight: 600;
   color: #1d1d1f;
-  flex: 1;
+}
+
+.mealSubtitle {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: #6e6e73;
 }
 
 .mealCalories {
@@ -1194,6 +1216,8 @@
   background: #b7ff00;
   padding: 5px 14px;
   border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Meal List */
