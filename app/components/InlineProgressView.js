@@ -455,6 +455,7 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         notes: progressData.mesaj || '',
         weeksNoChange: String(stagnationWeeks),
         forceRegenerate: true, // Flag pentru a indica că antrenorul vrea explicit regenerare
+        calorieAdjustment: aiRecommendation?.calChange || 0, // ajustare calorică recomandată de AI
       }));
 
       // Stochează necesarul nutrițional curent pentru diff-ul macro după generare

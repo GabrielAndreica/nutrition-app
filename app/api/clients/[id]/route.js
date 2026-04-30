@@ -124,7 +124,7 @@ params }) {
       activity_level: activityLevel || 'moderate',
       diet_type: dietType || 'omnivore',
       allergies: allergies || null,
-      meals_per_day: parseInt(mealsPerDay) || 3,
+      meals_per_day: parseInt(mealsPerDay) || 5,
       food_preferences: foodPreferences || null,
       updated_at: new Date().toISOString(),
     })

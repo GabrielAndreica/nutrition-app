@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSupabase } from '@/app/lib/supabase';
+import { getSupabase, supabaseQuery } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 
 /**
@@ -16,22 +16,22 @@ export async function GET(request) {
 
     const trainerId = auth.userId;
 
-    // Curăță automat generările blocate (>30 min fără update)
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    await supabase
+    // Curăță automat generările blocate (>5 min fără update)
+    const thirtyMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    await supabaseQuery(() => supabase
       .from('generation_status')
       .update({ status: 'failed', error_message: 'Timeout - generarea a durat prea mult', completed_at: new Date().toISOString() })
       .eq('trainer_id', trainerId)
       .eq('status', 'generating')
-      .lt('updated_at', thirtyMinutesAgo);
+      .lt('updated_at', thirtyMinutesAgo));
 
     // Obține toate generările active
-    const { data: generations, error } = await supabase
+    const { data: generations, error } = await supabaseQuery(() => supabase
       .from('generation_status')
       .select('*')
       .eq('trainer_id', trainerId)
       .eq('status', 'generating')
-      .order('started_at', { ascending: false });
+      .order('started_at', { ascending: false }));
 
     if (error) {
       console.error('Error fetching generation status:', error);
@@ -89,12 +89,12 @@ export async function POST(request) {
       updateData.completed_at = new Date().toISOString();
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await supabaseQuery(() => supabase
       .from('generation_status')
       .upsert(updateData, {
         onConflict: 'client_id,trainer_id',
         returning: 'minimal'
-      });
+      }));
 
     if (error) {
       console.error('Error updating generation status:', error);
@@ -137,11 +137,11 @@ export async function DELETE(request) {
       );
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseQuery(() => supabase
       .from('generation_status')
       .delete()
       .eq('client_id', clientId)
-      .eq('trainer_id', trainerId);
+      .eq('trainer_id', trainerId));
 
     if (error) {
       console.error('Error deleting generation status:', error);

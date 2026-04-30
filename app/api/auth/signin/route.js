@@ -65,7 +65,7 @@ const recordSuccessfulLogin = (email) => {
 };
 
 export async function POST(request) {
-  const supabase = getSupabase();
+  const supabase = getSupabase(); // ✔ AICI TREBUIE
   const { ip, userAgent } = getRequestMeta(request);
 
   try {

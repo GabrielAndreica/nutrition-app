@@ -308,7 +308,7 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 16px;
-    padding: 24px 28px;
+    padding: max(21px, env(safe-area-inset-top, 21px)) max(28px, env(safe-area-inset-right, 28px)) 21px max(28px, env(safe-area-inset-left, 28px));
     min-height: unset;
   }
 
@@ -325,9 +325,7 @@
 /* ── Responsive: mobile ───────────────────────────────────── */
 @media (max-width: 480px) {
   .leftPanel {
-    padding: env(safe-area-inset-top, 20px) 20px 20px;
-    padding-left: max(20px, env(safe-area-inset-left));
-    padding-right: max(20px, env(safe-area-inset-right));
+    padding: max(21px, env(safe-area-inset-top, 21px)) max(20px, env(safe-area-inset-right, 20px)) 21px max(20px, env(safe-area-inset-left, 20px));
   }
 
   .rightPanel {

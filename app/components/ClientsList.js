@@ -10,7 +10,7 @@ const LIMIT = 20;
 const EMPTY_FORM = {
   name: '', age: '', weight: '', height: '',
   gender: 'M', goal: 'maintenance', activityLevel: 'moderate',
-  dietType: 'omnivore', allergies: '', mealsPerDay: '3',
+  dietType: 'omnivore', allergies: '', mealsPerDay: '5',
   foodPreferences: '',
 };
 
@@ -449,7 +449,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       activityLevel: client.activity_level || 'moderate',
       dietType:      client.diet_type      || 'omnivore',
       allergies:     client.allergies      || '',
-      mealsPerDay:   String(client.meals_per_day || '3'),
+      mealsPerDay:   String(client.meals_per_day || '5'),
       foodPreferences: client.food_preferences || '',
     });
     setFormError(null);
@@ -713,13 +713,17 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       }).catch(() => {});
 
       // Stochează datele de progres pentru generator
+      const aiRec = computeAiRecommendation(
+        progressModalData, progressModalStagnation, c, progressModalNutritionalNeeds
+      );
       sessionStorage.setItem('clientProgress', JSON.stringify({
-        currentWeight: String(hasNewWeight ? newWeight : progressModalData.weight),
-        adherence:     progressModalData.respectare,
-        energyLevel:   progressModalData.energie,
-        hungerLevel:   progressModalData.foame,
-        notes:         progressModalData.mesaj || '',
-        weeksNoChange: String(progressModalStagnation),
+        currentWeight:     String(hasNewWeight ? newWeight : progressModalData.weight),
+        adherence:         progressModalData.respectare,
+        energyLevel:       progressModalData.energie,
+        hungerLevel:       progressModalData.foame,
+        notes:             progressModalData.mesaj || '',
+        weeksNoChange:     String(progressModalStagnation),
+        calorieAdjustment: aiRec.calChange || 0,
       }));
 
       // Stochează necesarul nutrițional curent pentru diff-ul macro după generare
@@ -983,18 +987,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
                   ))}
                 </div>
               </div>
-              <div className={styles.addField}>
-                <label>Mese pe zi</label>
-                <div className={styles.seg}>
-                  {['3','4','5'].map(n => (
-                    <button key={n} type="button"
-                      className={`${styles.segBtn} ${form.mealsPerDay === n ? styles.segOn : ''}`}
-                      onClick={() => setForm(p => ({ ...p, mealsPerDay: n }))}>
-                      {n} mese
-                    </button>
-                  ))}
-                </div>
-              </div>
+
             </div>
 
             <div className={styles.addField}>

@@ -383,7 +383,7 @@ function DashboardContent() {
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
           {allNotifications.filter(n => n.unread).length > 0 && (
-            <span className={styles.mobileNotificationBadge}>{allNotifications.filter(n => n.unread).length}</span>
+            <span className={styles.mobileDot} />
           )}
         </button>
       </div>
@@ -416,7 +416,7 @@ function DashboardContent() {
             </div>
             <span className={styles.sidebarLabel}>Notificări</span>
             {allNotifications.filter(n => n.unread).length > 0 && (
-              <span className={styles.sidebarBadge}>{allNotifications.filter(n => n.unread).length}</span>
+              <span className={styles.sidebarDot} />
             )}
           </div>
 

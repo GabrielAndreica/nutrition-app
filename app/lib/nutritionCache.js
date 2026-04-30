@@ -95,15 +95,15 @@ export function cachedCalculateCalories(clientData, calculateFn) {
 /**
  * Calculează macronutrienții cu caching
  */
-export function cachedCalculateMacros(goal, weight, calories, calculateFn) {
-  const key = generateMacrosKey(goal, weight, calories);
+export function cachedCalculateMacros(goal, weight, calories, activityLevel, calculateFn) {
+  const key = generateMacrosKey(goal, weight, calories) + `:${activityLevel || 'default'}`;
   
   const cached = get(key);
   if (cached !== null) {
     return cached;
   }
   
-  const result = calculateFn(goal, weight, calories);
+  const result = calculateFn(goal, weight, calories, activityLevel);
   set(key, result, CONFIG.MACROS_TTL_MS);
   return result;
 }

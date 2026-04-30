@@ -23,22 +23,26 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
   const dayNames = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
   const dayNamesShort = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
 
-  const mealSlotLabels = {
-    'Mic dejun':  { name: 'Mic dejun',  emoji: '🍳' },
-    'Gustare 1':  { name: 'Gustare 1',  emoji: '🍎' },
-    'Prânz':      { name: 'Prânz',      emoji: '🍽️' },
-    'Gustare 2':  { name: 'Gustare 2',  emoji: '🥜' },
-    'Cină':       { name: 'Cină',       emoji: '🌙' },
-    // fallback-uri pentru planuri vechi
-    'Masa 1':    { name: 'Mic dejun',  emoji: '🍳' },
-    'Masa 2':    { name: 'Prânz',      emoji: '🍽️' },
-    'Masa 3':    { name: 'Cină',       emoji: '🌙' },
-    'Gustare':   { name: 'Gustare',    emoji: '🍎' },
+  const mealTypeLabels = {
+    'Masa 1': { name: 'Masa 1', emoji: '🍽️' },
+    'Masa 2': { name: 'Masa 2', emoji: '🍽️' },
+    'Masa 3': { name: 'Masa 3', emoji: '🍽️' },
+    'Gustare': { name: 'Gustare', emoji: '🍎' },
+    'Gustare 1': { name: 'Gustare 1', emoji: '🍎' },
+    'Gustare 2': { name: 'Gustare 2', emoji: '🥗' },
+    'Breakfast': { name: 'Masa 1', emoji: '🍽️' },
+    'Lunch': { name: 'Masa 2', emoji: '🍽️' },
+    'Dinner': { name: 'Masa 3', emoji: '🍽️' },
+    'Snack': { name: 'Gustare', emoji: '🍎' },
+    'Snack 1': { name: 'Gustare 1', emoji: '🍎' },
+    'Snack 2': { name: 'Gustare 2', emoji: '🥗' },
+    'Mic Dejun': { name: 'Masa 1', emoji: '🍽️' },
+    'Prânz': { name: 'Masa 2', emoji: '🍽️' },
+    'Cină': { name: 'Masa 3', emoji: '🍽️' },
   };
 
-  const getMealLabel = (meal) => {
-    const slot = meal.mealSlot || meal.mealType;
-    return mealSlotLabels[slot] || { name: slot, emoji: '🍽️' };
+  const getMealLabel = (mealType) => {
+    return mealTypeLabels[mealType] || { name: mealType, emoji: '🍽️' };
   };
 
   const handleDownload = async () => {
@@ -260,16 +264,12 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
         {/* Meals Grid for Active Day */}
         <div className={styles.mealsGrid}>
           {currentDay.meals.map((meal, mealIndex) => {
-            const { name, emoji } = getMealLabel(meal);
-            const recipeName = (meal.mealSlot && meal.mealType !== meal.mealSlot) ? meal.mealType : null;
+            const { name, emoji } = getMealLabel(meal.mealType);
             return (
               <div key={mealIndex} className={styles.mealCard}>
                 <div className={styles.mealCardHeader}>
                   <span className={styles.mealEmoji}>{emoji}</span>
-                  <div className={styles.mealCardHeaderText}>
-                    <h4>{name}</h4>
-                    {recipeName && <span className={styles.mealRecipeName}>{recipeName}</span>}
-                  </div>
+                  <h4>{meal.name || name}</h4>
                   {meal.mealTotals && (
                     <span className={styles.mealCalories}>{meal.mealTotals.calories} kcal</span>
                   )}
