@@ -80,7 +80,7 @@ export async function POST(request) {
       trainer_id: trainerId,
       status,
       current_step: currentStep || 0,
-      total_steps: 7,
+      total_steps: 8,
     };
 
     if (errorMessage) updateData.error_message = errorMessage;

@@ -31,6 +31,46 @@ const activityLabels = {
   extra_active: 'Extrem de activă',
 };
 
+const normalizeMetricValue = (value) => String(value || '')
+  .toLowerCase()
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '');
+
+const getMetricToneClass = (key, value) => {
+  const normalized = normalizeMetricValue(value);
+  if (!normalized || normalized === '-') return styles.progressMetricChipNeutral;
+
+  if (key === 'Plan alimentar' || key === 'Plan antrenament') {
+    if (normalized === 'complet') return styles.progressMetricChipGood;
+    if (normalized === 'partial') return styles.progressMetricChipWarning;
+    if (normalized === 'deloc') return styles.progressMetricChipBad;
+  }
+
+  if (key === 'Energie') {
+    if (normalized === 'scazut') return styles.progressMetricChipBad;
+    if (normalized === 'normal' || normalized === 'ridicat') return styles.progressMetricChipGood;
+  }
+
+  if (key === 'Foame') {
+    if (normalized === 'normal') return styles.progressMetricChipGood;
+    if (normalized === 'crescut') return styles.progressMetricChipWarning;
+    if (normalized === 'extrem') return styles.progressMetricChipBad;
+  }
+
+  if (key === 'Dificultate') {
+    if (normalized === 'usor' || normalized === 'moderat') return styles.progressMetricChipGood;
+    if (normalized === 'greu') return styles.progressMetricChipWarning;
+  }
+
+  if (key === 'Oboseală' || key === 'Febră musculară') {
+    if (normalized === 'scazuta' || normalized === 'absenta') return styles.progressMetricChipGood;
+    if (normalized === 'moderata') return styles.progressMetricChipWarning;
+    if (normalized === 'ridicata' || normalized === 'intensa') return styles.progressMetricChipBad;
+  }
+
+  return styles.progressMetricChipNeutral;
+};
+
 export default function InlineProgressView({ clientId, scrollContainerRef, onBack, onGeneratePlan }) {
   const router = useRouter();
   const [client, setClient] = useState(null);
@@ -131,6 +171,11 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
     const energy = data.energie?.toLowerCase();
     const hunger = data.foame?.toLowerCase();
 
+    // Workout signals
+    const generalFatigue = data.generalFatigue?.toLowerCase() || '';
+    const doms = data.doms?.toLowerCase() || '';
+    const workoutDifficulty = data.workoutDifficulty?.toLowerCase() || '';
+
     const currentCal = previousPlanCalories || nutritionalNeeds?.calories || null;
 
     let action = 'continue';
@@ -155,16 +200,13 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
       weightChangePercent = ((currentWeight - previousWeight) / previousWeight) * 100;
     }
 
-    // Săptămâna de cut = numărul de intrări [CLIENT] deja existente + 1 (cea curentă)
     const needsWeekNum = goal === 'weight_loss' || goal === 'muscle_gain';
     const weekNumber = needsWeekNum ? (clientEntries.length + 1) : 99;
     const isEarlyCut  = goal === 'weight_loss'  && weekNumber <= 2;
     const isEarlyBulk = goal === 'muscle_gain' && weekNumber <= 2;
 
-    // ─── Ajustare bazată pe greutate (trepte proporționale) ─────────────────
     const { adj: weightAdj, reason: weightReason } = calcWeightBasedAdjustment(goal, weightChangePercent, weekNumber);
 
-    // Verifică dacă suntem în intervalul optim
     const isOptimalWeight = (() => {
       if (goal === 'weight_loss') {
         const minLoss = isEarlyCut ? -2.5 : -1.0;
@@ -178,7 +220,7 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
       return false;
     })();
 
-    // ─── Ajustare foame (se cumulează) ───────────────────────────────────────
+    // ─── Ajustare foame ──────────────────────────────────────────────────────
     let hungerAdj = 0;
     let hungerReason = '';
     if (hunger === 'extrem' || (hunger === 'crescut' && energy === 'scazut')) {
@@ -188,7 +230,7 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         : 'Foame crescută + energie scăzută — necesită ajustare.';
     }
 
-    // ─── Ajustare stagnare (înlocuiește greutatea dacă e mai mare în magnitudine) ─
+    // ─── Ajustare stagnare ───────────────────────────────────────────────────
     let stagnationAdj = 0;
     let stagnationReason = '';
     const isWeightStable = Math.abs(weightChangePercent) < 0.3;
@@ -197,12 +239,23 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
       if (goal === 'muscle_gain') { stagnationAdj = +175; stagnationReason = `Stagnare ${stagnationWeeks} săptămâni pe masă — creștere surplus.`; }
     }
 
+    // ─── Semnale antrenament ─────────────────────────────────────────────────
+    const workoutReasons = [];
+    const highFatigue = generalFatigue === 'ridicata' || generalFatigue === 'ridicată' || generalFatigue === 'extrem';
+    const highDoms = doms === 'intens' || doms === 'sever';
+    const tooHard = workoutDifficulty === 'prea greu' || workoutDifficulty === 'extrem';
+
+    if (highFatigue) workoutReasons.push('Oboseală generală ridicată — recuperare insuficientă.');
+    if (highDoms) workoutReasons.push('DOMS intens — volum de antrenament prea mare.');
+    if (tooHard) workoutReasons.push('Antrenamentele prea grele — intensitate/volum de redus.');
+
+    // Semnalele de antrenament rămân informative, dar recomandarea afișată este doar alimentară.
+    const hasWorkoutIssues = workoutReasons.length > 0;
     const hasSpecialCase = hungerAdj !== 0 || stagnationAdj !== 0;
 
     if (!isOptimalWeight || hasSpecialCase) {
       action = 'regenerate';
 
-      // Calculează ajustarea finală (aceeași logică ca în route.js)
       let finalAdj = weightAdj;
       if (hungerAdj > 0) finalAdj += hungerAdj;
       if (stagnationAdj !== 0 && Math.abs(weightAdj) < Math.abs(stagnationAdj)) {
@@ -211,21 +264,17 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
 
       calChange = finalAdj;
 
-      // ─── CAP ±350 kcal per sesiune (identic cu backend) ───
       const MAX_ADJ = 350;
       if (Math.abs(calChange) > MAX_ADJ) {
         calChange = calChange > 0 ? MAX_ADJ : -MAX_ADJ;
-        reason = (reason || '') + ' Ajustare limitată la ±350 kcal per sesiune pentru siguranță.';
       }
 
       reason = [weightReason, hungerReason, stagnationReason].filter(Boolean).join(' ');
 
-      // Dacă e optimal din greutate dar avem cazuri speciale, ajustăm mesajul
       if (isOptimalWeight) {
         reason = [hungerReason, stagnationReason].filter(Boolean).join(' ');
       }
     } else {
-      // Interval optim, fără cazuri speciale
       if (stagnationWeeks === 1 && adherence === 'complet') {
         reason = 'O săptămână fără schimbare — este prea devreme pentru ajustare.';
       } else {
@@ -234,15 +283,18 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
     }
 
     const targetCal = currentCal ? currentCal + calChange : null;
-    // Avertizare podea calorică (doar pentru afișare, backend-ul aplică floor-ul efectiv)
     const CALORIE_FLOOR = client?.gender === 'M' ? 1500 : 1300;
     const floorApplied = targetCal !== null && targetCal < CALORIE_FLOOR;
     const displayTargetCal = floorApplied ? CALORIE_FLOOR : targetCal;
     if (floorApplied) {
-      reason = (reason || '') + ` Plan ajustat la minimul de siguranță de ${CALORIE_FLOOR} kcal — sub această valoare riscul de deficit nutritiv e ridicat.`;
+      reason = (reason || '') + ` Plan ajustat la minimul de siguranță de ${CALORIE_FLOOR} kcal.`;
     }
-    return { action, calChange, reason, targetCal: displayTargetCal, currentCal, floorApplied };
-  }, [calcWeightBasedAdjustment]); // depends on calcWeightBasedAdjustment
+    const nutritionReason = [weightReason, hungerReason, stagnationReason].filter(Boolean).join(' ') || reason;
+    const workoutRec = hasWorkoutIssues
+      ? { action: 'adjust', reasons: workoutReasons }
+      : { action: 'ok', reasons: [] };
+    return { action, calChange, reason, nutritionReason, workoutRec, targetCal: displayTargetCal, currentCal, floorApplied, hasWorkoutIssues };
+  }, [calcWeightBasedAdjustment]);
 
   // Memoized AI recommendation result
   const aiRecommendation = useMemo(() => {
@@ -302,18 +354,40 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         
         if (clientEntry) {
           const notesBody = clientEntry.notes.slice('[CLIENT] '.length);
-          const parsed = {};
-          notesBody.split(' | ').forEach(part => {
-            const colonIdx = part.indexOf(': ');
-            if (colonIdx !== -1) parsed[part.slice(0, colonIdx)] = part.slice(colonIdx + 2);
-          });
+          // Split by || to separate nutrition and workout sections
+          const sections = notesBody.split(' || ');
+          const nutritionSection = sections[0] || '';
+          const workoutSection = sections[1] || '';
+
+          const parseSection = (str) => {
+            const parsed = {};
+            str.split(' | ').forEach(part => {
+              const colonIdx = part.indexOf(': ');
+              if (colonIdx !== -1) parsed[part.slice(0, colonIdx).trim()] = part.slice(colonIdx + 2).trim();
+            });
+            return parsed;
+          };
+
+          // Strip "Nutriție -" prefix
+          const nutParsed = parseSection(nutritionSection.replace(/^Nutriție\s*-\s*/i, ''));
+          // Strip "Antrenament -" prefix
+          const wrkParsed = parseSection(workoutSection.replace(/^Antrenament\s*-\s*/i, ''));
+
           setProgressData({
             weight: clientEntry.weight,
             recordedAt: clientEntry.recorded_at,
-            respectare: parsed['Respectare'] || '-',
-            energie: parsed['Energie'] || '-',
-            foame: parsed['Foame'] || '-',
-            mesaj: parsed['Mesaj'] || '',
+            // Nutriție
+            respectare: nutParsed['Respectare'] || '-',
+            energie: nutParsed['Energie'] || '-',
+            foame: nutParsed['Foame'] || '-',
+            mesaj: nutParsed['Mesaj'] || '',
+            // Antrenament
+            workoutAdherence: wrkParsed['Respectare'] || '',
+            workoutDifficulty: wrkParsed['Dificultate'] || '',
+            doms: wrkParsed['DOMS'] || '',
+            pump: wrkParsed['Pump'] || '',
+            generalFatigue: wrkParsed['Oboseala'] || '',
+            workoutNotes: wrkParsed['Note'] || '',
           });
           setNewWeight(String(clientEntry.weight));
           setLastProgressId(clientEntry.id);
@@ -448,14 +522,22 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
 
       // Stochează datele de progres pentru generator
       sessionStorage.setItem('clientProgress', JSON.stringify({
-        currentWeight: String(progressData.weight), // greutatea nouă din progresul clientului
+        currentWeight: String(progressData.weight),
         adherence: progressData.respectare,
         energyLevel: progressData.energie,
         hungerLevel: progressData.foame,
         notes: progressData.mesaj || '',
         weeksNoChange: String(stagnationWeeks),
-        forceRegenerate: true, // Flag pentru a indica că antrenorul vrea explicit regenerare
-        calorieAdjustment: aiRecommendation?.calChange || 0, // ajustare calorică recomandată de AI
+        forceRegenerate: true,
+        calorieAdjustment: aiRecommendation?.calChange || 0,
+        // Câmpuri antrenament
+        workoutAdherence: progressData.workoutAdherence || '',
+        workoutDifficulty: progressData.workoutDifficulty || '',
+        doms: progressData.doms || '',
+        pump: progressData.pump || '',
+        generalFatigue: progressData.generalFatigue || '',
+        workoutNotes: progressData.workoutNotes || '',
+        hasWorkoutIssues: aiRecommendation?.hasWorkoutIssues || false,
       }));
 
       // Stochează necesarul nutrițional curent pentru diff-ul macro după generare
@@ -499,9 +581,7 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
     }
   };
 
-  const aiRec = progressData && client
-    ? computeAiRecommendation(progressData, stagnationWeeks, client, nutritionalNeeds, weightHistory)
-    : null;
+  const aiRec = aiRecommendation;
 
   const handleBackToPlan = () => {
     if (planId) {
@@ -513,29 +593,13 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
 
   return (
     <div className={styles.progressInlinePage}>
-      {/* Navigare înapoi + butoane acțiuni */}
+      {/* Navigare înapoi */}
       <div className={viewStyles.navRow}>
         <button className={viewStyles.navBackBtn} onClick={handleBackToPlan} aria-label="Înapoi la plan">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
         </button>
-        
-        <div className={viewStyles.planTabsToggle}>
-          <button
-            className={`${viewStyles.planTab} ${viewStyles.planTabActive}`}
-            onClick={handleBackToPlan}
-          >
-            Plan alimentar
-          </button>
-          <button
-            className={viewStyles.planTab}
-            disabled
-            title="Va fi disponibil în curând"
-          >
-            Plan de antrenament
-          </button>
-        </div>
       </div>
 
       {loading && (
@@ -560,45 +624,14 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
 
           {/* Skeleton progress card */}
           <div className={styles.progressInlineCard}>
-            <div className={styles.progressSheetMainGrid}>
-              {/* Feedback column */}
-              <div className={styles.progressSheetSection}>
-                <div className={viewStyles.shimmer} style={{ width: '100px', height: '12px', borderRadius: '4px', marginBottom: '16px' }} />
-                <div className={styles.progressSheetColumn}>
-                  {[1, 2, 3, 4].map(i => (
-                    <div key={i} className={styles.progressSheetKv} style={{ opacity: 0.6 }}>
-                      <div className={viewStyles.shimmer} style={{ width: '120px', height: '11px', borderRadius: '3px', marginBottom: '6px' }} />
-                      <div className={viewStyles.shimmer} style={{ width: '80px', height: '16px', borderRadius: '4px' }} />
-                    </div>
-                  ))}
+            <div className={styles.progressMetricsGrid}>
+              {[1,2,3,4,5,6,7,8].map(i => (
+                <div key={i} className={styles.progressMetricChip} style={{ opacity: 0.5 }}>
+                  <div className={viewStyles.shimmer} style={{ width: '70px', height: '10px', borderRadius: '4px', marginBottom: '5px' }} />
+                  <div className={viewStyles.shimmer} style={{ width: '50px', height: '14px', borderRadius: '4px' }} />
                 </div>
-              </div>
-
-              {/* History column */}
-              <div className={styles.progressSheetSection}>
-                <div className={viewStyles.shimmer} style={{ width: '120px', height: '12px', borderRadius: '4px', marginBottom: '16px' }} />
-                <div className={styles.progressSheetHistoryTable} style={{ opacity: 0.6 }}>
-                  {[1, 2, 3, 4, 5].map(i => (
-                    <div key={i} className={styles.progressSheetHistoryRow}>
-                      <div className={viewStyles.shimmer} style={{ width: '70px', height: '13px', borderRadius: '4px' }} />
-                      <div className={viewStyles.shimmer} style={{ width: '50px', height: '15px', borderRadius: '4px' }} />
-                      <div className={viewStyles.shimmer} style={{ width: '60px', height: '13px', borderRadius: '4px' }} />
-                    </div>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
-
-            {/* Skeleton AI section */}
-            <div className={styles.progressSheetAiRow} style={{ opacity: 0.6 }}>
-              <div className={viewStyles.shimmer} style={{ width: '140px', height: '12px', borderRadius: '4px', marginBottom: '12px' }} />
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div className={viewStyles.shimmer} style={{ width: '48%', height: '80px', borderRadius: '12px' }} />
-                <div className={viewStyles.shimmer} style={{ width: '48%', height: '80px', borderRadius: '12px' }} />
-              </div>
-            </div>
-
-            {/* Skeleton footer */}
             <div className={styles.progressSheetFooter} style={{ opacity: 0.6 }}>
               <div className={viewStyles.shimmer} style={{ width: '100px', height: '38px', borderRadius: '8px' }} />
               <div className={viewStyles.shimmer} style={{ width: '140px', height: '38px', borderRadius: '8px' }} />
@@ -611,14 +644,14 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         <div className={styles.progressInlineCard}>
           <div className={styles.formError} style={{ margin: '20px' }}>{error}</div>
           <div className={styles.progressSheetFooter}>
-            <button className={styles.backBtnAlt} onClick={() => onBack()}>Înapoila clienți</button>
+            <button className={styles.backBtnAlt} onClick={() => onBack()}>Înapoi la clienți</button>
           </div>
         </div>
       )}
 
       {!loading && !error && client && (
         <>
-          {/* Header client cu date complete */}
+          {/* Header client */}
           <div className={mealPlanStyles.clientHeader}>
             <div className={mealPlanStyles.clientHeaderLeft}>
               <div>
@@ -655,6 +688,18 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
                   <span className={mealPlanStyles.clientStatLabel}>activitate</span>
                 </div>
               )}
+              {client.training_split && (
+                <div className={mealPlanStyles.clientStat}>
+                  <span className={mealPlanStyles.clientStatValue}>{client.training_split}</span>
+                  <span className={mealPlanStyles.clientStatLabel}>split</span>
+                </div>
+              )}
+              {client.workouts_per_week && (
+                <div className={mealPlanStyles.clientStat}>
+                  <span className={mealPlanStyles.clientStatValue}>{client.workouts_per_week}</span>
+                  <span className={mealPlanStyles.clientStatLabel}>zile/săpt</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -680,59 +725,60 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
               </>
             ) : (
               <>
-                {/* Layout cu 2 coloane: Feedback + Istoric */}
-                <div className={styles.progressSheetMainGrid}>
-                  {/* Coloana stângă: Feedback client */}
-                  <div className={styles.progressSheetSection}>
-                    <p className={styles.progressSheetSectionTitle}>Feedback client</p>
-                    <div className={styles.progressSheetColumn}>
-                      <div className={styles.progressSheetKv}>
-                        <span className={styles.progressSheetKey}>Greutate raportată</span>
-                        <span className={styles.progressSheetVal}>{progressData.weight} kg</span>
-                      </div>
-                      <div className={styles.progressSheetKv}>
-                        <span className={styles.progressSheetKey}>Respectare plan</span>
-                        <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressData.respectare}</span>
-                      </div>
-                      <div className={styles.progressSheetKv}>
-                        <span className={styles.progressSheetKey}>Nivel energie</span>
-                        <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressData.energie}</span>
-                      </div>
-                      <div className={styles.progressSheetKv}>
-                        <span className={styles.progressSheetKey}>Nivel foame</span>
-                        <span className={`${styles.progressSheetVal} ${styles.progressSheetCapitalize}`}>{progressData.foame}</span>
-                      </div>
+                {/* Chip-grid plat cu toate metricile */}
+                <div className={styles.progressMetricsGrid}>
+                  {[
+                    { k: 'Greutate', v: progressData.weight ? `${progressData.weight} kg` : '—' },
+                    { k: 'Plan alimentar', v: progressData.respectare || '—' },
+                    { k: 'Energie', v: progressData.energie || '—' },
+                    { k: 'Foame', v: progressData.foame || '—' },
+                    { k: 'Plan antrenament', v: progressData.workoutAdherence || '—' },
+                    { k: 'Dificultate', v: progressData.workoutDifficulty || '—' },
+                    { k: 'Oboseală', v: progressData.generalFatigue || '—' },
+                    { k: 'Febră musculară', v: progressData.doms || '—' },
+                  ].map(({ k, v }) => (
+                    <div key={k} className={`${styles.progressMetricChip} ${getMetricToneClass(k, v)}`}>
+                      <span className={styles.progressMetricKey}>{k}</span>
+                      <span className={styles.progressMetricVal}>{v}</span>
                     </div>
-                    {progressData.mesaj && (
-                      <div className={styles.progressSheetMessage}>
-                        <span className={styles.progressSheetKey}>Mesaj</span>
-                        <p className={styles.progressSheetMessageText}>{progressData.mesaj}</p>
-                      </div>
-                    )}
+                  ))}
+                </div>
+
+                <div className={styles.progressDetailsGrid}>
+                  {/* Observațiile clientului */}
+                  <div className={styles.progressNotesRow}>
+                    <div className={styles.progressNote}>
+                      <span className={styles.progressNoteLabel}>Observații nutriție</span>
+                      <p className={`${styles.progressNoteText} ${!progressData.mesaj ? styles.progressNoteEmpty : ''}`}>
+                        {progressData.mesaj || 'Clientul nu a adăugat observații pentru alimentație.'}
+                      </p>
+                    </div>
+                    <div className={styles.progressNote}>
+                      <span className={styles.progressNoteLabel}>Observații antrenament</span>
+                      <p className={`${styles.progressNoteText} ${!progressData.workoutNotes ? styles.progressNoteEmpty : ''}`}>
+                        {progressData.workoutNotes || 'Clientul nu a adăugat observații pentru antrenament.'}
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Coloana dreaptă: Istoric greutăți */}
+                  {/* Istoric greutăți */}
                   {weightHistory.length > 0 && (
-                    <div className={styles.progressSheetSection}>
-                      <p className={styles.progressSheetSectionTitle}>
-                        Ultimele {Math.min(5, weightHistory.length)} greutăți
-                      </p>
-                      <div className={styles.progressSheetHistoryTable}>
+                    <div className={styles.progressWeightBand}>
+                      <span className={styles.progressWeightBandLabel}>Ultimele {Math.min(weightHistory.length, 5)} greutăți</span>
+                      <div className={styles.progressWeightBandEntries}>
                         {weightHistory.slice(0, 5).map((entry, idx, arr) => {
                           const diff = idx < arr.length - 1
                             ? (entry.weight - arr[idx + 1].weight).toFixed(1)
                             : null;
-                          const isLatest = idx === 0;
                           return (
-                            <div key={entry.id || idx} className={`${styles.progressSheetHistoryRow} ${isLatest ? styles.progressSheetHistoryRowLatest : ''}`}>
-                              <span className={styles.progressSheetHistoryDate}>
+                            <div key={entry.id || idx} className={styles.progressWeightEntry}>
+                              <span className={styles.progressWeightDate}>
                                 {new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
-                                {isLatest && <span className={styles.latestLabel}> • Acum</span>}
                               </span>
-                              <span className={styles.progressSheetHistoryWeight}>{entry.weight} kg</span>
+                              <span className={styles.progressWeightVal}>{entry.weight} kg</span>
                               {diff !== null && (
                                 <span className={parseFloat(diff) < 0 ? styles.progressSheetDiffDown : parseFloat(diff) > 0 ? styles.progressSheetDiffUp : styles.progressSheetDiffNeutral}>
-                                  {parseFloat(diff) > 0 ? '+' : ''}{diff} kg
+                                  {parseFloat(diff) > 0 ? '+' : ''}{diff}
                                 </span>
                               )}
                             </div>
@@ -743,48 +789,29 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
                   )}
                 </div>
 
-                {/* Recomandare AI - jos de tot (ascunsă după ce s-a generat plan) */}
+                {/* Recomandare alimentară */}
                 {aiRec && !planContinued && (
-                  <div className={aiRec.action === 'regenerate' ? styles.progressSheetAiRegen : styles.progressSheetAiContinue}>
-                    <div className={styles.progressSheetAiTop}>
-                      <span className={styles.progressSheetAiIcon}>
-                        {aiRec.action === 'regenerate' ? (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="23 4 23 10 17 10"/>
-                            <polyline points="1 20 1 14 7 14"/>
-                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
-                          </svg>
-                        ) : (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12"/>
-                          </svg>
-                        )}
-                      </span>
-                      <div style={{ flex: 1 }}>
-                        <p className={styles.progressSheetAiLabel}>
-                          {aiRec.action === 'regenerate' ? 'Recomandare: Generează plan nou' : 'Recomandare: Continuă planul actual'}
-                        </p>
-                        <p className={styles.progressSheetAiReason}>{aiRec.reason}</p>
-                        {aiRec.action === 'regenerate' && aiRec.calChange !== 0 && (
-                          <div className={styles.progressSheetAiCalRow}>
-                            {aiRec.currentCal && (
-                              <><span className={styles.progressSheetAiCalOld}>{aiRec.currentCal} kcal</span>
-                              <span className={styles.progressSheetAiArrow}>→</span></>
-                            )}
-                            {aiRec.targetCal && (
-                              <span className={styles.progressSheetAiCalNew}>{aiRec.targetCal} kcal</span>
-                            )}
-                            <span className={aiRec.calChange < 0 ? styles.progressSheetAiCalDiffDown : styles.progressSheetAiCalDiffUp}>
-                              {aiRec.calChange > 0 ? '+' : ''}{aiRec.calChange}
-                            </span>
-                          </div>
-                        )}
-                      </div>
+                  <div className={styles.progressAiRow}>
+                    <div className={styles.progressAiBlock}>
+                      <p className={styles.progressAiTag}>Plan alimentar</p>
+                      <p className={styles.progressAiAction}>
+                        {aiRec.action === 'regenerate' ? 'Generează plan nou' : 'Continuă planul actual'}
+                      </p>
+                      <p className={styles.progressAiReason}>{aiRec.nutritionReason}</p>
+                      {aiRec.action === 'regenerate' && aiRec.calChange !== 0 && aiRec.targetCal && (
+                        <div className={styles.progressAiCalRow}>
+                          {aiRec.currentCal && <span className={styles.progressAiCalOld}>{aiRec.currentCal} kcal →</span>}
+                          <span className={styles.progressAiCalNew}>{aiRec.targetCal} kcal</span>
+                          <span className={aiRec.calChange < 0 ? styles.progressSheetDiffDown : styles.progressSheetDiffUp}>
+                            {aiRec.calChange > 0 ? '+' : ''}{aiRec.calChange}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
 
-                {error && <div className={styles.formError} style={{ margin: '0 32px 16px' }}>{error}</div>}
+                {error && <div className={styles.formError} style={{ margin: '0 20px 12px' }}>{error}</div>}
 
                 <div className={styles.progressSheetFooter}>
                   {planContinued ? (

@@ -202,6 +202,46 @@
   gap: 8px;
 }
 
+/* ── Password label row (label + forgot link) ─────────────── */
+.passwordLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.passwordLabelRow label {
+  margin-bottom: 0;
+}
+.forgotLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  transition: color 0.15s;
+  letter-spacing: -0.1px;
+}
+.forgotLink:hover {
+  color: #0a0a0a;
+}
+.forgotBackBtn {
+  display: block;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.forgotBackBtn:hover {
+  color: #0a0a0a;
+}
+
 .submitBtn:hover:not(:disabled) {
   background: #1a1a1a;
   box-shadow: 0 4px 18px rgba(0,0,0,0.18);

@@ -1,0 +1,78 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg-primary);
+}
+
+.content {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.error {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-sm, 8px);
+  padding: 1rem 1.25rem;
+  color: #ef4444;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* ── Skeleton ── */
+.skeletonWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+.shimmer {
+  background: linear-gradient(90deg, var(--bg-secondary) 25%, var(--bg-tertiary, rgba(0,0,0,0.06)) 50%, var(--bg-secondary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 6px;
+}
+
+.skeletonClientHeader {
+  display: flex;
+  justify-content: space-between;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md, 12px);
+  padding: 1.25rem 1.5rem;
+  gap: 1rem;
+}
+
+.skeletonNameBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.skeletonName  { width: 160px; height: 20px; }
+.skeletonSub   { width: 100px; height: 13px; }
+
+.skeletonStats {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.skeletonStat { width: 52px; height: 42px; }
+
+.skeletonTabsRow {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.skeletonTab  { width: 56px; height: 52px; }
+
+.skeletonCard { width: 100%; height: 200px; border-radius: var(--radius-md, 12px); }
+
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

@@ -10,12 +10,16 @@ import styles from './clients.module.css';
 
 function ClientsContent() {
   const router = useRouter();
+  const legacyRoutesAllowed = FEATURES.ALLOW_LEGACY_ROUTES;
 
-  // Dacă legacy routes nu sunt permise, redirecționează imediat
-  if (!FEATURES.ALLOW_LEGACY_ROUTES) {
-    useEffect(() => {
+  useEffect(() => {
+    // Dacă legacy routes nu sunt permise, redirecționează imediat
+    if (!legacyRoutesAllowed) {
       router.replace(getDefaultRedirectURL());
-    }, [router]);
+    }
+  }, [legacyRoutesAllowed, router]);
+
+  if (!legacyRoutesAllowed) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
         <div style={{ textAlign: 'center' }}>
@@ -40,12 +44,17 @@ function ClientsContent() {
     router.push(`/generator-plan?clientId=${clientId}`);
   };
 
+  const handleGenerateWorkoutPlan = (clientId) => {
+    router.push(`/generator-antrenament?clientId=${clientId}`);
+  };
+
   return (
     <div className={styles.container}>
       <AppHeader title="Clienti" backHref="/dashboard" />
       <ClientsList 
         onViewPlan={handleViewPlan}
         onGeneratePlan={handleGeneratePlan}
+        onGenerateWorkoutPlan={handleGenerateWorkoutPlan}
       />
     </div>
   );

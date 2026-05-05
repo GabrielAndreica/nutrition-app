@@ -170,10 +170,10 @@ params }) {
     const { data: emailData, error: sendError } = await resend.emails.send({
       from: 'mail@gabrielandreica.com',
       to: email.toLowerCase(),
-      subject: 'Activează-ți contul NutriApp',
+      subject: 'Activează-ți contul trevano',
       html: `
         <h2>Bine ai venit!</h2>
-        <p>Antrenorul tău te-a invitat să creezi un cont pe NutriApp.</p>
+        <p>Antrenorul tău te-a invitat să creezi un cont pe trevano.</p>
         <p><a href="${activationLink}" style="background:#b7ff00;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:700;">Activează contul</a></p>
         <p style="color:#666;font-size:13px;">Linkul expiră în 7 zile.</p>
       `,

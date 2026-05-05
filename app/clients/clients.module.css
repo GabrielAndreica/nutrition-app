@@ -12,15 +12,43 @@
 .content {
   flex: 1;
   width: 100%;
-  padding: 40px 24px 64px;
+  padding: 32px 24px 56px;
+}
+
+.stickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #ffffff;
+  padding-top: 20px;
+  padding-bottom: 12px;
+}
+
+.stickyHeader::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: linear-gradient(to bottom, #ffffff, transparent);
+  pointer-events: none;
+}
+
+.listTitle {
+  margin: 0 0 18px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
 }
 
 /* ─── Toolbar ─────────────────────────────────────────────── */
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 13px;
-  margin-bottom: 34px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .searchWrap {
@@ -41,10 +69,10 @@
 
 .searchInput {
   width: 100%;
-  padding: 8px 34px 8px 36px;
-  border: 1.5px solid var(--gray-200);
-  border-radius: 13px;
-  font-size: 14px;
+  padding: 7px 30px 7px 34px;
+  border: 1px solid #e5e5ea;
+  border-radius: 10px;
+  font-size: 13.5px;
   background: #fff;
   color: var(--text-primary);
   outline: none;
@@ -55,7 +83,7 @@
 
 .searchInput:focus {
   border-color: #b7ff00;
-  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.15);
 }
 
 .searchInput::placeholder { color: var(--gray-400); }
@@ -88,27 +116,25 @@
 .addBtn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 21px;
-  background: #0a0a0a;
-  color: #b7ff00;
+  gap: 6px;
+  padding: 7px 14px;
+  background: #f5f5f7;
+  color: #1d1d1f;
   border: none;
-  border-radius: 13px;
+  border-radius: 10px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background 0.18s, transform 0.15s, box-shadow 0.18s;
+  transition: background 0.15s;
   letter-spacing: -0.1px;
   font-family: inherit;
 }
 .addBtn:hover {
-  background: #1a1a1a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  background: #e8e8ed;
 }
-.addBtn:active { transform: translateY(0); box-shadow: none; }
+.addBtn:active { background: #d1d1d6; }
 
 /* ─── Add client page ─────────────────────────────────────── */
 /*
@@ -122,11 +148,16 @@
   padding: 21px 0 55px;   /* 34+21 */
 }
 
+.addPageShell {
+  width: 100%;
+  margin: 0 auto;
+}
+
 .addPageNav {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 28px;
+  margin-bottom: 18px;
 }
 
 .addPageTitle {
@@ -137,11 +168,59 @@
 }
 
 /* 3 coloane în raport 1 : φ : 1 */
+.addWizardHeader {
+  margin: 0 auto 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.addWizardMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 13px;
+}
+
+.addWizardStep {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.addWizardHint {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.addWizardProgress {
+  height: 8px;
+  border-radius: 999px;
+  background: #eceff3;
+  overflow: hidden;
+}
+
+.addWizardProgress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #b7ff00;
+  transition: width 0.2s ease;
+}
+
 .addPageForm {
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.addStepTriple {
   display: grid;
-  grid-template-columns: 1fr 1.618fr 1fr;
-  gap: 20px;
-  align-items: stretch;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
 }
 
 /* ── Secțiune ── */
@@ -149,10 +228,11 @@
   background: #fff;
   border: 1px solid #e5e7eb;
   border-radius: 21px;        /* φ³ ≈ 21 */
-  padding: 21px;
+  padding: 17px;
   display: flex;
   flex-direction: column;
-  gap: 13px;                  /* φ² ≈ 13 */
+  gap: 10px;
+  min-height: 0;
   box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
 }
 
@@ -188,6 +268,11 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
+}
+
+.addFieldStretch {
+  flex: 1;
+  min-height: 0;
 }
 
 .addField label {
@@ -296,7 +381,9 @@
   cursor: pointer;
   transition: background 0.15s, color 0.15s, box-shadow 0.15s;
   font-family: inherit;
-  white-space: nowrap;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
   letter-spacing: -0.1px;
 }
 .segBtn:hover:not(.segOn) { color: #374151; }
@@ -307,102 +394,37 @@
   box-shadow: 0 1px 4px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
 }
 
-/* ── Goal cards — full width stivuite ── */
-.goalGrid {
-  display: flex;
+/* ── Segmented layout helpers ── */
+.segColumn {
   flex-direction: column;
-  gap: 8px;
 }
 
-.goalCard {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 13px 16px;         /* 13 φ-spacing */
-  background: #fafafa;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 13px;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-  font-family: inherit;
-  text-align: left;
-  width: 100%;
-}
-.goalCard:hover {
-  border-color: #d1d5db;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
-.goalOn {
-  border-color: #0a0a0a !important;
-  background: #0a0a0a !important;
-  box-shadow: 0 4px 13px rgba(0,0,0,0.18) !important;
+.segColumn .segBtn {
+  flex: unset;
 }
 
-.goalL {
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
-}
-.goalOn .goalL { color: #b7ff00; }
-
-.goalSub {
-  font-size: 11.5px;
-  color: #9ca3af;
-  font-weight: 500;
-}
-.goalOn .goalSub { color: rgba(183,255,0,0.5); }
-
-/* ── Activity cards 2×2 ── */
-.actGrid {
+.segWrapTwo {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 4px;
 }
 
-.actCard {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  padding: 13px;              /* 13 φ-spacing */
-  background: #fafafa;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 13px;
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
-  font-family: inherit;
-}
-.actCard:hover {
-  border-color: #d1d5db;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-}
-.actOn {
-  border-color: #0a0a0a !important;
-  background: #0a0a0a !important;
-  box-shadow: 0 4px 13px rgba(0,0,0,0.18) !important;
+.splitSeg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
 }
 
-.actL {
-  font-size: 13px;
-  font-weight: 700;
-  color: #111827;
+.splitSeg .segBtn {
+  white-space: normal;
+  min-width: 0;
 }
-.actOn .actL { color: #b7ff00; }
-
-.actSub {
-  font-size: 12px;
-  color: #4b5563;
-  font-weight: 500;
-}
-.actOn .actSub { color: rgba(183,255,0,0.85); }
 
 /* ── Footer ── */
 .addFooter {
-  grid-column: span 3;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   gap: 13px;
   padding-top: 8px;
 }
@@ -411,7 +433,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 13px 34px;         /* 13 vertical, 34 horizontal — φ ratio */
+  padding: 13px 34px;
   background: #0a0a0a;
   color: #b7ff00;
   border: none;
@@ -426,25 +448,57 @@
 .saveBtn:hover:not(:disabled) {
   background: #1a1a1a;
   transform: translateY(-1px);
-  box-shadow: 0 8px 21px rgba(0,0,0,0.22);   /* 21 φ-spacing */
+  box-shadow: 0 8px 21px rgba(0,0,0,0.18);
+}
+.saveBtn:active:not(:disabled) {
+  background: #0a0a0a;
+  transform: none;
 }
 .saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* ── Responsive ── */
 @media (max-width: 960px) {
+  .addPageShell,
+  .addWizardHeader,
   .addPageForm {
-    grid-template-columns: 1fr 1fr;
+    max-width: 100%;
   }
-  .addSection:nth-child(2) { grid-column: span 2; }
-  .addFooter { grid-column: span 2; }
+
+  .addStepTriple {
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
 }
 
 @media (max-width: 580px) {
-  .addPageForm {
+  .addStepTriple {
     grid-template-columns: 1fr;
   }
-  .addSection:nth-child(2) { grid-column: span 1; }
-  .addFooter { grid-column: span 1; }
+
+  .segWrapTwo {
+    grid-template-columns: 1fr;
+  }
+
+  .splitSeg {
+    grid-template-columns: 1fr;
+  }
+
+  .addWizardMeta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .addFooter {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .addFooter .saveBtn,
+  .addFooter .cancelBtn {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* ─── Add Form Page — CSS vechi, pastrat pentru modal edit ─── */
@@ -550,58 +604,90 @@
 .addBtnEmpty { background: #0a0a0a; color: #b7ff00; border: none; }
 .addBtnEmpty:hover { background: #1a1a1a; transform: translateY(-1px); }
 
-/* ─── Grid ────────────────────────────────────────────────── */
-.clientGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
-  gap: 21px;
-}
-
-/* ─── Card ────────────────────────────────────────────────── */
-.clientCard {
-  position: relative;
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 21px;
-  padding: 21px;
+/* ─── Table ───────────────────────────────────────────────── */
+.clientTable {
   display: flex;
   flex-direction: column;
-  gap: 13px;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
 }
-.clientCard:hover {
-  border-color: #b7ff00;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.07), 0 0 0 4px rgba(183, 255, 0, 0.10);
-  transform: translateY(-2px);
+
+/* ─── Row ─────────────────────────────────────────────────── */
+.clientRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 6px;
+  border-bottom: 1px solid #f2f2f7;
+  transition: background 0.12s;
+  border-radius: 8px;
+}
+.clientRow:last-child {
+  border-bottom: none;
+}
+.clientRow:hover {
+  background: #f5f5f7;
+}
+
+.clientRowInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.clientAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #1d1d1f;
+  color: #f5f5f7;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0;
+  user-select: none;
+}
+
+.clientRowMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.clientRowActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
 }
 
 /* ─── Delete icon button ──────────────────────────────────── */
 .deleteIconBtn {
-  position: absolute;
-  top: 13px;
-  right: 13px;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  border-radius: 8px;
-  color: rgba(0, 0, 0, 0.3);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: #c7c7cc;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
 }
 .deleteIconBtn:hover {
-  color: #ff4444;
-  background: rgba(255, 68, 68, 0.08);
-  border-color: rgba(255, 68, 68, 0.2);
-  transform: scale(1.08);
+  color: #ff3b30;
+  background: rgba(255, 59, 48, 0.07);
 }
 .deleteIconBtn svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 
 /* ─── Card header ─────────────────────────────────────────── */
@@ -615,19 +701,20 @@
 }
 
 .clientName {
-  margin: 0 0 5px;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.5px;
-  line-height: 1.2;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d1d1f;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
 }
 
 .badgeGroup {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
-  margin-top: 5px;
 }
 
 .accountBadge {
@@ -786,111 +873,93 @@
 }
 
 .editBtn {
-  flex: 1;
-  padding: 8px 14px;
+  padding: 5px 11px;
   font-size: 12.5px;
   font-weight: 500;
-  border-radius: 8px;
+  border-radius: 7px;
   cursor: pointer;
-  transition: all 0.15s;
-  background: var(--gray-100);
-  border: 1.5px solid transparent;
-  color: var(--text-secondary);
+  transition: background 0.12s;
+  background: transparent;
+  border: none;
+  color: #6e6e73;
   white-space: nowrap;
   font-family: inherit;
-  letter-spacing: 0.1px;
 }
 .editBtn:hover {
-  background: var(--gray-200);
-  color: var(--text-primary);
+  background: #f5f5f7;
+  color: #1d1d1f;
 }
 
 .inviteBtn {
-  flex: 1;
-  padding: 8px 14px;
+  padding: 5px 11px;
   background: transparent;
-  border: 1.5px solid rgba(183, 255, 0, 0.4);
-  color: #2d4a00;
-  border-radius: 8px;
+  border: none;
+  color: #6e6e73;
+  border-radius: 7px;
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.12s;
   font-family: inherit;
-  letter-spacing: 0.1px;
   white-space: nowrap;
 }
 .inviteBtn:hover {
-  background: rgba(183, 255, 0, 0.12);
-  border-color: rgba(183, 255, 0, 0.6);
-  color: #1a2e00;
-  transform: translateY(-1px);
+  background: #f5f5f7;
+  color: #1d1d1f;
 }
 
 .inviteBtnPending {
-  flex: 1;
-  padding: 8px 14px;
-  background: rgba(255, 159, 28, 0.08);
-  border: 1.5px solid rgba(255, 159, 28, 0.4);
-  color: #8b4513;
-  border-radius: 8px;
+  padding: 5px 11px;
+  background: transparent;
+  border: none;
+  color: #bf6a02;
+  border-radius: 7px;
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: background 0.12s;
   font-family: inherit;
-  letter-spacing: 0.1px;
   white-space: nowrap;
 }
 .inviteBtnPending:hover {
-  background: rgba(255, 159, 28, 0.15);
-  border-color: rgba(255, 159, 28, 0.6);
-  color: #6b3410;
-  transform: translateY(-1px);
+  background: rgba(255, 159, 28, 0.08);
 }
 
 .generateBtn,
 .viewPlanBtn {
-  width: 100%;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 700;
+  gap: 5px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
-  letter-spacing: -0.1px;
-  transition: all 0.15s;
+  transition: background 0.12s, box-shadow 0.12s;
   font-family: inherit;
-}
-
-.generateBtn {
-  background: #0a0a0a;
-  color: #b7ff00;
   border: none;
+  letter-spacing: -0.1px;
+}
+.generateBtn {
+  background: #f2f2f7;
+  color: #1d1d1f;
 }
 .generateBtn:hover {
-  background: #1a1a1a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  background: #e5e5ea;
 }
-
+.generateBtn:active {
+  background: #d8d8dc;
+}
 .viewPlanBtn {
   background: #0a0a0a;
   color: #b7ff00;
-  border: none;
 }
 .viewPlanBtn:hover {
   background: #1a1a1a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 .viewPlanBtn:active {
-  transform: translateY(0);
-  box-shadow: none;
+  background: #0a0a0a;
 }
 
 /* ─── Skeleton shimmer ────────────────────────────────────── */
@@ -899,33 +968,28 @@
   100% { background-position:  400px 0; }
 }
 
-.skeletonCard {
-  background: #fff;
-  border: 1.5px solid var(--gray-200);
-  border-radius: 16px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.skeletonHeader {
+.skeletonRow {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.skeletonAvatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
+.skeletonRowInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.skeletonRowActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   flex-shrink: 0;
-  background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
-  background-size: 400px 100%;
-  animation: shimmer 1.4s ease infinite;
 }
-
-.skeletonLines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
 
 .skeletonLine {
   height: 12px;
@@ -934,38 +998,27 @@
   background-size: 400px 100%;
   animation: shimmer 1.4s ease infinite;
 }
-.skeletonLineLg { width: 55%; }
-.skeletonLineMd { width: 78%; }
-
-.skeletonTags { display: flex; gap: 6px; }
+.skeletonLineLg { width: 120px; }
 
 .skeletonTag {
-  height: 22px;
-  width: 68px;
-  border-radius: 99px;
+  height: 20px;
+  width: 52px;
+  border-radius: 6px;
   background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
   background-size: 400px 100%;
   animation: shimmer 1.4s ease infinite;
 }
-.skeletonTagGoal {
-  width: 104px;
-  background: linear-gradient(90deg, rgba(183,255,0,0.12) 25%, rgba(183,255,0,0.06) 50%, rgba(183,255,0,0.12) 75%);
-  background-size: 400px 100%;
-  animation: shimmer 1.4s ease infinite;
-}
-
-.skeletonFooter { display: flex; gap: 8px; }
 
 .skeletonBtn {
-  height: 34px;
-  width: 84px;
+  height: 31px;
+  width: 78px;
   border-radius: 8px;
   background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
   background-size: 400px 100%;
   animation: shimmer 1.4s ease infinite;
 }
 .skeletonBtnPrimary {
-  flex: 1;
+  width: 120px;
   opacity: 0.65;
   background: linear-gradient(90deg, #1c1c1c 25%, #2a2a2a 50%, #1c1c1c 75%);
   background-size: 400px 100%;
@@ -1196,7 +1249,10 @@
 }
 .saveBtn:hover:not(:disabled) {
   background: #1a1a1a;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.saveBtn:active:not(:disabled) {
+  background: #0a0a0a;
 }
 .saveBtn:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -1441,6 +1497,242 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
+/* ─── Chip-grid metrici ──────────────────────────────────── */
+.progressMetricsGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 18px 20px 14px;
+  align-items: stretch;
+}
+
+.progressMetricChip {
+  flex: 1 1 128px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 7px 11px;
+  background: #f5f5f7;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  min-width: 90px;
+}
+
+.progressMetricChipGood {
+  background: #effaf3;
+  border-color: #b9e7c8;
+}
+
+.progressMetricChipWarning {
+  background: #fff8e6;
+  border-color: #f1d58b;
+}
+
+.progressMetricChipBad {
+  background: #fff0f0;
+  border-color: #f1b7b7;
+}
+
+.progressMetricChipNeutral {
+  background: #f5f5f7;
+  border-color: transparent;
+}
+
+.progressMetricChipGood .progressMetricKey,
+.progressMetricChipGood .progressMetricVal {
+  color: #176b35;
+}
+
+.progressMetricChipWarning .progressMetricKey,
+.progressMetricChipWarning .progressMetricVal {
+  color: #8a5c00;
+}
+
+.progressMetricChipBad .progressMetricKey,
+.progressMetricChipBad .progressMetricVal {
+  color: #a42626;
+}
+
+.progressMetricKey {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.progressMetricVal {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d1d1f;
+  text-transform: capitalize;
+  letter-spacing: -0.1px;
+}
+
+.progressDetailsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 12px;
+  padding: 0 20px 16px;
+  align-items: stretch;
+}
+
+/* ─── Note ────────────────────────────────────────────────── */
+.progressNotesRow {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.progressNote {
+  flex: 1;
+  background: #f9f9fb;
+  border: 1px solid #e8e8ed;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressNoteLabel {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.progressNoteText {
+  margin: 0;
+  font-size: 12px;
+  color: #3c3c43;
+  line-height: 1.45;
+}
+
+.progressNoteEmpty {
+  color: #9a9aa0;
+  font-style: italic;
+}
+
+/* ─── Istoric greutăți ───────────────────────────────────── */
+.progressWeightBand {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fbfbfd;
+  border: 1px solid #e8e8ed;
+  border-radius: 10px;
+}
+
+.progressWeightBandLabel {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.progressWeightBandEntries {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+}
+
+.progressWeightEntry {
+  display: grid;
+  grid-template-columns: 74px 76px minmax(58px, auto);
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  background: #f5f5f7;
+  border-radius: 7px;
+  font-size: 12px;
+  color: #3c3c43;
+}
+
+.progressWeightDate {
+  font-size: 11px;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.progressWeightVal {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: inherit;
+}
+
+/* ─── Recomandare AI ──────────────────────────────────────── */
+.progressAiRow {
+  display: block;
+  border-top: 1px solid #1a1a1a;
+}
+
+.progressAiBlock {
+  padding: 18px 22px;
+  background: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressAiTag {
+  margin: 0;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #4a4a4a;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.progressAiAction {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #b7ff00;
+  letter-spacing: -0.2px;
+}
+
+.progressAiReason {
+  margin: 0;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.45;
+}
+
+.progressAiCalRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.progressAiCalOld {
+  font-size: 12px;
+  color: #666;
+  text-decoration: line-through;
+}
+
+.progressAiCalNew {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #b7ff00;
+}
+
+.progressAiReasonList {
+  margin: 2px 0 0;
+  padding: 0 0 0 14px;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.6;
+}
+
 /* ─── Progress fisă modal (kept for reference) ──────────── */
 .progressSheetModal {
   background: #fff;
@@ -1482,13 +1774,13 @@
 
 .progressSheetMainGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 0;
   border-bottom: 1px solid #f5f5f7;
 }
 
 .progressSheetSection {
-  padding: 18px 24px;
+  padding: 14px 16px;
   border-bottom: 1px solid #f5f5f7;
 }
 .progressSheetSection:last-child { border-bottom: none; }
@@ -1503,7 +1795,7 @@
 }
 
 .progressSheetSectionTitle {
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   font-size: 10px;
   font-weight: 700;
   color: #86868b;
@@ -1514,22 +1806,22 @@
 .progressSheetRow {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px 16px;
+  gap: 6px 8px;
 }
 
 .progressSheetColumn {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .progressSheetKv {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 12px 14px;
+  gap: 2px;
+  padding: 8px 10px;
   background: #fff;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #e8e8ed;
   transition: all 0.15s ease;
 }
@@ -1541,7 +1833,7 @@
 }
 
 .progressSheetKey {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 600;
   color: #86868b;
   text-transform: uppercase;
@@ -1549,30 +1841,30 @@
 }
 
 .progressSheetVal {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: #1d1d1f;
-  letter-spacing: -0.3px;
+  letter-spacing: -0.2px;
 }
 
 .progressSheetCapitalize { text-transform: capitalize; }
 
 .progressSheetMessage {
-  margin-top: 12px;
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 14px;
+  gap: 4px;
+  padding: 10px;
   background: #fff;
-  border-radius: 10px;
+  border-radius: 8px;
   border: 1px solid #e8e8ed;
 }
 
 .progressSheetMessageText {
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
   color: #3c3c43;
-  line-height: 1.5;
+  line-height: 1.4;
   font-style: normal;
 }
 
@@ -1590,7 +1882,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 7px 12px;
   border-bottom: 1px solid #f5f5f7;
   transition: background 0.15s ease;
 }
@@ -1608,7 +1900,7 @@
 
 .progressSheetHistoryDate {
   flex: 1;
-  font-size: 12px;
+  font-size: 11px;
   color: #86868b;
   font-weight: 500;
 }
@@ -1631,7 +1923,7 @@
 }
 
 .progressSheetHistoryWeight {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #1d1d1f;
   letter-spacing: -0.2px;
@@ -1683,21 +1975,30 @@
   text-transform: uppercase;
 }
 
+/* AI recommendation grid: two columns */
+.progressSheetAiGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid #1a1a1a;
+}
+
 /* AI recommendation box */
 .progressSheetAiContinue {
   margin: 0;
-  padding: 24px 28px;
+  padding: 20px 22px;
   background: #0a0a0a;
-  border-top: 1px solid #1a1a1a;
-  border-radius: 0;
+  border-right: 1px solid #1a1a1a;
 }
 
 .progressSheetAiRegen {
   margin: 0;
-  padding: 24px 28px;
+  padding: 20px 22px;
   background: #0a0a0a;
-  border-top: 1px solid #1a1a1a;
-  border-radius: 0;
+  border-right: 1px solid #1a1a1a;
+}
+
+.progressSheetAiGrid > *:last-child {
+  border-right: none;
 }
 
 .progressSheetAiTop {
@@ -1733,6 +2034,24 @@
   color: #a0a0a0;
   font-weight: 500;
   line-height: 1.45;
+}
+
+.progressSheetAiSectionTag {
+  margin: 0 0 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #4a4a4a;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.progressSheetAiReasonList {
+  margin: 4px 0 0;
+  padding: 0 0 0 14px;
+  font-size: 11.5px;
+  color: #a0a0a0;
+  font-weight: 500;
+  line-height: 1.6;
 }
 
 .progressSheetAiCalRow {
@@ -1914,6 +2233,7 @@
 .saveBtn:active {
   transform: scale(0.98);
   box-shadow: none;
+  background: #0a0a0a;
 }
 
 .saveBtn:disabled {
@@ -1934,6 +2254,44 @@
   letter-spacing: -0.1px;
   font-family: inherit;
   opacity: 0.7;
+}
+
+/* ─── Client row mobile ──────────────────────────────────── */
+@media (max-width: 600px) {
+  .clientRow {
+    gap: 12px;
+    padding: 12px 4px;
+    align-items: flex-start;
+  }
+  .clientAvatar {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  .clientName {
+    font-size: 13.5px;
+  }
+  .clientRowInfo {
+    flex: 1;
+    min-width: 0;
+  }
+  .clientRowActions {
+    flex-shrink: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+    min-width: 120px;
+  }
+  .inviteBtn,
+  .inviteBtnPending,
+  .viewPlanBtn,
+  .generateBtn {
+    text-align: center;
+    justify-content: center;
+    font-size: 12.5px;
+    padding: 8px 10px;
+  }
 }
 
 /* ─── Responsive ──────────────────────────────────────────── */
@@ -1964,6 +2322,27 @@
   .progressInlineCard {
     margin-top: 12px;
     border-radius: 12px;
+  }
+
+  .progressMetricsGrid {
+    padding: 14px 16px 12px;
+  }
+
+  .progressMetricChip {
+    flex-basis: 118px;
+  }
+
+  .progressDetailsGrid {
+    grid-template-columns: 1fr;
+    padding: 0 16px 14px;
+  }
+
+  .progressNotesRow {
+    flex-direction: column;
+  }
+
+  .progressWeightEntry {
+    grid-template-columns: 74px 76px minmax(58px, auto);
   }
 
   .progressSheetMainGrid {
@@ -2047,9 +2426,19 @@
     min-width: 48px;
   }
 
+  .progressSheetAiGrid {
+    grid-template-columns: 1fr;
+  }
+
   .progressSheetAiContinue,
   .progressSheetAiRegen {
     padding: 18px 20px;
+    border-right: none;
+    border-bottom: 1px solid #1a1a1a;
+  }
+
+  .progressSheetAiGrid > *:last-child {
+    border-bottom: none;
   }
 
   .progressOptimalBanner {
@@ -2212,6 +2601,393 @@
 .planToastClose:hover {
   background: #e8e8ed;
   color: #1d1d1f;
+}
+
+
+/* Zone 1 — Client header */
+.progressZone1 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.progressZ1Left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.progressAvatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #0a0a0a;
+  color: #b7ff00;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: -0.5px;
+}
+
+.progressZ1Info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.progressZ1Name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+}
+
+.progressZ1Sub {
+  margin: 0;
+  font-size: 12.5px;
+  color: #86868b;
+  font-weight: 400;
+}
+
+.progressZ1Stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.progressWeightLine {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.progressWeightLabel {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.progressWeightValues {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.progressWeightInit {
+  font-size: 13px;
+  color: #86868b;
+  font-weight: 500;
+}
+
+.progressWeightArrow {
+  font-size: 13px;
+  color: #86868b;
+}
+
+.progressWeightCurrent {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.2px;
+}
+
+.progressDeltaGood {
+  font-size: 12px;
+  font-weight: 700;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.progressDeltaBad {
+  font-size: 12px;
+  font-weight: 700;
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.progressDeltaNeutral {
+  font-size: 12px;
+  font-weight: 700;
+  color: #86868b;
+  background: #f5f5f7;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.progressWeekDelta {
+  font-size: 11px;
+  color: #86868b;
+  font-weight: 500;
+}
+
+.progressZ1Meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.progressMetaItem {
+  font-size: 11.5px;
+  color: #86868b;
+  font-weight: 500;
+}
+
+.progressStatusBadge {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* Body layout — 2 cols: zone2 (feedback) left, zone3 (recs) right */
+.progressBodyLayout {
+  display: grid;
+  grid-template-columns: 1fr 1.45fr;
+  gap: 14px;
+  align-items: start;
+}
+
+/* Zone 2 — feedback cards stacked */
+.progressZone2 {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.progressFeedbackCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.progressCardTitle {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d1d1f;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: -0.1px;
+}
+
+.progressCardIcon {
+  font-size: 14px;
+}
+
+.progressKvGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+/* Zone 3 — recommendation cards stacked */
+.progressZone3 {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.progressRecCard {
+  background: #0a0a0a;
+  border: 1px solid #1e1e1e;
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.progressRecTag {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #5a5a5a;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.progressRecStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.progressRecStatusOk {
+  background: rgba(183, 255, 0, 0.1);
+  color: #b7ff00;
+}
+
+.progressRecStatusRegen {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.progressRecReason {
+  margin: 0;
+  font-size: 12.5px;
+  color: #a0a0a0;
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+.progressRecActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.progressPrimaryBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  background: #b7ff00;
+  color: #0a0a0a;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.1px;
+}
+
+.progressPrimaryBtn:hover {
+  background: #c8ff2d;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(183, 255, 0, 0.3);
+}
+
+.progressPrimaryBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.progressSecondaryBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.progressSecondaryBtn:hover {
+  background: #222;
+  border-color: #3a3a3a;
+}
+
+.progressSecondaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.progressOutlineBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: transparent;
+  color: #555;
+  border: 1px solid #222;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.progressOutlineBtn:hover {
+  border-color: #444;
+  color: #a0a0a0;
+}
+
+.progressOutlineBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .progressBodyLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .progressZone1 {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .progressZ1Stats {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .progressWeightLine {
+    align-items: flex-start;
+  }
+
+  .progressZ1Meta {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .progressZone1 {
+    padding: 12px 14px;
+  }
+
+  .progressKvGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+
+  .progressFeedbackCard,
+  .progressRecCard {
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
 }
 
 .planToastBody {

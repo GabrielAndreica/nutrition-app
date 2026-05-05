@@ -136,7 +136,7 @@ export default function ActivatePage({ params }) {
         <div className={styles.leftPanel}>
           <div className={styles.brand}>
             <span className={styles.logoMark}>N</span>
-            <span className={styles.logoText}>NutriAI</span>
+            <span className={styles.logoText}>trevano</span>
           </div>
           <div className={styles.tagline}>
             <h1 className={styles.taglineHeading}>
@@ -167,7 +167,7 @@ export default function ActivatePage({ params }) {
         <div className={styles.leftPanel}>
           <div className={styles.brand}>
             <span className={styles.logoMark}>N</span>
-            <span className={styles.logoText}>NutriAI</span>
+            <span className={styles.logoText}>trevano</span>
           </div>
           <div className={styles.tagline}>
             <h1 className={styles.taglineHeading}>
@@ -203,7 +203,7 @@ export default function ActivatePage({ params }) {
       <div className={styles.leftPanel}>
         <div className={styles.brand}>
           <span className={styles.logoMark}>N</span>
-          <span className={styles.logoText}>NutriAI</span>
+          <span className={styles.logoText}>trevano</span>
         </div>
         <div className={styles.tagline}>
           <h1 className={styles.taglineHeading}>

@@ -16,7 +16,7 @@
 
 /* ─── Sidebar ──────────────────────────────────────────── */
 .sidebar {
-  width: 213px;
+  width: 260px;
   flex-shrink: 0;
   background: #0f0f0f;
   padding: 13px 8px 21px;
@@ -35,25 +35,9 @@
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
-.sidebarLogoMark {
-  width: 21px;
-  height: 21px;
-  background: #b7ff00;
-  border-radius: 5px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 900;
-  color: #0a0a0a;
+.sidebarLogo img {
   flex-shrink: 0;
-}
-
-.sidebarLogoText {
-  font-size: 13px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
-  letter-spacing: -0.3px;
+  display: block;
 }
 
 .sidebarSection {
@@ -440,6 +424,197 @@
   color: #ff6b6b;
 }
 
+.sidebarProfileBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.12s ease;
+  text-align: left;
+  margin-bottom: 4px;
+}
+.sidebarProfileBtn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.sidebarProfileAvatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #b7ff00, #7db800);
+  color: #0a0a0a;
+  font-size: 14px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.sidebarProfileInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.sidebarProfileName {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 170px;
+}
+.sidebarProfileSub {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* ─── Profile Modal ─────────────────────────────── */
+.profileModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 24px;
+}
+.profileModal {
+  background: #fff;
+  border-radius: 20px;
+  padding: 32px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
+  animation: modalIn 0.18s ease;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.profileModalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+.profileModalTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0a0a0a;
+  letter-spacing: -0.4px;
+}
+.profileModalClose {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1.5px solid #e8e8e8;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #666;
+  transition: background 0.12s, color 0.12s;
+}
+.profileModalClose:hover {
+  background: #f5f5f5;
+  color: #0a0a0a;
+}
+.profileModalForm {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.profileModalGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.profileModalLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.profileModalInput {
+  width: 100%;
+  padding: 10px 13px;
+  border: 1.5px solid #e8e8e8;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #0a0a0a;
+  background: #fafafa;
+  transition: border-color 0.15s;
+  outline: none;
+  box-sizing: border-box;
+}
+.profileModalInput:focus {
+  border-color: #b7ff00;
+  background: #fff;
+}
+.profileModalDivider {
+  height: 1px;
+  background: #f0f0f0;
+  margin: 4px 0;
+}
+.profileModalSectionLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+.profileModalError {
+  font-size: 13px;
+  color: #e53e3e;
+  background: #fff5f5;
+  border: 1px solid #fed7d7;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0;
+}
+.profileModalSuccess {
+  font-size: 13px;
+  color: #2f855a;
+  background: #f0fff4;
+  border: 1px solid #c6f6d5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 0;
+}
+.profileModalSave {
+  width: 100%;
+  padding: 12px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  margin-top: 4px;
+  letter-spacing: 0.01em;
+}
+.profileModalSave:hover {
+  background: #1a1a1a;
+}
+.profileModalSave:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* ─── Main ─────────────────────────────────────────────── */
 .main {
   flex: 1;
@@ -451,9 +626,56 @@
     #ffffff;
 }
 
+/* ─── Plan Tabs ───────────────────────────────────── */
+.planTabs {
+  display: inline-flex;
+  align-items: center;
+  background: #f5f5f7;
+  border: 1px solid #e8e8ed;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 2px;
+  margin-bottom: 12px;
+}
+.planTab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  color: #86868b;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  min-height: 44px;
+  touch-action: manipulation;
+}
+.planTab:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: #3c3c43;
+}
+.planTabActive {
+  background: #fff;
+  color: #1d1d1f;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+.planTabDot {
+  width: 7px;
+  height: 7px;
+  background: #b7ff00;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
 /* ─── Hero ─────────────────────────────────────────────── */
 .hero {
-  margin-bottom: 34px;
+  margin-bottom: 24px;
 }
 
 .heroHeading {

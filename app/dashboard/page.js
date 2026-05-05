@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
@@ -37,6 +37,15 @@ const InlinePlanGenerator = dynamic(() => import('@/app/components/InlinePlanGen
   )
 });
 
+const InlineWorkoutPlanView = dynamic(() => import('@/app/components/InlineWorkoutPlanView'), {
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingOverlay}>
+      <div className={styles.loadingSpinner} />
+    </div>
+  )
+});
+
 function DashboardContent() {
   const router = useRouter();
   const { logout, user } = useAuth();
@@ -49,14 +58,64 @@ function DashboardContent() {
   const notificationsListRef = useRef(null);
   const notificationsPanelRef = useRef(null);
   const [viewingPlanId, setViewingPlanId] = useState(null);
+  const [viewingWorkoutPlanId, setViewingWorkoutPlanId] = useState(null);
   const [viewingProgressClientId, setViewingProgressClientId] = useState(null);
   const [generatingPlanClientId, setGeneratingPlanClientId] = useState(null);
   const [addingClient, setAddingClient] = useState(false);
+  const [deleteClientId, setDeleteClientId] = useState(null);
+  const [confirmDeleteClientId, setConfirmDeleteClientId] = useState(null);
+  const [deletingFromPlan, setDeletingFromPlan] = useState(false);
+  const [returnPlanId, setReturnPlanId] = useState(null);
+  const [returnWorkoutPlanId, setReturnWorkoutPlanId] = useState(null);
+  const [clientDataVersion, setClientDataVersion] = useState(0);
+  const clientsListRef = useRef(null);
+
+  const handleConfirmDeleteFromPlan = async () => {
+    if (!confirmDeleteClientId) return;
+    setDeletingFromPlan(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/clients/${confirmDeleteClientId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Eroare la stergere');
+      clientsListRef.current?.removeClient(confirmDeleteClientId);
+      setConfirmDeleteClientId(null);
+      setViewingPlanId(null);
+      setViewingWorkoutPlanId(null);
+    } catch (err) {
+      console.error(err);
+      setConfirmDeleteClientId(null);
+    } finally {
+      setDeletingFromPlan(false);
+    }
+  };
+
+  const handleEditClientFromPlan = async (clientId, sourcePlanId, sourceWorkoutPlanId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/clients/${clientId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      const client = data.client || data;
+      if (!client?.id || !clientsListRef.current) return;
+      if (sourcePlanId) setReturnPlanId(sourcePlanId);
+      if (sourceWorkoutPlanId) setReturnWorkoutPlanId(sourceWorkoutPlanId);
+      clientsListRef.current.triggerEditClient(client);
+      setViewingPlanId(null);
+      setViewingWorkoutPlanId(null);
+    } catch (e) {
+      console.error('handleEditClientFromPlan error', e);
+    }
+  };
 
   useEffect(() => {
     // ─── Optimizare: Prefetch routes + preload data cu cache ───────
     router.prefetch('/clients');
     router.prefetch('/generator-plan');
+    router.prefetch('/generator-antrenament');
     
     // Prefetch clienți în fundal cu timeout
     const token = localStorage.getItem('token');
@@ -81,6 +140,53 @@ function DashboardContent() {
   const firstName = user?.name?.split(' ')[0] || user?.name || '';
   const handleLogout = () => { logout(); router.push('/'); };
   const handleNav = (path) => { setSidebarOpen(false); router.push(path); };
+
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: '', email: '', currentPassword: '', newPassword: '' });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
+  const [profileConfirm, setProfileConfirm] = useState(false);
+
+  const openProfile = () => {
+    setProfileForm({ name: user?.name || '', email: user?.email || '', currentPassword: '', newPassword: '' });
+    setProfileError('');
+    setProfileSuccess('');
+    setProfileConfirm(false);
+    setProfileOpen(true);
+    setSidebarOpen(false);
+  };
+
+  const handleProfileSave = async () => {
+    setProfileLoading(true);
+    setProfileError('');
+    setProfileSuccess('');
+    setProfileConfirm(false);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: profileForm.name !== user?.name ? profileForm.name : undefined,
+          email: profileForm.email !== user?.email ? profileForm.email : undefined,
+          currentPassword: profileForm.currentPassword || undefined,
+          newPassword: profileForm.newPassword || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setProfileError(data.error || 'Eroare la salvare.'); return; }
+      const updated = { ...user, ...data.user };
+      localStorage.setItem('user', JSON.stringify(updated));
+      login(updated, token);
+      setProfileSuccess('Datele au fost salvate cu succes!');
+      setProfileForm(f => ({ ...f, currentPassword: '', newPassword: '' }));
+    } catch {
+      setProfileError('Eroare de rețea. Încearcă din nou.');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   const fetchNotificationsRef = useRef(null);
 
@@ -110,6 +216,7 @@ function DashboardContent() {
           if (notif.type === 'client_activated') type = 'client';
           if (notif.type === 'invitation_expired') type = 'warning';
           if (notif.type === 'plan_generated') type = 'plan';
+          if (notif.type === 'new_workout_plan') type = 'workout';
           
           return {
             id: notif.id,
@@ -241,7 +348,17 @@ function DashboardContent() {
       setNotificationsOpen(false);
       setViewingProgressClientId(null);
       setGeneratingPlanClientId(null);
+      setViewingWorkoutPlanId(null);
       setViewingPlanId(notification.planId);
+      if (mainRef.current) mainRef.current.scrollTop = 0;
+    }
+
+    if (notification.type === 'workout' && notification.planId) {
+      setNotificationsOpen(false);
+      setViewingPlanId(null);
+      setViewingProgressClientId(null);
+      setGeneratingPlanClientId(null);
+      setViewingWorkoutPlanId(notification.planId);
       if (mainRef.current) mainRef.current.scrollTop = 0;
     }
   };
@@ -363,6 +480,7 @@ function DashboardContent() {
   }, [notificationsOpen]);
 
   return (
+    <>
     <div className={styles.container}>
       {/* Mobile top bar */}
       <div className={styles.mobileTopbar}>
@@ -374,8 +492,7 @@ function DashboardContent() {
           </svg>
         </button>
         <div className={styles.mobileLogo}>
-          <div className={styles.sidebarLogoMark}>N</div>
-          <span className={styles.sidebarLogoText}>NutriApp</span>
+          <img src="/favicon-patrat-negru.svg" alt="trevano" style={{height:'28px',width:'28px'}} />
         </div>
         <button className={styles.mobileNotificationsBtn} onClick={() => setNotificationsOpen(v => !v)} aria-label="Notificări" data-notification-trigger>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -389,14 +506,81 @@ function DashboardContent() {
       </div>
 
       {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
+
+      {/* Profile Modal */}
+      {profileOpen && (
+        <div className={styles.profileModalOverlay} onClick={() => setProfileOpen(false)}>
+          <div className={styles.profileModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.profileModalHeader}>
+              <h3 className={styles.profileModalTitle}>Profilul meu</h3>
+              <button className={styles.profileModalClose} onClick={() => setProfileOpen(false)} aria-label="Închide">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={e => e.preventDefault()} className={styles.profileModalForm}>
+              <div className={styles.profileModalGroup}>
+                <label className={styles.profileModalLabel}>Nume</label>
+                <input
+                  className={styles.profileModalInput}
+                  type="text"
+                  value={profileForm.name}
+                  onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Numele tău"
+                />
+              </div>
+              <div className={styles.profileModalGroup}>
+                <label className={styles.profileModalLabel}>Email</label>
+                <input
+                  className={styles.profileModalInput}
+                  type="email"
+                  value={profileForm.email}
+                  onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="email@exemplu.com"
+                />
+              </div>
+              <div className={styles.profileModalDivider} />
+              <p className={styles.profileModalSectionLabel}>Schimbă parola (opțional)</p>
+              <div className={styles.profileModalGroup}>
+                <label className={styles.profileModalLabel}>Parola curentă</label>
+                <input
+                  className={styles.profileModalInput}
+                  type="password"
+                  value={profileForm.currentPassword}
+                  onChange={e => setProfileForm(f => ({ ...f, currentPassword: e.target.value }))}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                />
+              </div>
+              <div className={styles.profileModalGroup}>
+                <label className={styles.profileModalLabel}>Parola nouă</label>
+                <input
+                  className={styles.profileModalInput}
+                  type="password"
+                  value={profileForm.newPassword}
+                  onChange={e => setProfileForm(f => ({ ...f, newPassword: e.target.value }))}
+                  placeholder="Minim 8 caractere"
+                  autoComplete="new-password"
+                />
+              </div>
+              {profileError && <p className={styles.profileModalError}>{profileError}</p>}
+              {profileSuccess && <p className={styles.profileModalSuccess}>{profileSuccess}</p>}
+              <button type="button" className={styles.profileModalSave} onClick={handleProfileSave} disabled={profileLoading}>
+                {profileLoading ? 'Se salvează...' : 'Salvează modificările'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
       {notificationsOpen && <div className={styles.notificationsOverlay} onClick={() => setNotificationsOpen(false)} />}
 
       <div className={styles.pageLayout}>
         {/* Sidebar */}
         <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
           <div className={styles.sidebarLogo}>
-            <div className={styles.sidebarLogoMark}>N</div>
-            <span className={styles.sidebarLogoText}>NutriApp</span>
+            <img src="/logo-verde-transparent.svg" alt="trevano" style={{height:'22px',width:'auto'}} />
             <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Închide meniu">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -421,6 +605,15 @@ function DashboardContent() {
           </div>
 
           <div className={styles.sidebarFooter}>
+            <button className={styles.sidebarProfileBtn} onClick={openProfile}>
+              <div className={styles.sidebarProfileAvatar}>
+                {(user?.name || 'U').charAt(0).toUpperCase()}
+              </div>
+              <div className={styles.sidebarProfileInfo}>
+                <span className={styles.sidebarProfileName}>{user?.name || 'Profil'}</span>
+                <span className={styles.sidebarProfileSub}>Editează contul</span>
+              </div>
+            </button>
             <button className={styles.sidebarLogoutBtn} onClick={handleLogout}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -518,39 +711,90 @@ function DashboardContent() {
 
         {/* Main */}
         <main ref={mainRef} className={styles.main}>
-          {!viewingPlanId && !viewingProgressClientId && !generatingPlanClientId && (
-            <>
-              {!addingClient && (
-                <div className={styles.hero}>
-                  <h2 className={styles.heroHeading}>
-                    Bună ziua, <span className={styles.accent}>{firstName}</span>.
-                  </h2>
-                  <p className={styles.heroSub}>
-                    Gestionează clienții și generează planuri alimentare personalizate.
-                  </p>
-                </div>
-              )}
+          {/* ClientsList — mereu montat ca să nu se piardă starea; ascuns când altă vedere e activă */}
+          <div style={{ display: (!viewingPlanId && !viewingWorkoutPlanId && !viewingProgressClientId && !generatingPlanClientId) ? undefined : 'none' }}>
+            {!addingClient && (
+              <div className={styles.hero}>
+                <h2 className={styles.heroHeading}>
+                  Bună ziua, <span className={styles.accent}>{firstName}</span>.
+                </h2>
+                <p className={styles.heroSub}>
+                  Gestionează clienții și generează planuri alimentare sau de antrenament.
+                </p>
+              </div>
+            )}
+            <div className={styles.clientsCard}>
               <ClientsList
+                ref={clientsListRef}
                 noPadding
                 onViewPlan={(planId) => setViewingPlanId(planId)}
                 onViewProgress={(clientId) => setViewingProgressClientId(clientId)}
                 onGeneratePlan={(clientId) => setGeneratingPlanClientId(clientId)}
                 onAddFormChange={(isOpen) => setAddingClient(isOpen)}
+                openDeleteForClientId={deleteClientId}
+                onClientSaved={() => setClientDataVersion(v => v + 1)}
+                onFormClose={() => {
+                  if (returnPlanId) {
+                    setViewingPlanId(returnPlanId);
+                    setReturnPlanId(null);
+                  } else if (returnWorkoutPlanId) {
+                    setViewingWorkoutPlanId(returnWorkoutPlanId);
+                    setReturnWorkoutPlanId(null);
+                  }
+                }}
               />
-            </>
-          )}
-          {viewingPlanId && !viewingProgressClientId && !generatingPlanClientId && (
+            </div>
+          </div>
+          {viewingPlanId && !viewingWorkoutPlanId && !viewingProgressClientId && !generatingPlanClientId && (
+            <div style={{ paddingTop: 12 }}>
             <InlineMealPlanView
               planId={viewingPlanId}
+              clientDataVersion={clientDataVersion}
               scrollContainerRef={mainRef}
               onBack={() => setViewingPlanId(null)}
+              onEditClient={(clientId) => {
+                handleEditClientFromPlan(clientId, viewingPlanId, null);
+              }}
+              onDeleteClient={(clientId) => {
+                setConfirmDeleteClientId(clientId);
+              }}
               onViewProgress={(clientId) => {
                 setViewingPlanId(null);
                 setViewingProgressClientId(clientId);
               }}
+              onViewWorkoutPlan={(workoutPlanId) => {
+                setViewingPlanId(null);
+                setViewingWorkoutPlanId(workoutPlanId);
+              }}
             />
+            </div>
+          )}
+          {viewingWorkoutPlanId && !viewingPlanId && !viewingProgressClientId && !generatingPlanClientId && (
+            <div style={{ paddingTop: 12 }}>
+            <InlineWorkoutPlanView
+              planId={viewingWorkoutPlanId}
+              clientDataVersion={clientDataVersion}
+              scrollContainerRef={mainRef}
+              onBack={() => setViewingWorkoutPlanId(null)}
+              onViewMealPlan={(mealPlanId) => {
+                setViewingWorkoutPlanId(null);
+                setViewingPlanId(mealPlanId);
+              }}
+              onViewProgress={(clientId) => {
+                setViewingWorkoutPlanId(null);
+                setViewingProgressClientId(clientId);
+              }}
+              onEditClient={(clientId) => {
+                handleEditClientFromPlan(clientId, null, viewingWorkoutPlanId);
+              }}
+              onDeleteClient={(clientId) => {
+                setConfirmDeleteClientId(clientId);
+              }}
+            />
+            </div>
           )}
           {viewingProgressClientId && (
+            <div style={{ paddingTop: 12 }}>
             <InlineProgressView
               clientId={viewingProgressClientId}
               scrollContainerRef={mainRef}
@@ -565,8 +809,10 @@ function DashboardContent() {
                 setGeneratingPlanClientId(clientId);
               }}
             />
+            </div>
           )}
-          {generatingPlanClientId && !viewingProgressClientId && (
+          {generatingPlanClientId && !viewingProgressClientId && !viewingWorkoutPlanId && (
+            <div style={{ paddingTop: 12 }}>
             <InlinePlanGenerator
               clientId={generatingPlanClientId}
               scrollContainerRef={mainRef}
@@ -579,10 +825,75 @@ function DashboardContent() {
                 setViewingPlanId(planId);
               }}
             />
+            </div>
           )}
         </main>
       </div>
     </div>
+
+    {/* Modal confirmare stergere client din plan view */}
+    {confirmDeleteClientId && (
+      <div
+        onClick={() => setConfirmDeleteClientId(null)}
+        style={{
+          position: 'fixed', inset: 0, zIndex: 9999,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            background: '#fff', borderRadius: 16, padding: '28px 28px 24px',
+            maxWidth: 360, width: '90%', textAlign: 'center',
+            boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+          }}
+        >
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%',
+            background: 'rgba(255,59,48,0.1)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 16px',
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ff3b30" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+          </div>
+          <h3 style={{ margin: '0 0 8px', fontSize: 17, fontWeight: 600, color: '#1d1d1f' }}>Stergi clientul?</h3>
+          <p style={{ margin: '0 0 24px', fontSize: 14, color: '#6e6e73', lineHeight: 1.5 }}>
+            Aceasta actiune este ireversibila. Planurile asociate vor fi sterse.
+          </p>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button
+              onClick={() => setConfirmDeleteClientId(null)}
+              style={{
+                flex: 1, padding: '10px 0', borderRadius: 10, border: '1px solid #e8e8ed',
+                background: '#f5f5f7', color: '#3c3c43', fontSize: 14, fontWeight: 500,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              Anulează
+            </button>
+            <button
+              onClick={handleConfirmDeleteFromPlan}
+              disabled={deletingFromPlan}
+              style={{
+                flex: 1, padding: '10px 0', borderRadius: 10, border: 'none',
+                background: '#ff3b30', color: '#fff', fontSize: 14, fontWeight: 600,
+                cursor: deletingFromPlan ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+                opacity: deletingFromPlan ? 0.7 : 1,
+              }}
+            >
+              {deletingFromPlan ? 'Se șterge...' : 'Șterge definitiv'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 
