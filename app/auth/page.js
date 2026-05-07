@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { validateEmail, sanitizeInput } from '@/app/lib/validation';
 import { useAuth } from '@/app/contexts/AuthContext';
@@ -9,6 +9,7 @@ import styles from './auth.module.css';
 
 export default function AuthPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading, login } = useAuth();
   const [loadingSubmit, setLoadingSubmit] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -45,6 +46,12 @@ export default function AuthPage() {
       setForgotLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (searchParams.get('confirmed') === '1') {
+      setSuccessMessage('Email confirmat! Te poți autentifica acum.');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!loading && user) {
@@ -249,6 +256,11 @@ export default function AuthPage() {
                     : 'Autentificare'
                   }
                 </button>
+
+                <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14, color: 'rgba(0,0,0,0.45)' }}>
+                  Nu ai cont?{' '}
+                  <Link href="/register" style={{ color: '#0a0a0a', fontWeight: 600, textDecoration: 'underline' }}>Înregistrează-te</Link>
+                </p>
               </form>
             </>
           )}

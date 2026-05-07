@@ -5,6 +5,7 @@ import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeName, sanitizeText, sanitizeNumber } from '@/app/lib/sanitize';
 import { checkRateLimit, requestQueue, generateRequestId } from '@/app/lib/rateLimiter';
+import { checkSubscription } from '@/app/lib/checkSubscription';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -1329,6 +1330,11 @@ export async function POST(request) {
     if (auth.role !== 'trainer') {
       return NextResponse.json({ error: 'Acces interzis. Doar antrenorii pot genera planuri.' }, { status: 403 });
     }
+
+    // ── Subscription check (live from DB — JWT can be stale) ─────────────
+    const sub = await checkSubscription(auth.userId);
+    if (!sub.allowed) return sub.response;
+
     const trainerId = Number.parseInt(String(auth.userId), 10);
     if (!Number.isFinite(trainerId)) {
       return NextResponse.json({ error: 'ID antrenor invalid în token.' }, { status: 401 });

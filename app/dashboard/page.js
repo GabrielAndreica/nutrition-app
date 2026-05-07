@@ -8,6 +8,7 @@ import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import { createClient } from '@supabase/supabase-js';
 import styles from './dashboard.module.css';
 import ClientsList from '@/app/components/ClientsList';
+import TrialBanner from '@/app/components/TrialBanner';
 
 // Dynamic imports cu ssr: false pentru componente care folosesc jsPDF
 const InlineMealPlanView = dynamic(() => import('@/app/components/InlineMealPlanView'), { 
@@ -711,6 +712,7 @@ function DashboardContent() {
 
         {/* Main */}
         <main ref={mainRef} className={styles.main}>
+          <TrialBanner />
           {/* ClientsList — mereu montat ca să nu se piardă starea; ascuns când altă vedere e activă */}
           <div style={{ display: (!viewingPlanId && !viewingWorkoutPlanId && !viewingProgressClientId && !generatingPlanClientId) ? undefined : 'none' }}>
             {!addingClient && (

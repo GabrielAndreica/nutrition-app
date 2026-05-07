@@ -2303,7 +2303,7 @@
 @media (max-width: 600px) {
   .clientRow {
     gap: 10px;
-    padding: 14px 12px;
+    padding: 14px 0;
     align-items: center;
   }
   .clientAvatar {

@@ -1392,13 +1392,8 @@ const ClientsList = forwardRef(function ClientsList({
                   <div className={styles.clientRowMeta}>
                     <span className={styles.clientName}>{client.name}</span>
                     <div className={styles.badgeGroup}>
-                    <span className={`${styles.accountBadge} ${hasAccount ? styles.badgeActive : (isPending ? styles.badgePending : styles.badgeInactive)}`}>
-                      {hasAccount ? 'Activ' : (isPending ? 'Invitat' : 'Neinvitat')}
-                    </span>
-                    {isGenerating ? (
+                    {isGenerating && (
                       <span className={`${styles.accountBadge} ${styles.badgeGenerating}`}>Se generează...</span>
-                    ) : !plan && generatingInitialized && !isJustFinished && (
-                      <span className={`${styles.accountBadge} ${styles.badgeNoPlan}`}>Fără plan</span>
                     )}
                     {hasNewProgress && (
                       <span className={`${styles.accountBadge} ${styles.badgeProgress}`}>Progres nou</span>

@@ -147,7 +147,7 @@ export default function LandingPage() {
         <div className={styles.pricingInner}>
           <p className={styles.sectionLabel} style={{ textAlign: 'center' }}>Prețuri</p>
           <h2 className={styles.sectionTitle} style={{ textAlign: 'center' }}>Simplu. Transparent. Fără surprize.</h2>
-          <div className={styles.launchBanner}><span>🔥</span><div><strong>Launch Offer</strong> — Primii 10 antrenori primesc Starter la <span className={styles.accent}>99 RON/lună</span> pentru primele 3 luni.</div></div>
+          <div className={styles.launchBanner}><div><strong>Launch Offer</strong> — Primii 10 antrenori primesc Starter la <span className={styles.accent}>99 RON/lună</span> pentru primele 3 luni.</div></div>
           <div className={styles.pricingGrid}>
             <div className={styles.pricingCard}>
               <h3 className={styles.planName}>Starter</h3>

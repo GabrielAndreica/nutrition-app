@@ -42,7 +42,7 @@ export async function POST(request) {
 
     try {
       await resend.emails.send({
-        from: 'trevano <onboarding@resend.dev>',
+        from: 'trevano <noreply@trevano.app>',
         to: user.email,
         subject: 'Resetare parola — trevano',
         html: `

@@ -246,6 +246,55 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }
 
+  // ─── Subscription check (live din DB, nu din JWT stale) ───────────────────
+  const { checkSubscription } = await import('@/app/lib/checkSubscription');
+  const sub = await checkSubscription(auth.userId);
+  if (!sub.allowed) return sub.response;
+
+  // ─── Client Limit — atomic check-and-reserve în DB (previne race condition) ─
+  // Pentru trial: limita se aplică pe total_clients_created (nu scade la ștergere)
+  // Pentru paid: limita se aplică pe clienți activi
+  {
+    let maxClients = sub.maxClients;
+
+    let limitReached = false;
+    if (sub.status === 'trial') {
+      // Atomic: incrementează DOAR dacă sub limită — un singur query, fără race
+      const { data: incremented, error: incErr } = await supabase
+        .rpc('try_increment_clients_created', {
+          p_user_id: String(auth.userId),
+          p_max_count: maxClients,
+        });
+      if (incErr) {
+        console.error('[client limit] rpc error:', incErr.message);
+        // Fail-safe: blochăm dacă RPC nu există (forțează deploy SQL)
+        return NextResponse.json({ error: 'Eroare internă la verificarea limitei.' }, { status: 500 });
+      }
+      if (!incremented) limitReached = true;
+    } else {
+      // Paid: verifică clienți activi
+      const { count: activeCount } = await supabase
+        .from('clients')
+        .select('id', { count: 'exact', head: true })
+        .eq('trainer_id', auth.userId);
+      if ((activeCount ?? 0) >= maxClients) limitReached = true;
+    }
+
+    if (limitReached) {
+      const planLabel = sub.status === 'trial'
+        ? `trial (maxim ${maxClients} clienți, inclusiv cei șterși)`
+        : sub.plan === 'pro' ? 'Pro' : 'Starter';
+      return NextResponse.json(
+        {
+          error: `Ai atins limita de ${maxClients} client${maxClients === 1 ? '' : 'i'} pentru planul ${planLabel}. Fă upgrade pentru mai mulți clienți.`,
+          code: 'CLIENT_LIMIT_REACHED',
+          limit: maxClients,
+        },
+        { status: 403 }
+      );
+    }
+  }
+
   // ─── Sanitizare input-uri (XSS Protection) ───────────────────
   try {
     if (body.name) body.name = sanitizeName(body.name);
@@ -333,6 +382,9 @@ export async function POST(request) {
       notes: 'Greutate inițială la înregistrare'
     }]);
   if (wErr) console.error('[weight_history] Eroare la inserare (client nou):', wErr.message, wErr);
+
+  // Nota: total_clients_created a fost deja incrementat atomic mai sus (try_increment_clients_created)
+  // Nu mai e nevoie de un al doilea increment aici.
 
   logActivity({
     action: 'client.create',

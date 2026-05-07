@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { checkSubscription } from '@/app/lib/checkSubscription';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -1706,6 +1707,12 @@ export async function POST(request) {
     if (auth.error) {
       console.log('[Generate Plan] Auth failed:', auth.error);
       return NextResponse.json({ error: auth.error }, { status: auth.status });
+    }
+
+    // ── Subscription check (live from DB — JWT can be stale) ─────────────
+    if (auth.role === 'trainer') {
+      const sub = await checkSubscription(auth.userId);
+      if (!sub.allowed) return sub.response;
     }
 
     console.log('[Generate Plan] Auth successful, userId:', auth.userId);
