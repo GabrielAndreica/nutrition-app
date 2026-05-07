@@ -18,24 +18,38 @@ const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPl
   )
 });
 
+const WorkoutPlan = dynamic(() => import('@/app/components/WorkoutPlanGenerator/WorkoutPlan'), {
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingContainer}>
+      <div className={styles.loadingSpinner} />
+      <p>Se încarcă planul de antrenament...</p>
+    </div>
+  )
+});
+
+const COOLDOWN_MS = 1 * 60 * 1000;
+
 function ClientDashboardContent() {
   const router = useRouter();
-  const { logout, user } = useAuth();
+  const { logout, user, login } = useAuth();
   const [loading, setLoading] = useState(true);
   const [mealPlan, setMealPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
+  const [workoutPlan, setWorkoutPlan] = useState(null);
+  const [workoutClientData, setWorkoutClientData] = useState(null);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('plan');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState(null);
+  const [progressFormOpen, setProgressFormOpen] = useState(false);
   const [allNotifications, setAllNotifications] = useState([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [visibleNotifications, setVisibleNotifications] = useState(5);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const notificationsPanelRef = useRef(null);
   const fetchedRef = useRef(false);
-  const COOLDOWN_MS = 1 * 60 * 1000; 
 
   // Fetch notificări pentru client
   const fetchNotifications = async () => {
@@ -118,6 +132,9 @@ function ClientDashboardContent() {
       setLoading(true);
       await refreshClientData();
       setActiveTab('plan');
+    } else if (notif.type === 'new_workout_plan') {
+      await refreshWorkoutPlan(localStorage.getItem('token'), notif.related_plan_id);
+      setActiveTab('workout');
     } else if (notif.type === 'progress_update') {
       // Reîncarcă datele pentru a reflecta progresul
       await refreshClientData();
@@ -206,14 +223,48 @@ function ClientDashboardContent() {
     }
   };
 
+  const refreshWorkoutPlan = async (token, preferredPlanId = null) => {
+    if (!token) return;
+    try {
+      let latestId = preferredPlanId;
+      if (!latestId) {
+        const plansRes = await fetch('/api/workout-plans', {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (!plansRes.ok) return;
+        const plansData = await plansRes.json();
+        if (!plansData.plans || plansData.plans.length === 0) {
+          setWorkoutPlan(null);
+          setWorkoutClientData(null);
+          return;
+        }
+        latestId = plansData.plans[0].id;
+      }
+
+      const planRes = await fetch(`/api/workout-plans/${latestId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!planRes.ok) return;
+      const planData = await planRes.json();
+      if (planData.workoutPlan) {
+        setWorkoutPlan(planData.workoutPlan.plan_data || planData.workoutPlan);
+        setWorkoutClientData(planData.client || null);
+      }
+    } catch (err) {
+      console.error('Eroare la fetch workout plan:', err);
+    }
+  };
+
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
 
     const token = localStorage.getItem('token');
     if (!token) {
-      setError('Token de autentificare lipsă.');
-      setLoading(false);
+      Promise.resolve().then(() => {
+        setError('Token de autentificare lipsă.');
+        setLoading(false);
+      });
       return;
     }
 
@@ -288,11 +339,14 @@ function ClientDashboardContent() {
         setError(err.message);
         setLoading(false);
       });
+
+    // Also fetch workout plan (non-blocking)
+    refreshWorkoutPlan(token);
   }, []);
 
   // Auto-refresh notificări
   useEffect(() => {
-    fetchNotifications();
+    Promise.resolve().then(fetchNotifications);
     const interval = setInterval(fetchNotifications, 60000);
     return () => clearInterval(interval);
   }, []);
@@ -337,7 +391,7 @@ function ClientDashboardContent() {
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Token de autentificare lipsă.');
 
-    const notesFormatted = `[CLIENT] Respectare: ${progressData.adherence} | Energie: ${progressData.energyLevel} | Foame: ${progressData.hungerLevel}${progressData.notes ? ' | Mesaj: ' + progressData.notes : ''}`;
+    const notesFormatted = `[CLIENT] Nutriție - Respectare: ${progressData.adherence} | Energie: ${progressData.energyLevel} | Foame: ${progressData.hungerLevel}${progressData.notes ? ' | Mesaj: ' + progressData.notes : ''} || Antrenament - Respectare: ${progressData.workoutAdherence} | Dificultate: ${progressData.workoutDifficulty}${progressData.muscleSoreness ? ' | DOMS: ' + progressData.muscleSoreness : ''}${progressData.pump ? ' | Pump: ' + progressData.pump : ''}${progressData.generalFatigue ? ' | Oboseala: ' + progressData.generalFatigue : ''}${progressData.workoutNotes ? ' | Note: ' + progressData.workoutNotes : ''}`;
 
     const response = await fetch(`/api/clients/${clientData.clientId}/weight-history`, {
       method: 'POST',
@@ -373,6 +427,50 @@ function ClientDashboardContent() {
   const handleLogout = () => { logout(); router.push('/'); };
   const handleTabChange = (tab) => { setActiveTab(tab); setSidebarOpen(false); };
 
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileForm, setProfileForm] = useState({ name: '', email: '', currentPassword: '', newPassword: '' });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profileSuccess, setProfileSuccess] = useState('');
+
+  const openProfile = () => {
+    setProfileForm({ name: user?.name || '', email: user?.email || '', currentPassword: '', newPassword: '' });
+    setProfileError('');
+    setProfileSuccess('');
+    setProfileOpen(true);
+    setSidebarOpen(false);
+  };
+
+  const handleProfileSave = async () => {
+    setProfileLoading(true);
+    setProfileError('');
+    setProfileSuccess('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/auth/profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          name: profileForm.name !== user?.name ? profileForm.name : undefined,
+          email: profileForm.email !== user?.email ? profileForm.email : undefined,
+          currentPassword: profileForm.currentPassword || undefined,
+          newPassword: profileForm.newPassword || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setProfileError(data.error || 'Eroare la salvare.'); return; }
+      const updated = { ...user, ...data.user };
+      localStorage.setItem('user', JSON.stringify(updated));
+      login(updated, token);
+      setProfileSuccess('Datele au fost salvate cu succes!');
+      setProfileForm(f => ({ ...f, currentPassword: '', newPassword: '' }));
+    } catch {
+      setProfileError('Eroare de rețea. Încearcă din nou.');
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className={styles.container}>
@@ -385,16 +483,14 @@ function ClientDashboardContent() {
             </svg>
           </button>
           <div className={styles.mobileLogo}>
-            <div className={styles.sidebarLogoMark}>N</div>
-            <span className={styles.sidebarLogoText}>NutriApp</span>
+            <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
           </div>
         </div>
         {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
         <div className={styles.pageLayout}>
           <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
             <div className={styles.sidebarLogo}>
-              <div className={styles.sidebarLogoMark}>N</div>
-              <span className={styles.sidebarLogoText}>NutriApp</span>
+              <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
               <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Închide meniu">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -470,8 +566,7 @@ function ClientDashboardContent() {
           </svg>
         </button>
         <div className={styles.mobileLogo}>
-          <div className={styles.sidebarLogoMark}>N</div>
-          <span className={styles.sidebarLogoText}>NutriApp</span>
+          <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
         </div>
         <button 
           className={styles.mobileNotificationBtn}
@@ -491,12 +586,52 @@ function ClientDashboardContent() {
 
       {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
 
+      {profileOpen && (
+        <div className={styles.profileModalOverlay} onClick={() => setProfileOpen(false)}>
+          <div className={styles.profileModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.profileModalHeader}>
+              <h3 className={styles.profileModalTitle}>Profilul meu</h3>
+              <button className={styles.profileModalClose} onClick={() => setProfileOpen(false)} aria-label="Închide">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"/>
+                  <line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={e => e.preventDefault()} className={styles.profileModalForm}>
+              <div className={styles.profileModalGroup}>
+                <label className={styles.profileModalLabel}>Nume</label>
+                <input className={styles.profileModalInput} type="text" value={profileForm.name} onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))} placeholder="Numele tău" />
+              </div>
+              <div className={styles.profileModalGroup}>
+                <label className={styles.profileModalLabel}>Email</label>
+                <input className={styles.profileModalInput} type="email" value={profileForm.email} onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplu.com" />
+              </div>
+              <div className={styles.profileModalDivider} />
+              <p className={styles.profileModalSectionLabel}>Schimbă parola (opțional)</p>
+              <div className={styles.profileModalGroup}>
+                <label className={styles.profileModalLabel}>Parola curentă</label>
+                <input className={styles.profileModalInput} type="password" value={profileForm.currentPassword} onChange={e => setProfileForm(f => ({ ...f, currentPassword: e.target.value }))} placeholder="••••••••" autoComplete="current-password" />
+              </div>
+              <div className={styles.profileModalGroup}>
+                <label className={styles.profileModalLabel}>Parola nouă</label>
+                <input className={styles.profileModalInput} type="password" value={profileForm.newPassword} onChange={e => setProfileForm(f => ({ ...f, newPassword: e.target.value }))} placeholder="Minim 8 caractere" autoComplete="new-password" />
+              </div>
+              {profileError && <p className={styles.profileModalError}>{profileError}</p>}
+              {profileSuccess && <p className={styles.profileModalSuccess}>{profileSuccess}</p>}
+              <button type="button" className={styles.profileModalSave} onClick={handleProfileSave} disabled={profileLoading}>
+                {profileLoading ? 'Se salvează...' : 'Salvează modificările'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       <div className={styles.pageLayout}>
         {/* Sidebar */}
         <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
           <div className={styles.sidebarLogo}>
-            <div className={styles.sidebarLogoMark}>N</div>
-            <span className={styles.sidebarLogoText}>NutriApp</span>
+            <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
             <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Închide meniu">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -556,6 +691,7 @@ function ClientDashboardContent() {
                     let type = 'system';
                     if (notif.type === 'progress_update') type = 'progress';
                     if (notif.type === 'new_meal_plan') type = 'plan';
+                    if (notif.type === 'new_workout_plan') type = 'workout';
                     if (notif.type === 'plan_continued') type = 'continued';
 
                     return (
@@ -579,6 +715,14 @@ function ClientDashboardContent() {
                               <polyline points="14 2 14 8 20 8"/>
                               <line x1="12" y1="18" x2="12" y2="12"/>
                               <line x1="9" y1="15" x2="15" y2="15"/>
+                            </svg>
+                          ) : type === 'workout' ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M6.5 6.5v11"/>
+                              <path d="M17.5 6.5v11"/>
+                              <path d="M3.5 9v6"/>
+                              <path d="M20.5 9v6"/>
+                              <path d="M6.5 12h11"/>
                             </svg>
                           ) : (
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -606,6 +750,15 @@ function ClientDashboardContent() {
           )}
 
           <div className={styles.sidebarFooter}>
+            <button className={styles.sidebarProfileBtn} onClick={openProfile}>
+              <div className={styles.sidebarProfileAvatar}>
+                {(user?.name || 'U').charAt(0).toUpperCase()}
+              </div>
+              <div className={styles.sidebarProfileInfo}>
+                <span className={styles.sidebarProfileName}>{user?.name || 'Profil'}</span>
+                <span className={styles.sidebarProfileSub}>Editează contul</span>
+              </div>
+            </button>
             <button className={styles.sidebarLogoutBtn} onClick={handleLogout}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -619,24 +772,27 @@ function ClientDashboardContent() {
 
         {/* Main Content */}
         <main className={styles.main}>
-          <div className={styles.hero}>
-            <h2 className={styles.heroHeading}>
-              Bună ziua, <span className={styles.accent}>{firstName}</span>.
-            </h2>
-            <p className={styles.heroSub}>
-              Vizualizează planul tău alimentar și programul de antrenament.
-            </p>
+          {/* Tab navigation */}
+          {!progressFormOpen && (
+          <div className={styles.planTabs}>
+            <button
+              className={`${styles.planTab} ${activeTab === 'plan' ? styles.planTabActive : ''}`}
+              onClick={() => handleTabChange('plan')}
+            >
+              Plan alimentar
+            </button>
+            <button
+              className={`${styles.planTab} ${activeTab === 'workout' ? styles.planTabActive : ''}`}
+              onClick={() => handleTabChange('workout')}
+            >
+              Plan de antrenament
+            </button>
           </div>
+          )}
 
           {!loading && !mealPlan && !error && activeTab === 'plan' && (
             <div className={styles.noPlanEmpty}>
-              <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="12" y1="12" x2="12" y2="16"/>
-                <line x1="10" y1="14" x2="14" y2="14"/>
-              </svg>
-              <p>Antrenorul tău nu ți-a creat încă un plan alimentar.</p>
+              <p>Antrenorul tău nu a făcut un plan alimentar pentru tine.</p>
             </div>
           )}
 
@@ -657,28 +813,39 @@ function ClientDashboardContent() {
                   nutritionalNeeds={nutritionalNeeds}
                   onSubmitProgress={handleProgressSubmit}
                   progressCooldownUntil={cooldownUntil}
+                  onProgressToggle={(open) => setProgressFormOpen(open)}
                 />
               )}
             </>
           )}
 
-          {activeTab === 'workout' && (
-            <div className={styles.emptyState}>
-              <div className={styles.emptyIcon}>🏋️</div>
-              <h2 className={styles.emptyTitle}>Plan de antrenament</h2>
-              <p className={styles.emptyDesc}>
-                Antrenorul tău pregătește un program de antrenament personalizat.<br />
-                Revino curând!
-              </p>
-              <div className={styles.emptyTips}>
-                <h3 className={styles.emptyTipsTitle}>💡 Între timp, poți:</h3>
-                <ul className={styles.emptyTipsList}>
-                  <li>Urmărești progresul greutății tale</li>
-                  <li>Respecți planul alimentar</li>
-                  <li>Consulți obiectivul tău de fitness</li>
-                </ul>
+          {activeTab === 'workout' && progressFormOpen && workoutPlan && (
+            <MealPlan
+              key="workout-progress-form"
+              plan={null}
+              clientData={clientData}
+              nutritionalNeeds={null}
+              onSubmitProgress={handleProgressSubmit}
+              progressCooldownUntil={cooldownUntil}
+              onProgressToggle={(open) => setProgressFormOpen(open)}
+              workoutOnlyMode
+              initialShowProgress
+            />
+          )}
+
+          {activeTab === 'workout' && !progressFormOpen && (
+            workoutPlan ? (
+              <WorkoutPlan
+                plan={workoutPlan}
+                clientData={workoutClientData}
+                onSubmitProgress={() => setProgressFormOpen(true)}
+                progressCooldownUntil={cooldownUntil}
+              />
+            ) : (
+              <div className={styles.noPlanEmpty}>
+                <p>Antrenorul tău nu a făcut un plan de antrenament pentru tine.</p>
               </div>
-            </div>
+            )
           )}
         </main>
       </div>

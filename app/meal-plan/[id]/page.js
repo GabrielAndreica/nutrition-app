@@ -8,6 +8,8 @@ import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import AppHeader from '@/app/components/AppHeader';
 import styles from '../meal-plan-view.module.css';
 
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 // Dynamic imports cu ssr: false pentru componente care folosesc jsPDF
 const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPlan'), {
   ssr: false,
@@ -93,9 +95,31 @@ function MealPlanViewContent() {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [planTab, setPlanTab] = useState('alimentar');
+  const [workoutPlanId, setWorkoutPlanId] = useState(null);
   const [viewingProgressClientId, setViewingProgressClientId] = useState(null);
   const fetchedRef = useRef(false);
   const abortControllerRef = useRef(null);
+  const resolveWorkoutPlanId = async (clientId, token, maxAttempts = 4) => {
+    if (!clientId || !token) return null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const res = await fetch(`/api/workout-plans?clientId=${encodeURIComponent(clientId)}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const foundPlanId = data.plans?.[clientId]?.planId || null;
+        if (foundPlanId) return foundPlanId;
+      } catch {
+        // Retry below
+      }
+      if (attempt < maxAttempts) {
+        await delay(350);
+      }
+    }
+    return null;
+  };
 
   // Funcție pentru a reîncărca datele clientului
   const refreshClientData = async () => {
@@ -197,6 +221,41 @@ function MealPlanViewContent() {
   useEffect(() => {
     return () => { abortControllerRef.current?.abort(); };
   }, []);
+
+  useEffect(() => {
+    const fetchWorkoutPlanId = async () => {
+      if (!clientData?.clientId) return;
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const foundPlanId = await resolveWorkoutPlanId(clientData.clientId, token);
+        setWorkoutPlanId(foundPlanId);
+      } catch {
+        setWorkoutPlanId(null);
+      }
+    };
+
+    fetchWorkoutPlanId();
+  }, [clientData?.clientId]);
+
+  const handleOpenWorkoutPlan = async () => {
+    let targetWorkoutPlanId = workoutPlanId;
+    if (!targetWorkoutPlanId && clientData?.clientId) {
+      const token = localStorage.getItem('token');
+      targetWorkoutPlanId = await resolveWorkoutPlanId(clientData.clientId, token, 6);
+      if (targetWorkoutPlanId) {
+        setWorkoutPlanId(targetWorkoutPlanId);
+      }
+    }
+
+    if (!targetWorkoutPlanId) {
+      setError('Planul de antrenament nu este încă disponibil pentru acest client.');
+      return;
+    }
+    setPlanTab('antrenament');
+    router.push(`/workout-plan/${targetWorkoutPlanId}`);
+  };
 
   const handleRegenerate = async (progressData) => {
     if (!clientData) return;
@@ -331,9 +390,9 @@ function MealPlanViewContent() {
               Plan alimentar
             </button>
             <button
-              className={styles.planTab}
-              disabled
-              title="Va fi disponibil în curând"
+              className={`${styles.planTab} ${planTab === 'antrenament' ? styles.planTabActive : ''}`}
+              title={workoutPlanId ? 'Deschide planul de antrenament' : 'Caută planul de antrenament'}
+              onClick={handleOpenWorkoutPlan}
             >
               Plan de antrenament
             </button>
@@ -372,7 +431,7 @@ function MealPlanViewContent() {
 
         {!loading && !regenerating && error && (
           <div className={styles.error}>
-            <span className={styles.errorIcon}>⚠️</span>
+            <span className={styles.errorIcon}>!</span>
             <span>{error}</span>
           </div>
         )}

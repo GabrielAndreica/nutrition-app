@@ -45,6 +45,8 @@ function GeneratorContent() {
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [loadingPhase, setLoadingPhase] = useState('meal');
+  const [loadingPhaseMessage, setLoadingPhaseMessage] = useState('');
   const [queueStatus, setQueueStatus] = useState(null);
   const [error, setError] = useState(null);
   const [clientData, setClientData] = useState(null);
@@ -76,6 +78,8 @@ function GeneratorContent() {
     setLoading(true);
     setLoadingStep(0);
     setLoadingProgress(0);
+    setLoadingPhase('meal');
+    setLoadingPhaseMessage('Se pregătește planul alimentar...');
     setError(null);
     setClientData(formData);
 
@@ -142,10 +146,20 @@ function GeneratorContent() {
           if (!line.trim()) continue;
           const event = JSON.parse(line);
           if (event.type === 'progress') {
-            setLoadingStep(event.day);
-            setLoadingProgress(Math.round((event.day / event.total) * 90));
+            const phase = event.phase || 'meal';
+            if (phase === 'workout') {
+              setLoadingPhase('workout');
+              setLoadingStep(7);
+              setLoadingProgress(Math.min(99, 90 + Math.round(((event.step || 1) / Math.max(event.total || 1, 1)) * 9)));
+              setLoadingPhaseMessage(event.message || 'Se generează planul de antrenament...');
+            } else {
+              setLoadingPhase('meal');
+              setLoadingStep(event.day);
+              setLoadingProgress(Math.round((event.day / event.total) * 90));
+              setLoadingPhaseMessage(event.message || `Plan alimentar: Ziua ${event.day} din ${event.total}...`);
+            }
             // Actualizează sessionStorage cu progresul
-            if (formData.clientId) {
+            if (formData.clientId && phase !== 'workout') {
               sessionStorage.setItem(`generatingPlan_${formData.clientId}`, JSON.stringify({
                 isGenerating: true,
                 currentStep: event.day,
@@ -167,15 +181,15 @@ function GeneratorContent() {
               }));
               sessionStorage.removeItem(`generatingPlan_${formData.clientId}`);
             }
-            
-            // Redirect automat la planul generat după 1.5s
+
+            // Redirect automat la planul alimentar după ce ambele planuri sunt gata
             const planId = event.planId || event.plan?.id;
             if (planId) {
               setTimeout(() => {
                 if (isMountedRef.current) {
                   router.push(`/meal-plan/${planId}`);
                 }
-              }, 1500);
+              }, 1200);
             }
             if (isRegeneration && previousNeedsRef.current) {
               const newNeeds = event.nutritionalNeeds;
@@ -331,6 +345,13 @@ function GeneratorContent() {
           allergies: c.allergies || '',
           mealsPerDay: String(c.meals_per_day || '5'),
           foodPreferences: c.food_preferences || '',
+          trainingSplit: c.training_split || 'Full Body',
+          workoutsPerWeek: String(Math.max(2, Math.min(5, Number(c.workouts_per_week) || 3))),
+          fitnessLevel: c.fitness_level || 'beginner',
+          availableEquipment: c.available_equipment || 'full gym',
+          fitnessGoal: c.fitness_goal || 'muscle gain',
+          injuriesLimitations: c.injuries_limitations || '',
+          workoutPreferences: c.workout_preferences || '',
         };
         if (storedProgress) {
           formData.progress = storedProgress;
@@ -471,9 +492,11 @@ function GeneratorContent() {
                   Înapoi
                 </button>
                 <div className={styles.loadingBox}>
-                  <p className={styles.loadingTitle}>Se generează planul alimentar</p>
+                  <p className={styles.loadingTitle}>Se generează planurile clientului</p>
                   <p className={styles.loadingStep}>
-                    {loadingStep > 0 ? `Ziua ${loadingStep} din 7...` : 'Se pregătește...'}
+                    {loadingPhase === 'meal'
+                      ? (loadingStep > 0 ? `Plan alimentar: Ziua ${loadingStep} din 7...` : 'Se pregătește planul alimentar...')
+                      : (loadingPhaseMessage || 'Se generează planul de antrenament...')}
                   </p>
                   {queueStatus && queueStatus.queued > 0 && (
                     <div className={styles.queueStatus}>

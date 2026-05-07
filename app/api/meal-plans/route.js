@@ -7,6 +7,9 @@ export async function GET(request) {
   const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const { searchParams } = new URL(request.url);
+  const clientIdFilter = searchParams.get('clientId');
+  const trainerId = Number.parseInt(String(auth.userId), 10);
 
   // Construiește query-ul bazat pe rol
   if (!auth.role || !['trainer', 'client'].includes(auth.role)) {
@@ -20,7 +23,13 @@ export async function GET(request) {
 
   // Dacă e trainer, returnează planurile clienților săi
   if (auth.role === 'trainer') {
-    query = query.eq('trainer_id', auth.userId);
+    if (!Number.isFinite(trainerId)) {
+      return NextResponse.json({ error: 'ID antrenor invalid.' }, { status: 401 });
+    }
+    query = query.eq('trainer_id', trainerId);
+    if (clientIdFilter) {
+      query = query.eq('client_id', clientIdFilter);
+    }
   }
   // Dacă e client, returnează doar planurile sale
   else if (auth.role === 'client') {
@@ -36,6 +45,9 @@ export async function GET(request) {
     }
 
     query = query.eq('client_id', client.id);
+    if (clientIdFilter && clientIdFilter !== client.id) {
+      return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+    }
   }
 
   const { data, error } = await query;

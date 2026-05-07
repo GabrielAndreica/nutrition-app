@@ -17,7 +17,37 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-bottom: 28px;
+  margin-bottom: 12px;
+}
+
+.progressWizardStepLabel {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9ca3af;
+  flex-shrink: 0;
+}
+
+.progressWizardBar {
+  height: 8px;
+  background: #eceff3;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.progressWizardFill {
+  height: 100%;
+  background: #b7ff00;
+  border-radius: 999px;
+  transition: width 0.35s ease;
+}
+
+.progressWizardStepName {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  margin-bottom: 16px;
 }
 
 .progressInlineBackBtn {
@@ -85,10 +115,11 @@
 }
 
 .progressInlineSectionTitle {
-  font-size: 15px;
+  font-size: 11.5px;
   font-weight: 700;
-  color: #0a0a0a;
-  letter-spacing: -0.2px;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .progressInlineGoalBadge {
@@ -127,19 +158,18 @@
 }
 
 .progressInlineField label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 12px;
+  font-weight: 600;
   color: #374151;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.01em;
 }
 
 .progressInlineField input,
 .progressInlineField textarea {
-  padding: 10px 13px;
+  padding: 8px 13px;
   border: 1.5px solid #e5e7eb;
   border-radius: 13px;
-  font-size: 15px;
+  font-size: 14px;
   color: #0a0a0a;
   background: #fafafa;
   outline: none;
@@ -162,19 +192,28 @@
 }
 
 .progressInlineError {
-  font-size: 15px;
-  color: #dc2626;
+  font-size: 11px;
+  color: #e05252;
   font-weight: 500;
+  margin-top: 2px;
+  padding: 0 3px;
+  animation: fadeInErr 0.2s ease;
+  line-height: 1.3;
+}
+
+@keyframes fadeInErr {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .progressInlineWeightDiff {
-  font-size: 15px;
+  font-size: 12px;
   color: #6b7280;
   font-weight: 500;
 }
 
 .progressInlineLoading {
-  font-size: 15px;
+  font-size: 13px;
   color: #9ca3af;
 }
 
@@ -207,7 +246,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 8px 12px;
-  font-size: 15px;
+  font-size: 13px;
   border-bottom: 1px solid #f5f5f7;
 }
 .progressInlineHistoryRow:last-child { border-bottom: none; }
@@ -231,7 +270,7 @@
   border: none;
   border-radius: 8px;
   background: transparent;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 600;
   color: #9ca3af;
   cursor: pointer;
@@ -239,6 +278,9 @@
   font-family: inherit;
   white-space: nowrap;
   touch-action: manipulation;
+  text-align: center;
+  line-height: 1.2;
+  letter-spacing: -0.1px;
 }
 .progressInlineSegBtn:hover:not(.progressInlineSegOn) { color: #374151; }
 
@@ -271,45 +313,47 @@
 }
 
 .progressInlineSubmitError {
-  font-size: 15px;
-  color: #dc2626;
+  font-size: 13px;
+  color: #e05252;
   margin-right: auto;
 }
 
 .progressInlineCancelBtn {
-  padding: 11px 21px;
-  background: transparent;
-  border: 1.5px solid #e5e7eb;
-  border-radius: 13px;
-  color: #555;
+  padding: 10px 18px;
+  background: var(--gray-100, #f5f5f7);
+  border: none;
+  border-radius: 9px;
+  color: #0a0a0a;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.14s, border-color 0.14s;
+  transition: background 0.15s;
 }
-.progressInlineCancelBtn:hover { background: #f5f5f7; border-color: #d1d5db; }
+.progressInlineCancelBtn:hover { background: var(--gray-200, #e8e8ed); }
 .progressInlineCancelBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .progressInlineSubmitBtn {
-  padding: 11px 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 34px;
   background: #0a0a0a;
   color: #b7ff00;
   border: none;
   border-radius: 13px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.14s, transform 0.12s, box-shadow 0.14s;
+  transition: background 0.18s, transform 0.15s, box-shadow 0.18s;
   letter-spacing: -0.1px;
   touch-action: manipulation;
-  min-height: 48px;
 }
 .progressInlineSubmitBtn:hover:not(:disabled) {
   background: #1a1a1a;
   transform: translateY(-1px);
-  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  box-shadow: 0 8px 21px rgba(0,0,0,0.22);
 }
 .progressInlineSubmitBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -532,7 +576,7 @@
 
 /* Buton Actualizare Progres - stilul site-ului */
 .updateProgressBtn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 7px;
   padding: 10px 18px;
@@ -943,7 +987,7 @@
 }
 
 .downloadBtn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
@@ -959,6 +1003,7 @@
   transition: background 0.18s ease, transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
   flex-shrink: 0;
   letter-spacing: 0.1px;
+  font-family: inherit;
 }
 
 .downloadBtn:hover {
@@ -1337,7 +1382,6 @@
 
   .downloadBtn {
     padding: 9px 10px;
-    border-radius: 12px;
     min-height: 44px;
   }
 
@@ -1347,7 +1391,7 @@
 
   .updateProgressBtn {
     padding: 9px 14px;
-    font-size: 15px;
+    font-size: 14px;
     min-height: 44px;
   }
 
@@ -1374,14 +1418,15 @@
   }
 
   .clientHeader {
-    padding: 14px 16px;
-    margin-bottom: 16px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
     gap: 12px;
     flex-wrap: nowrap;
+    overflow: hidden;
   }
 
   .clientHeaderLeft {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
   }
 
@@ -1393,20 +1438,37 @@
   }
 
   .clientSub {
-    font-size: 13px;
+    font-size: 11px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .clientStats {
     gap: 12px;
     flex-shrink: 0;
+    flex-wrap: nowrap;
+    max-width: 58%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .clientStats::-webkit-scrollbar {
+    display: none;
+  }
+
+  .clientStat {
+    min-width: max-content;
   }
 
   .clientStatValue {
-    font-size: 14px;
+    font-size: 12.5px;
   }
 
   .clientStatLabel {
-    font-size: 10px;
+    font-size: 8.5px;
   }
 
   .dayFull {
@@ -1443,13 +1505,15 @@
   .updateProgressBtn {
     flex: 1;
     justify-content: center;
-    padding: 10px 12px;
-    font-size: 15px;
+    padding: 9px 12px;
+    font-size: 14px;
+    min-height: 44px;
   }
 
   .downloadBtn {
     flex: 0 0 auto;
-    padding: 10px 14px;
+    padding: 9px 14px;
+    min-height: 44px;
   }
 
   .dayTab {

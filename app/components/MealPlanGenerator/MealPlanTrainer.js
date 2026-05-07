@@ -24,25 +24,25 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
   const dayNamesShort = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
 
   const mealTypeLabels = {
-    'Masa 1': { name: 'Masa 1', emoji: '🍽️' },
-    'Masa 2': { name: 'Masa 2', emoji: '🍽️' },
-    'Masa 3': { name: 'Masa 3', emoji: '🍽️' },
-    'Gustare': { name: 'Gustare', emoji: '🍎' },
-    'Gustare 1': { name: 'Gustare 1', emoji: '🍎' },
-    'Gustare 2': { name: 'Gustare 2', emoji: '🥗' },
-    'Breakfast': { name: 'Masa 1', emoji: '🍽️' },
-    'Lunch': { name: 'Masa 2', emoji: '🍽️' },
-    'Dinner': { name: 'Masa 3', emoji: '🍽️' },
-    'Snack': { name: 'Gustare', emoji: '🍎' },
-    'Snack 1': { name: 'Gustare 1', emoji: '🍎' },
-    'Snack 2': { name: 'Gustare 2', emoji: '🥗' },
-    'Mic Dejun': { name: 'Masa 1', emoji: '🍽️' },
-    'Prânz': { name: 'Masa 2', emoji: '🍽️' },
-    'Cină': { name: 'Masa 3', emoji: '🍽️' },
+    'Masa 1': { name: 'Masa 1' },
+    'Masa 2': { name: 'Masa 2' },
+    'Masa 3': { name: 'Masa 3' },
+    'Gustare': { name: 'Gustare' },
+    'Gustare 1': { name: 'Gustare 1' },
+    'Gustare 2': { name: 'Gustare 2' },
+    'Breakfast': { name: 'Masa 1' },
+    'Lunch': { name: 'Masa 2' },
+    'Dinner': { name: 'Masa 3' },
+    'Snack': { name: 'Gustare' },
+    'Snack 1': { name: 'Gustare 1' },
+    'Snack 2': { name: 'Gustare 2' },
+    'Mic Dejun': { name: 'Masa 1' },
+    'Prânz': { name: 'Masa 2' },
+    'Cină': { name: 'Masa 3' },
   };
 
   const getMealLabel = (mealType) => {
-    return mealTypeLabels[mealType] || { name: mealType, emoji: '🍽️' };
+    return mealTypeLabels[mealType] || { name: mealType };
   };
 
   const handleDownload = async () => {
@@ -91,15 +91,15 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
           <div className={styles.clientStats}>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.age}</span>
-              <span className={styles.clientStatLabel}>ani</span>
+              <span className={styles.clientStatLabel}>Vârstă</span>
             </div>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.weight}</span>
-              <span className={styles.clientStatLabel}>kg</span>
+              <span className={styles.clientStatLabel}>Greutate</span>
             </div>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.height}</span>
-              <span className={styles.clientStatLabel}>cm</span>
+              <span className={styles.clientStatLabel}>Înălțime</span>
             </div>
             {clientData.activityLevel && (
               <div className={styles.clientStat}>
@@ -264,11 +264,10 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
         {/* Meals Grid for Active Day */}
         <div className={styles.mealsGrid}>
           {currentDay.meals.map((meal, mealIndex) => {
-            const { name, emoji } = getMealLabel(meal.mealType);
+            const { name } = getMealLabel(meal.mealType);
             return (
               <div key={mealIndex} className={styles.mealCard}>
                 <div className={styles.mealCardHeader}>
-                  <span className={styles.mealEmoji}>{emoji}</span>
                   <h4>{meal.name || name}</h4>
                   {meal.mealTotals && (
                     <span className={styles.mealCalories}>{meal.mealTotals.calories} kcal</span>
@@ -279,10 +278,10 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
                   {meal.foods.map((food, foodIndex) => (
                     <li key={foodIndex} className={styles.mealItem}>
                       <span className={styles.foodName}>
-                        {food.name} ({food.amount}{food.unit})
+                        {food.name} ({food.displayAmount || `${food.amount}${food.unit}`})
                       </span>
                       <span className={styles.foodMacros}>
-                        {food.calories}kcal · P:{food.protein}g · C:{food.carbs}g · G:{food.fat}g
+                        {food.nutritionNote ? '≈ ' : ''}{food.calories}kcal · P:{food.protein}g · C:{food.carbs}g · G:{food.fat}g
                       </span>
                     </li>
                   ))}
@@ -290,7 +289,7 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
 
                 {meal.preparation && (
                   <div className={styles.preparation}>
-                    <span className={styles.prepIcon}>👨‍🍳</span> {meal.preparation}
+                    {meal.preparation}
                   </div>
                 )}
 

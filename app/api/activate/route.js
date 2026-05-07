@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { sanitizeName, sanitizeText } from '@/app/lib/sanitize';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 

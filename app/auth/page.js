@@ -1,13 +1,15 @@
 ﻿'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { validateEmail, sanitizeInput } from '@/app/lib/validation';
 import { useAuth } from '@/app/contexts/AuthContext';
 import styles from './auth.module.css';
 
 export default function AuthPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, loading, login } = useAuth();
   const [loadingSubmit, setLoadingSubmit] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -15,6 +17,41 @@ export default function AuthPage() {
   const [fieldErrors, setFieldErrors] = useState({ email: [], password: [] });
   const [successMessage, setSuccessMessage] = useState('');
   const [generalError, setGeneralError] = useState('');
+
+  // Forgot password state
+  const [forgotMode, setForgotMode] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState('');
+  const [forgotSuccess, setForgotSuccess] = useState('');
+
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault();
+    if (!forgotEmail) { setForgotError('Introdu adresa de email.'); return; }
+    setForgotLoading(true);
+    setForgotError('');
+    setForgotSuccess('');
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setForgotError(data.error || 'A apărut o eroare.'); return; }
+      setForgotSuccess('Dacă există un cont cu acest email, vei primi un link de resetare în câteva minute.');
+    } catch {
+      setForgotError('Eroare de rețea. Încearcă din nou.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (searchParams.get('confirmed') === '1') {
+      setSuccessMessage('Email confirmat! Te poți autentifica acum.');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!loading && user) {
@@ -102,8 +139,9 @@ export default function AuthPage() {
 
       <div className={styles.leftPanel}>
         <div className={styles.brand}>
-          <span className={styles.logoMark}>N</span>
-          <span className={styles.logoText}>NutriAI</span>
+          <Link href="/landing" className={styles.brandLink}>
+            <span className={styles.logoText}>trevano</span>
+          </Link>
         </div>
 
         <div className={styles.tagline}>
@@ -123,64 +161,109 @@ export default function AuthPage() {
 
       <div className={styles.rightPanel}>
         <div className={styles.card}>
-          <h2 className={styles.cardTitle}>Autentificare</h2>
-          <p className={styles.cardSub}>Bun venit inapoi.</p>
 
-          {successMessage && (
-            <div className={styles.success}>{successMessage}</div>
-          )}
-          {generalError && (
-            <div className={styles.error}>{generalError}</div>
-          )}
-
-          <form onSubmit={handleSubmit} noValidate>
-            <div className={styles.formGroup}>
-              <label htmlFor="email">Adresa email</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                placeholder="tu@exemplu.com"
-                disabled={loadingSubmit}
-                maxLength="254"
-                autoComplete="email"
-              />
-              {submitted && fieldErrors.email?.length > 0 && (
-                <div className={styles.fieldError}>
-                  {fieldErrors.email.map((err, i) => <p key={i}>{err}</p>)}
-                </div>
+          {forgotMode ? (
+            <>
+              <h2 className={styles.cardTitle}>Resetare parolă</h2>
+              <p className={styles.cardSub}>Introdu emailul contului tău.</p>
+              {forgotError && <div className={styles.error}>{forgotError}</div>}
+              {forgotSuccess ? (
+                <div className={styles.success}>{forgotSuccess}</div>
+              ) : (
+                <form onSubmit={handleForgotSubmit} noValidate>
+                  <div className={styles.formGroup}>
+                    <label htmlFor="forgotEmail">Adresa email</label>
+                    <input
+                      type="email"
+                      id="forgotEmail"
+                      value={forgotEmail}
+                      onChange={e => setForgotEmail(e.target.value)}
+                      placeholder="tu@exemplu.com"
+                      disabled={forgotLoading}
+                      autoComplete="email"
+                    />
+                  </div>
+                  <button type="submit" disabled={forgotLoading} className={styles.submitBtn}>
+                    {forgotLoading ? <><span className={styles.spinner} />Se trimite...</> : 'Trimite link de resetare'}
+                  </button>
+                </form>
               )}
-            </div>
+              <button className={styles.forgotBackBtn} onClick={() => { setForgotMode(false); setForgotError(''); setForgotSuccess(''); setForgotEmail(''); }}>
+                ← Înapoi la autentificare
+              </button>
+            </>
+          ) : (
+            <>
+              <h2 className={styles.cardTitle}>Autentificare</h2>
+              <p className={styles.cardSub}>Bun venit inapoi.</p>
 
-            <div className={styles.formGroup}>
-              <label htmlFor="password">Parola</label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="••••••••"
-                disabled={loadingSubmit}
-                maxLength="128"
-                autoComplete="current-password"
-              />
-              {submitted && fieldErrors.password?.length > 0 && (
-                <div className={styles.fieldError}>
-                  {fieldErrors.password.map((err, i) => <p key={i}>{err}</p>)}
-                </div>
+              {successMessage && (
+                <div className={styles.success}>{successMessage}</div>
               )}
-            </div>
+              {generalError && (
+                <div className={styles.error}>{generalError}</div>
+              )}
 
-            <button type="submit" disabled={loadingSubmit} className={styles.submitBtn}>
-              {loadingSubmit
-                ? <><span className={styles.spinner} />Se autentifica...</>
-                : 'Autentificare'
-              }
-            </button>
-          </form>
+              <form onSubmit={handleSubmit} noValidate>
+                <div className={styles.formGroup}>
+                  <label htmlFor="email">Adresa email</label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="tu@exemplu.com"
+                    disabled={loadingSubmit}
+                    maxLength="254"
+                    autoComplete="email"
+                  />
+                  {submitted && fieldErrors.email?.length > 0 && (
+                    <div className={styles.fieldError}>
+                      {fieldErrors.email.map((err, i) => <p key={i}>{err}</p>)}
+                    </div>
+                  )}
+                </div>
+
+                <div className={styles.formGroup}>
+                  <div className={styles.passwordLabelRow}>
+                    <label htmlFor="password">Parola</label>
+                    <button type="button" className={styles.forgotLink} onClick={() => { setForgotMode(true); setForgotEmail(formData.email); }}>
+                      Ai uitat parola?
+                    </button>
+                  </div>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="••••••••"
+                    disabled={loadingSubmit}
+                    maxLength="128"
+                    autoComplete="current-password"
+                  />
+                  {submitted && fieldErrors.password?.length > 0 && (
+                    <div className={styles.fieldError}>
+                      {fieldErrors.password.map((err, i) => <p key={i}>{err}</p>)}
+                    </div>
+                  )}
+                </div>
+
+                <button type="submit" disabled={loadingSubmit} className={styles.submitBtn}>
+                  {loadingSubmit
+                    ? <><span className={styles.spinner} />Se autentifica...</>
+                    : 'Autentificare'
+                  }
+                </button>
+
+                <p style={{ textAlign: 'center', marginTop: 16, fontSize: 14, color: 'rgba(0,0,0,0.45)' }}>
+                  Nu ai cont?{' '}
+                  <Link href="/register" style={{ color: '#0a0a0a', fontWeight: 600, textDecoration: 'underline' }}>Înregistrează-te</Link>
+                </p>
+              </form>
+            </>
+          )}
         </div>
       </div>
 

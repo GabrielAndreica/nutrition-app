@@ -1,17 +1,39 @@
 ﻿'use client';
 
-import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef, forwardRef, useImperativeHandle } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import styles from '@/app/clients/clients.module.css';
 
 const LIMIT = 20;
+const ADD_TOTAL_STEPS = 2;
+
+const GOAL_TO_FITNESS_GOAL = {
+  weight_loss: 'weight loss',
+  muscle_gain: 'muscle gain',
+  maintenance: 'maintenance',
+};
+
+const mapGoalToFitnessGoal = (goal) => GOAL_TO_FITNESS_GOAL[goal] || 'muscle gain';
+const mapActivityToWorkouts = (activityLevel) => ({
+  sedentary: '2',
+  light: '2',
+  lightly_active: '2',
+  moderate: '4',
+  moderately_active: '4',
+  active: '5',
+  very_active: '5',
+  extra_active: '5',
+}[activityLevel] || '4');
 
 const EMPTY_FORM = {
   name: '', age: '', weight: '', height: '',
   gender: 'M', goal: 'maintenance', activityLevel: 'moderate',
   dietType: 'omnivore', allergies: '', mealsPerDay: '5',
   foodPreferences: '',
+  trainingSplit: 'Full Body', workoutsPerWeek: mapActivityToWorkouts('moderate'), fitnessLevel: 'beginner',
+  availableEquipment: 'full gym', fitnessGoal: mapGoalToFitnessGoal('maintenance'),
+  injuriesLimitations: '', workoutPreferences: '',
 };
 
 const goalLabels = {
@@ -54,20 +76,13 @@ const formatPlanTime = (createdAt) => {
 // Memoized skeleton card pentru performanță
 const SkeletonCard = memo(function SkeletonCard() {
   return (
-    <div className={styles.skeletonCard}>
-      <div className={styles.skeletonHeader}>
-        <div className={styles.skeletonAvatar} />
-        <div className={styles.skeletonLines}>
-          <div className={`${styles.skeletonLine} ${styles.skeletonLineLg}`} />
-          <div className={`${styles.skeletonLine} ${styles.skeletonLineMd}`} />
-        </div>
+    <div className={styles.skeletonRow}>
+      <div className={styles.skeletonRowInfo}>
+        <div className={`${styles.skeletonLine} ${styles.skeletonLineLg}`} />
+        <div className={`${styles.skeletonTag}`} />
       </div>
-      <div className={styles.skeletonTags}>
-        <div className={`${styles.skeletonTag} ${styles.skeletonTagGoal}`} />
-        <div className={styles.skeletonTag} />
-        <div className={styles.skeletonTag} />
-      </div>
-      <div className={styles.skeletonFooter}>
+      <div className={styles.skeletonRowActions}>
+        <div className={styles.skeletonBtn} />
         <div className={styles.skeletonBtn} />
         <div className={`${styles.skeletonBtn} ${styles.skeletonBtnPrimary}`} />
       </div>
@@ -117,7 +132,18 @@ const CheckIcon = memo(function CheckIcon() {
   );
 });
 
-export default function ClientsList({ noPadding = false, onViewPlan, onGeneratePlan, onViewProgress, onAddFormChange }) {
+const ClientsList = forwardRef(function ClientsList({
+  noPadding = false,
+  onViewPlan,
+  onGeneratePlan,
+  onViewProgress,
+  onAddFormChange,
+  openEditForClientId,
+  openDeleteForClientId,
+  onEditOpened,
+  onFormClose,
+  onClientSaved,
+}, ref) {
   const router = useRouter();
 
   const [clients,    setClients]    = useState([]);
@@ -140,6 +166,22 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
   // Ţine pageRef sincronizat pentru folosire în closures
   useEffect(() => { pageRef.current = page; }, [page]);
 
+  // Expune metode pentru dashboard
+  useImperativeHandle(ref, () => ({
+    triggerEditClient(clientData) {
+      openEditImperative(clientData);
+    },
+    removeClient(clientId) {
+      setClients(prev => prev.filter(c => c.id !== clientId));
+      setTotal(t => Math.max(0, t - 1));
+    },
+  }));
+
+  useEffect(() => {
+    if (!openDeleteForClientId) return;
+    setDeleteId(openDeleteForClientId);
+  }, [openDeleteForClientId]);
+
   const [showAddForm,   setShowAddForm]   = useState(false);
   const [modalOpen,     setModalOpen]     = useState(false);
   const [editingClient, setEditingClient] = useState(null);
@@ -149,11 +191,14 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
   const [fieldErrors,   setFieldErrors]   = useState({});
   const [formSubmitted, setFormSubmitted] = useState(false);
   const [confirmSave,   setConfirmSave]   = useState(false);
+  const [addStep,       setAddStep]       = useState(1);
 
   const [deleteId, setDeleteId] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
   const [generateConfirmClientId, setGenerateConfirmClientId] = useState(null);
+  const [regenRequiredClient, setRegenRequiredClient] = useState(null); // { id, name, mealPlan, workoutPlan }
+  const [pendingRegenClientIds, setPendingRegenClientIds] = useState(new Set());
   const [generatingBusyModal, setGeneratingBusyModal] = useState(false);
   const [generating, setGenerating] = useState(false);
 
@@ -269,7 +314,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
 
   useEffect(() => {
     fetchClients(page, debouncedSearch);
-  }, [page, debouncedSearch, fetchClients]);
+  }, [page, debouncedSearch, fetchClients, fetchClientsRange]);
 
   // Nota: nu folosim focus/visibilitychange - suprascriu clientii adaugati local
 
@@ -369,7 +414,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       if (intervalRef) clearInterval(intervalRef);
       window.removeEventListener('generationStarted', handleGenerationStarted);
     };
-  }, [page, debouncedSearch, fetchClients]);
+  }, [page, debouncedSearch, fetchClients, fetchClientsRange]);
 
   // Polling 10s pentru has_new_progress — simplu și fiabil
   useEffect(() => {
@@ -417,27 +462,34 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       setShowAddForm(false);
       setForm(EMPTY_FORM);
       setFormError(null);
+      setAddStep(1);
       onAddFormChange?.(false);
       return;
     }
     setEditingClient(null);
     setForm(EMPTY_FORM);
     setFormError(null);
+    setAddStep(1);
     setShowAddForm(true);
     onAddFormChange?.(true);
   };
 
   const closeAddForm = () => {
+    const wasEditing = !!editingClient;
     setShowAddForm(false);
     setForm(EMPTY_FORM);
     setFormError(null);
     setFieldErrors({});
     setFormSubmitted(false);
+    setAddStep(1);
     setEditingClient(null);
     onAddFormChange?.(false);
+    if (wasEditing) onFormClose?.();
   };
 
-  const openEdit = (client) => {
+  // Apelată din dashboard via ref — deschide direct formularul de editare
+  const openEditImperative = (client) => {
+    const goalValue = client.goal || 'maintenance';
     setEditingClient(client);
     setForm({
       name:          client.name           || '',
@@ -445,16 +497,55 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       weight:        String(client.weight  || ''),
       height:        String(client.height  || ''),
       gender:        client.gender         || 'M',
-      goal:          client.goal           || 'maintenance',
+      goal:          goalValue,
       activityLevel: client.activity_level || 'moderate',
       dietType:      client.diet_type      || 'omnivore',
       allergies:     client.allergies      || '',
       mealsPerDay:   String(client.meals_per_day || '5'),
       foodPreferences: client.food_preferences || '',
+      trainingSplit: client.training_split      || 'Full Body',
+      workoutsPerWeek: String(client.workouts_per_week || mapActivityToWorkouts(client.activity_level || 'moderate')),
+      fitnessLevel:  client.fitness_level       || 'beginner',
+      availableEquipment: client.available_equipment || 'full gym',
+      fitnessGoal:   client.fitness_goal || mapGoalToFitnessGoal(goalValue),
+      injuriesLimitations: client.injuries_limitations || '',
+      workoutPreferences:  client.workout_preferences  || '',
     });
     setFormError(null);
     setFieldErrors({});
     setFormSubmitted(false);
+    setAddStep(1);
+    setShowAddForm(true);
+    onAddFormChange?.(true);
+  };
+
+  const openEdit = (client) => {
+    const goalValue = client.goal || 'maintenance';
+    setEditingClient(client);
+    setForm({
+      name:          client.name           || '',
+      age:           String(client.age     || ''),
+      weight:        String(client.weight  || ''),
+      height:        String(client.height  || ''),
+      gender:        client.gender         || 'M',
+      goal:          goalValue,
+      activityLevel: client.activity_level || 'moderate',
+      dietType:      client.diet_type      || 'omnivore',
+      allergies:     client.allergies      || '',
+      mealsPerDay:   String(client.meals_per_day || '5'),
+      foodPreferences: client.food_preferences || '',
+      trainingSplit: client.training_split      || 'Full Body',
+      workoutsPerWeek: String(client.workouts_per_week || mapActivityToWorkouts(client.activity_level || 'moderate')),
+      fitnessLevel:  client.fitness_level       || 'beginner',
+      availableEquipment: client.available_equipment || 'full gym',
+      fitnessGoal:   client.fitness_goal || mapGoalToFitnessGoal(goalValue),
+      injuriesLimitations: client.injuries_limitations || '',
+      workoutPreferences:  client.workout_preferences  || '',
+    });
+    setFormError(null);
+    setFieldErrors({});
+    setFormSubmitted(false);
+    setAddStep(1);
     setShowAddForm(true);
     onAddFormChange?.(true);
   };
@@ -781,6 +872,23 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
     setConfirmSave(true);
   };
 
+  const handleNextStep = () => {
+    if (addStep >= ADD_TOTAL_STEPS) return;
+    if (addStep === 1) {
+      setFormSubmitted(true);
+      const errs = validateClientForm(form);
+      setFieldErrors(errs);
+      if (Object.keys(errs).length > 0) return;
+    }
+    setFormError(null);
+    setAddStep(prev => Math.min(ADD_TOTAL_STEPS, prev + 1));
+  };
+
+  const handlePrevStep = () => {
+    if (addStep <= 1) return;
+    setAddStep(prev => Math.max(1, prev - 1));
+  };
+
   const doSave = async () => {
     setConfirmSave(false);
     setSaving(true);
@@ -788,12 +896,27 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
     try {
       const url    = editingClient ? `/api/clients/${editingClient.id}` : '/api/clients';
       const method = editingClient ? 'PUT' : 'POST';
-      const res    = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(form) });
+      const payload = {
+        ...form,
+        fitnessGoal: form.fitnessGoal || mapGoalToFitnessGoal(form.goal),
+      };
+      const res    = await fetch(url, { method, headers: authHeaders(), body: JSON.stringify(payload) });
       const data   = await res.json();
       if (!res.ok) throw new Error(data.error || 'Eroare la salvare');
       if (editingClient) {
         setClients(prev => prev.map(c => c.id === editingClient.id ? data.client : c));
-        closeAddForm();
+        if (data.requiresRegeneration?.mealPlan || data.requiresRegeneration?.workoutPlan) {
+          setRegenRequiredClient({
+            id: editingClient.id,
+            name: data.client?.name || editingClient.name,
+            mealPlan: !!data.requiresRegeneration.mealPlan,
+            workoutPlan: !!data.requiresRegeneration.workoutPlan,
+          });
+          closeAddForm();
+        } else {
+          onClientSaved?.();
+          closeAddForm();
+        }
       } else {
         setSearch('');
         setDebouncedSearch('');
@@ -848,6 +971,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
   if (showAddForm) {
     return (
       <div className={styles.addPage}>
+        <div className={styles.addPageShell}>
 
         <div className={styles.addPageNav}>
           <button className={styles.addFormBackBtn} onClick={closeAddForm} aria-label="Inapoi">
@@ -859,151 +983,259 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
           <span className={styles.addPageTitle}>{editingClient ? `Editează client — ${editingClient.name}` : 'Client nou'}</span>
         </div>
 
-        <form onSubmit={handleSave} className={styles.addPageForm} noValidate>
-
-          {/* 01 Informații personale */}
-          <div className={styles.addSection}>
-            <div className={styles.addSectionHeader}>
-              <span className={styles.addSectionNum}>01</span>
-              <span className={styles.addSectionTitle}>Informații personale</span>
-            </div>
-
-            <div className={styles.addField}>
-              <label>Nume complet *</label>
-              <input name="name" value={form.name} onChange={handleFormChange}
-                placeholder="ex. Ion Popescu" autoFocus
-                className={formSubmitted && fieldErrors.name ? styles.addFieldErrorInput : ''} />
-            </div>
-
-            <div className={styles.addField}>
-              <label>Gen</label>
-              <div className={styles.seg}>
-                {['M','F'].map(g => (
-                  <button key={g} type="button"
-                    className={`${styles.segBtn} ${form.gender === g ? styles.segOn : ''}`}
-                    onClick={() => setForm(p => ({ ...p, gender: g }))}>
-                    {g === 'M' ? 'Masculin' : 'Feminin'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className={styles.addRow3}>
-              <div className={styles.addField}>
-                <label>Vârstă *</label>
-                <div className={styles.inputUnit}>
-                  <input name="age" type="number" min="18" max="100"
-                    value={form.age} onChange={handleFormChange} placeholder="25"
-                    className={formSubmitted && fieldErrors.age ? styles.addFieldErrorInput : ''} />
-                  <span>ani</span>
-                </div>
-              </div>
-              <div className={styles.addField}>
-                <label>Greutate *</label>
-                <div className={styles.inputUnit}>
-                  <input name="weight" type="number" step="0.1" min="30" max="300"
-                    value={form.weight} onChange={handleFormChange} placeholder="75"
-                    className={formSubmitted && fieldErrors.weight ? styles.addFieldErrorInput : ''} />
-                  <span>kg</span>
-                </div>
-              </div>
-              <div className={styles.addField}>
-                <label>Înălțime *</label>
-                <div className={styles.inputUnit}>
-                  <input name="height" type="number" min="100" max="250"
-                    value={form.height} onChange={handleFormChange} placeholder="175"
-                    className={formSubmitted && fieldErrors.height ? styles.addFieldErrorInput : ''} />
-                  <span>cm</span>
-                </div>
-              </div>
-            </div>
+        <div className={styles.addWizardHeader}>
+          <div className={styles.addWizardMeta}>
+            <span className={styles.addWizardStep}>Pasul {addStep} din {ADD_TOTAL_STEPS}</span>
+            <span className={styles.addWizardHint}>
+              {addStep === 1 && 'Nume, date personale, stil de viață și obiectiv'}
+              {addStep === 2 && 'Preferințe alimentare și antrenament'}
+            </span>
           </div>
-
-          {/* 02 Obiective */}
-          <div className={styles.addSection}>
-            <div className={styles.addSectionHeader}>
-              <span className={styles.addSectionNum}>02</span>
-              <span className={styles.addSectionTitle}>Obiective și stil de viață</span>
-            </div>
-
-            <div className={styles.addField}>
-              <label>Obiectiv principal</label>
-              <div className={styles.goalGrid}>
-                {[
-                  { v: 'weight_loss', l: 'Slăbit' },
-                  { v: 'muscle_gain', l: 'Masă musculară' },
-                  { v: 'maintenance', l: 'Menținere' },
-                ].map(({ v, l }) => (
-                  <button key={v} type="button"
-                    className={`${styles.goalCard} ${form.goal === v ? styles.goalOn : ''}`}
-                    onClick={() => setForm(p => ({ ...p, goal: v }))}>
-                    <span className={styles.goalL}>{l}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className={styles.addField}>
-              <label>Nivel de activitate</label>
-              <div className={styles.actGrid}>
-                {[
-                  { v: 'sedentary',   l: 'Sedentar',     sub: 'fără sport' },
-                  { v: 'light',       l: 'Ușor activ',   sub: '1–2×/săpt' },
-                  { v: 'moderate',    l: 'Moderat',       sub: '3–4×/săpt' },
-                  { v: 'very_active', l: 'Foarte activ', sub: '5–6×/săpt' },
-                ].map(({ v, l, sub }) => (
-                  <button key={v} type="button"
-                    className={`${styles.actCard} ${form.activityLevel === v ? styles.actOn : ''}`}
-                    onClick={() => setForm(p => ({ ...p, activityLevel: v }))}>
-                    <span className={styles.actL}>{l}</span>
-                    <span className={styles.actSub}>{sub}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+          <div className={styles.addWizardProgress}>
+            <span style={{ width: `${(addStep / ADD_TOTAL_STEPS) * 100}%` }} />
           </div>
+        </div>
 
-          {/* 03 Preferințe */}
-          <div className={styles.addSection}>
-            <div className={styles.addSectionHeader}>
-              <span className={styles.addSectionNum}>03</span>
-              <span className={styles.addSectionTitle}>Preferințe alimentare</span>
-            </div>
+        <form
+          onSubmit={(e) => {
+            if (addStep < ADD_TOTAL_STEPS) {
+              e.preventDefault();
+              handleNextStep();
+              return;
+            }
+            handleSave(e);
+          }}
+          className={styles.addPageForm}
+          noValidate
+        >
 
-            <div className={styles.addRow2}>
+          {/* Pasul 1 */}
+          {addStep === 1 && (
+          <div className={styles.addStepTriple}>
+            <div className={styles.addSection}>
+              <div className={styles.addSectionHeader}>
+                <span className={styles.addSectionNum}>1</span>
+                <span className={styles.addSectionTitle}>Informații personale</span>
+              </div>
+
               <div className={styles.addField}>
-                <label>Tip dietă</label>
+                <label>Nume complet *</label>
+                <input name="name" value={form.name} onChange={handleFormChange}
+                  placeholder="ex. Ion Popescu" autoFocus
+                  className={formSubmitted && fieldErrors.name ? styles.addFieldErrorInput : ''} />
+              </div>
+
+              <div className={styles.addField}>
+                <label>Gen</label>
                 <div className={styles.seg}>
+                  {['M','F'].map(g => (
+                    <button key={g} type="button"
+                      className={`${styles.segBtn} ${form.gender === g ? styles.segOn : ''}`}
+                      onClick={() => setForm(p => ({ ...p, gender: g }))}>
+                      {g === 'M' ? 'Masculin' : 'Feminin'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.addRow3}>
+                <div className={styles.addField}>
+                  <label>Vârstă *</label>
+                  <div className={styles.inputUnit}>
+                    <input name="age" type="number" min="18" max="100"
+                      value={form.age} onChange={handleFormChange} placeholder="25"
+                      className={formSubmitted && fieldErrors.age ? styles.addFieldErrorInput : ''} />
+                    <span>ani</span>
+                  </div>
+                </div>
+                <div className={styles.addField}>
+                  <label>Greutate *</label>
+                  <div className={styles.inputUnit}>
+                    <input name="weight" type="number" step="0.1" min="30" max="300"
+                      value={form.weight} onChange={handleFormChange} placeholder="75"
+                      className={formSubmitted && fieldErrors.weight ? styles.addFieldErrorInput : ''} />
+                    <span>kg</span>
+                  </div>
+                </div>
+                <div className={styles.addField}>
+                  <label>Înălțime *</label>
+                  <div className={styles.inputUnit}>
+                    <input name="height" type="number" min="100" max="250"
+                      value={form.height} onChange={handleFormChange} placeholder="175"
+                      className={formSubmitted && fieldErrors.height ? styles.addFieldErrorInput : ''} />
+                    <span>cm</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.addSection}>
+              <div className={styles.addSectionHeader}>
+                <span className={styles.addSectionNum}>2</span>
+                <span className={styles.addSectionTitle}>Obiectiv</span>
+              </div>
+
+              <div className={styles.addField}>
+                <label>Obiectiv nutriție + antrenament</label>
+                <div className={`${styles.seg} ${styles.segColumn}`}>
                   {[
-                    { v: 'omnivore',   l: 'Omnivor' },
-                    { v: 'vegetarian', l: 'Vegetarian' },
-                    { v: 'vegan',      l: 'Vegan' },
+                    { v: 'weight_loss', l: 'Slăbit' },
+                    { v: 'muscle_gain', l: 'Masă musculară' },
+                    { v: 'maintenance', l: 'Menținere' },
                   ].map(({ v, l }) => (
                     <button key={v} type="button"
-                      className={`${styles.segBtn} ${form.dietType === v ? styles.segOn : ''}`}
-                      onClick={() => setForm(p => ({ ...p, dietType: v }))}>
+                      className={`${styles.segBtn} ${form.goal === v ? styles.segOn : ''}`}
+                      onClick={() => setForm(p => ({ ...p, goal: v, fitnessGoal: mapGoalToFitnessGoal(v) }))}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.addSection}>
+              <div className={styles.addSectionHeader}>
+                <span className={styles.addSectionNum}>3</span>
+                <span className={styles.addSectionTitle}>Stil de viață</span>
+              </div>
+
+              <div className={`${styles.addField} ${styles.addFieldStretch}`}>
+                <label>Nivel de activitate</label>
+                <div className={`${styles.seg} ${styles.segWrapTwo}`}>
+                  {[
+                    { v: 'sedentary',   l: 'Sedentar (fără sport)' },
+                    { v: 'light',       l: 'Ușor activ (1–2×/săpt)' },
+                    { v: 'moderate',    l: 'Moderat (3–4×/săpt)' },
+                    { v: 'very_active', l: 'Foarte activ (5×/săpt)' },
+                  ].map(({ v, l }) => (
+                    <button key={v} type="button"
+                      className={`${styles.segBtn} ${form.activityLevel === v ? styles.segOn : ''}`}
+                      onClick={() => setForm(p => ({ ...p, activityLevel: v, workoutsPerWeek: mapActivityToWorkouts(v) }))}>
                       {l}
                     </button>
                   ))}
                 </div>
               </div>
 
-            </div>
-
-            <div className={styles.addField}>
-              <label>Alergii / intoleranțe</label>
-              <input name="allergies" value={form.allergies} onChange={handleFormChange}
-                placeholder="ex. gluten, lactate, nuci" />
-            </div>
-
-            <div className={`${styles.addField} ${styles.addFieldGrow}`}>
-              <label>Preferințe alimentare <span className={styles.opt}>(opțional)</span></label>
-              <textarea name="foodPreferences" value={form.foodPreferences}
-                onChange={handleFormChange} rows="2"
-                placeholder="ex. Îmi place puiul. Nu îmi plac ciupercile."
-              />
+              <div className={styles.addField}>
+                <label>Nivel fitness</label>
+                <div className={styles.seg}>
+                  {[
+                    { v: 'beginner', l: 'Începător' },
+                    { v: 'intermediate', l: 'Intermediar' },
+                    { v: 'advanced', l: 'Avansat' },
+                  ].map(({ v, l }) => (
+                    <button key={v} type="button"
+                      className={`${styles.segBtn} ${form.fitnessLevel === v ? styles.segOn : ''}`}
+                      onClick={() => setForm(p => ({ ...p, fitnessLevel: v }))}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
+          )}
+
+          {/* Pasul 2 */}
+          {addStep === 2 && (
+          <div className={styles.addStepTriple}>
+            <div className={styles.addSection}>
+              <div className={styles.addSectionHeader}>
+                <span className={styles.addSectionNum}>4</span>
+                <span className={styles.addSectionTitle}>Preferințe alimentare</span>
+              </div>
+
+              <div className={styles.addRow2}>
+                <div className={styles.addField}>
+                  <label>Tip dietă</label>
+                  <div className={styles.seg}>
+                    {[
+                      { v: 'omnivore',   l: 'Omnivor' },
+                      { v: 'vegetarian', l: 'Vegetarian' },
+                      { v: 'vegan',      l: 'Vegan' },
+                    ].map(({ v, l }) => (
+                      <button key={v} type="button"
+                        className={`${styles.segBtn} ${form.dietType === v ? styles.segOn : ''}`}
+                        onClick={() => setForm(p => ({ ...p, dietType: v }))}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className={styles.addField}>
+                <label>Alergii / intoleranțe</label>
+                <input name="allergies" value={form.allergies} onChange={handleFormChange}
+                  placeholder="ex. gluten, lactate, nuci" />
+              </div>
+
+              <div className={`${styles.addField} ${styles.addFieldGrow}`}>
+                <label>Preferințe alimentare <span className={styles.opt}>(opțional)</span></label>
+                <textarea name="foodPreferences" value={form.foodPreferences}
+                  onChange={handleFormChange} rows="2"
+                  placeholder="ex. Îmi place puiul. Nu îmi plac ciupercile."
+                />
+              </div>
+            </div>
+
+            <div className={styles.addSection}>
+              <div className={styles.addSectionHeader}>
+                <span className={styles.addSectionNum}>5</span>
+                <span className={styles.addSectionTitle}>Structură antrenament</span>
+              </div>
+
+              <div className={styles.addField}>
+                <label>Split antrenament</label>
+                <div className={`${styles.seg} ${styles.splitSeg}`}>
+                  {['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Bro Split'].map(v => (
+                    <button key={v} type="button"
+                      className={`${styles.segBtn} ${form.trainingSplit === v ? styles.segOn : ''}`}
+                      onClick={() => setForm(p => ({ ...p, trainingSplit: v }))}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className={styles.addField}>
+                <label>Antrenamente / săptămână</label>
+                <div className={styles.seg}>
+                  {['2', '3', '4', '5'].map(v => (
+                    <button key={v} type="button"
+                      className={`${styles.segBtn} ${String(form.workoutsPerWeek) === v ? styles.segOn : ''}`}
+                      onClick={() => setForm(p => ({ ...p, workoutsPerWeek: v }))}>
+                      {v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.addSection}>
+              <div className={styles.addSectionHeader}>
+                <span className={styles.addSectionNum}>6</span>
+                <span className={styles.addSectionTitle}>Limitări și preferințe</span>
+              </div>
+
+              <div className={styles.addField}>
+                <label>Accidentări / limitări <span className={styles.opt}>(opțional)</span></label>
+                <input name="injuriesLimitations" value={form.injuriesLimitations}
+                  onChange={handleFormChange}
+                  placeholder="ex. genunchi drept, dureri lombare" />
+              </div>
+
+              <div className={`${styles.addField} ${styles.addFieldGrow}`}>
+                <label>Preferințe antrenament <span className={styles.opt}>(opțional)</span></label>
+                <textarea name="workoutPreferences" value={form.workoutPreferences}
+                  onChange={handleFormChange} rows="2"
+                  placeholder="ex. Prefer compound, evit flotările."
+                />
+              </div>
+            </div>
+          </div>
+          )}
 
           {formError && <div className={styles.formError}>{formError}</div>}
 
@@ -1033,12 +1265,27 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
           )}
 
           <div className={styles.addFooter}>
+            <button
+              type="button"
+              className={styles.cancelBtn}
+              onClick={addStep === 1 ? closeAddForm : handlePrevStep}
+              disabled={saving}
+            >
+              {addStep === 1 ? 'Anulează' : 'Înapoi'}
+            </button>
             <button type="submit" className={styles.saveBtn} disabled={saving}>
-              {saving ? <><span className={styles.savingSpinner} />Se salvează...</> : editingClient ? 'Salvează modificările' : 'Adaugă client'}
+              {addStep < ADD_TOTAL_STEPS
+                ? 'Continuă'
+                : saving
+                  ? <><span className={styles.savingSpinner} />Se salvează...</>
+                  : editingClient
+                    ? 'Salvează modificările'
+                    : 'Adaugă client'}
             </button>
           </div>
 
         </form>
+        </div>
       </div>
     );
   }
@@ -1048,7 +1295,10 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       {!progressModalClient && (
       <div className={styles.content} style={noPadding ? { padding: 0 } : undefined}>
 
-        <div className={styles.toolbar}>
+        <div className={styles.stickyHeader}>
+          <h2 className={styles.listTitle}>Clienții tăi</h2>
+
+          <div className={styles.toolbar}>
           <div className={styles.searchWrap}>
             <svg className={styles.searchIcon} width="15" height="15" viewBox="0 0 24 24"
               fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1079,6 +1329,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
             </svg>
             Adauga client
           </button>
+          </div>
         </div>
 
         {error && (
@@ -1094,7 +1345,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
         )}
 
         {loading ? (
-          <div className={styles.clientGrid}>
+          <div className={styles.clientTable}>
             {Array.from({ length: 6 }, (_, i) => <SkeletonCard key={i} />)}
           </div>
         ) : clients.length === 0 ? (
@@ -1105,7 +1356,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
                   strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
                 </svg>
-                <p>Niciun client gasit pentru <strong>"{search}"</strong></p>
+                <p>Niciun client gasit pentru <strong>&quot;{search}&quot;</strong></p>
                 <button className={styles.clearSearchBtn} onClick={() => { setSearch(''); setLoading(true); }}>Sterge filtrul</button>
               </>
             ) : (
@@ -1123,7 +1374,7 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
             )}
           </div>
         ) : (
-          <div className={styles.clientGrid}>
+          <div className={styles.clientTable}>
             {clients.map(client => {
               const hasAccount = !!client.user_id;
               const isPending = client.invitation_status === 'pending';
@@ -1133,84 +1384,60 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
               const isJustFinished = justFinishedClients.has(String(client.id));
 
               return (
-              <div key={client.id} className={styles.clientCard}>
-                <button className={styles.deleteIconBtn} onClick={() => setDeleteId(client.id)} aria-label="Sterge client">
-                  <TrashIcon />
-                </button>
-                
-                {/* Header cu nume */}
-                <div className={styles.clientCardHeader}>
-                  <div>
-                    <h3 className={styles.clientName}>{client.name}</h3>
-                    <div className={styles.badgeGroup}>
-                      <span className={`${styles.accountBadge} ${hasAccount ? styles.badgeActive : (isPending ? styles.badgePending : styles.badgeInactive)}`}>
-                        {hasAccount ? 'Activ' : (isPending ? 'Invitat' : 'Neinvitat')}
-                      </span>
-                      {isGenerating ? (
-                        <span className={`${styles.accountBadge} ${styles.badgeGenerating}`}>
-                          Se generează plan...
-                        </span>
-                      ) : !plan && generatingInitialized && !isJustFinished && (
-                        <span className={`${styles.accountBadge} ${styles.badgeNoPlan}`}>
-                          Fără plan alimentar
-                        </span>
-                      )}
-                      {hasNewProgress && (
-                        <span className={`${styles.accountBadge} ${styles.badgeProgress}`}>
-                          Progres în așteptare
-                        </span>
-                      )}
-                    </div>
+              <div key={client.id} className={styles.clientRow}>
+                <div className={styles.clientRowInfo}>
+                  <div className={styles.clientAvatar} aria-hidden="true">
+                    {client.name ? client.name.trim()[0].toUpperCase() : '?'}
                   </div>
-                </div>
-
-                {/* Informații rapide */}
-                <div className={styles.clientQuickInfo}>
-                  {goalLabels[client.goal] || client.goal} · {client.weight}kg · {activityLabels[client.activity_level] || client.activity_level}
-                </div>
-
-                {/* Status plan */}
-                <div className={styles.clientPlanStatus}>
-                  {plan ? `Ultimul plan: ${formatPlanTime(plan.createdAt)}` : 'Nu există plan generat'}
-                </div>
-
-                {/* Butoane */}
-                <div className={styles.clientActions}>
-                  <div className={styles.secondaryActions}>
-                    <button className={styles.editBtn} onClick={() => openEdit(client)}>Editeaza</button>
-                    {!client.user_id && (
-                      <button
-                        className={client.invitation_status === 'pending' ? styles.inviteBtnPending : styles.inviteBtn}
-                        onClick={() => openInviteModal(client)}
-                        title={client.invitation_status === 'pending' ? `Trimisa la ${client.invitation_email}. Click pentru a retrimite.` : ''}
-                      >
-                        {client.invitation_status === 'pending' ? 'Retrimite' : 'Invitatie'}
-                      </button>
+                  <div className={styles.clientRowMeta}>
+                    <span className={styles.clientName}>{client.name}</span>
+                    <div className={styles.badgeGroup}>
+                    {isGenerating && (
+                      <span className={`${styles.accountBadge} ${styles.badgeGenerating}`}>Se generează...</span>
+                    )}
+                    {hasNewProgress && (
+                      <span className={`${styles.accountBadge} ${styles.badgeProgress}`}>Progres nou</span>
                     )}
                   </div>
-                  {plan || isGenerating ? (
+                  </div>
+                </div>
+                <div className={styles.clientRowActions}>
+                  {!hasAccount && (
+                    <button
+                      className={isPending ? styles.inviteBtnPending : styles.inviteBtn}
+                      onClick={() => openInviteModal(client)}
+                      title={isPending ? 'Retrimite invitația' : 'Invită clientul'}
+                    >
+                      {isPending ? 'Reinvită' : 'Invită'}
+                    </button>
+                  )}
+                  {pendingRegenClientIds.has(client.id) ? (
                     <button className={styles.viewPlanBtn}
                       disabled={isGenerating}
                       style={isGenerating ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
                       onClick={() => {
-                        if (isGenerating) {
-                          return; // Butonul e disabled, nu face nimic
-                        } else {
-                          onViewPlan && onViewPlan(planMap[client.id].planId);
-                        }
+                        if (isGenerating) return;
+                        if (generatingClients.size > 0) { setGeneratingBusyModal(true); return; }
+                        setPendingRegenClientIds(prev => { const s = new Set(prev); s.delete(client.id); return s; });
+                        if (onGeneratePlan) onGeneratePlan(client.id);
+                        window.dispatchEvent(new Event('generationStarted'));
                       }}>
-                      Vizualizeaza plan <ArrowIcon />
+                      Generează plan nou <ArrowIcon />
+                    </button>
+                  ) : plan || isGenerating ? (
+                    <button className={styles.viewPlanBtn}
+                      disabled={isGenerating}
+                      style={isGenerating ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+                      onClick={() => { if (!isGenerating) onViewPlan && onViewPlan(planMap[client.id].planId); }}>
+                      Vizualizează plan <ArrowIcon />
                     </button>
                   ) : (
                     <button className={styles.generateBtn}
                       onClick={() => {
-                        if (generatingClients.size > 0) {
-                          setGeneratingBusyModal(true);
-                        } else {
-                          setGenerateConfirmClientId(client.id);
-                        }
+                        if (generatingClients.size > 0) setGeneratingBusyModal(true);
+                        else setGenerateConfirmClientId(client.id);
                       }}>
-                      Genereaza plan <ArrowIcon />
+                      Generează planuri <ArrowIcon />
                     </button>
                   )}
                 </div>
@@ -1258,9 +1485,66 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
               </svg>
             </div>
             <h3>Plan în curs de generare</h3>
-            <p>Există deja un plan alimentar care se generează. Așteptați să se termine înainte de a genera un plan nou.</p>
+            <p>Există deja o generare activă. Așteptați să se termine înainte de a porni un nou set de planuri.</p>
             <div className={styles.confirmActions}>
               <button className={styles.saveBtn} onClick={() => setGeneratingBusyModal(false)}>Am înțeles</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {regenRequiredClient && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.confirmModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.confirmIcon}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <h3>Regenerare planuri necesară</h3>
+            <p>
+              Ai modificat date sensibile ale clientului <strong>{regenRequiredClient.name}</strong>.
+              {regenRequiredClient.mealPlan && regenRequiredClient.workoutPlan
+                ? ' Planul alimentar și planul de antrenament trebuie regenerate.'
+                : regenRequiredClient.mealPlan
+                  ? ' Planul alimentar trebuie regenerat.'
+                  : ' Planul de antrenament trebuie regenerat.'}
+            </p>
+            <div className={styles.confirmActions}>
+              <button
+                className={styles.cancelBtn}
+                onClick={() => {
+                  setPendingRegenClientIds(prev => new Set([...prev, regenRequiredClient.id]));
+                  setRegenRequiredClient(null);
+                  onClientSaved?.();
+                }}
+              >
+                Mai târziu
+              </button>
+              <button
+                className={styles.saveBtn}
+                disabled={generating}
+                onClick={async () => {
+                  if (onGeneratePlan) {
+                    setGenerating(true);
+                    try {
+                      await onGeneratePlan(regenRequiredClient.id);
+                      window.dispatchEvent(new Event('generationStarted'));
+                    } catch (e) {
+                      console.error('Eroare la regenerare:', e);
+                    } finally {
+                      setGenerating(false);
+                    }
+                  }
+                  setRegenRequiredClient(null);
+                  onClientSaved?.();
+                }}
+              >
+                {generating ? 'Se generează...' : 'Regenerează acum'}
+              </button>
             </div>
           </div>
         </div>
@@ -1278,12 +1562,12 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
                 <line x1="9" y1="15" x2="15" y2="15"/>
               </svg>
             </div>
-            <h3>Generezi plan alimentar?</h3>
-            <p>Se va genera un plan alimentar personalizat pentru acest client pe baza datelor completate.</p>
+            <h3>Generezi planurile clientului?</h3>
+            <p>Se vor genera automat planul alimentar și planul de antrenament pe baza datelor completate.</p>
             <div className={styles.confirmActions}>
               <button className={styles.cancelBtn} onClick={() => setGenerateConfirmClientId(null)}>Anuleaza</button>
               <button className={styles.saveBtn} onClick={handleGenerateConfirm} disabled={generating}>
-                {generating ? 'Se genereaza...' : 'Genereaza plan'}
+                {generating ? 'Se genereaza...' : 'Genereaza planuri'}
               </button>
             </div>
           </div>
@@ -1497,4 +1781,6 @@ export default function ClientsList({ noPadding = false, onViewPlan, onGenerateP
       })()}
     </>
   );
-}
+});
+
+export default ClientsList;

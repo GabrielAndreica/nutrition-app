@@ -119,14 +119,11 @@ export function generateMealPlanPDF(plan, clientData, nutritionalNeeds) {
   doc.setTextColor(...C.white);
   doc.text(name, MARGIN, 42);
 
-  // Generation date
+  // Plan duration line
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(...C.midGray);
-  const today = new Date().toLocaleDateString('ro-RO', {
-    day: '2-digit', month: 'long', year: 'numeric',
-  });
-  doc.text(`Generat pe ${today}  ·  Plan 7 zile`, MARGIN, 54);
+  doc.text('Plan alimentar  ·  7 zile', MARGIN, 54);
 
   let y = 72;
 
@@ -303,8 +300,8 @@ export function generateMealPlanPDF(plan, clientData, nutritionalNeeds) {
       // Foods table
       const tableBody = (meal.foods || []).map(food => [
         s(food.name),
-        `${food.amount}${food.unit || 'g'}`,
-        `${food.calories}`,
+        food.displayAmount || `${food.amount}${food.unit || 'g'}`,
+        `${food.nutritionNote ? '~' : ''}${food.calories}`,
         `${food.protein}g`,
         `${food.carbs}g`,
         `${food.fat}g`,

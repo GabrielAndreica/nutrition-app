@@ -4,6 +4,61 @@ import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeName, sanitizeText, sanitizeFoodRestrictions, sanitizeFoodPreferences, sanitizeNumber } from '@/app/lib/sanitize';
 
+const mapActivityToWorkouts = (activityLevel) => ({
+  sedentary: 2,
+  light: 2,
+  lightly_active: 2,
+  moderate: 4,
+  moderately_active: 4,
+  active: 5,
+  very_active: 5,
+  extra_active: 5,
+}[activityLevel] || 4);
+
+const ALLOWED_TRAINING_SPLITS = new Set(['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Bro Split']);
+
+const normalizeTrainingSplit = (split) => {
+  const raw = String(split || '')
+    .replace(/&#x2f;|&#47;/gi, '/')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#x27;/gi, "'")
+    .trim();
+  if (!raw) return null;
+  const value = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  const compact = value.replace(/[\s_\-/]+/g, '');
+
+  if (
+    ['full body', 'fullbody', 'full-body', 'corp complet', 'tot corpul', 'total body', 'totalbody'].includes(value)
+    || compact === 'fullbody'
+    || compact === 'corpcomplet'
+    || compact === 'totcorpul'
+  ) return 'Full Body';
+
+  if (
+    ['push/pull/legs', 'push pull legs', 'push-pull-legs', 'push_pull_legs', 'ppl'].includes(value)
+    || compact === 'pushpulllegs'
+    || compact === 'ppl'
+  ) return 'Push/Pull/Legs';
+
+  if (
+    ['upper/lower', 'upper lower', 'upper-lower', 'upper_lower'].includes(value)
+    || compact === 'upperlower'
+  ) return 'Upper/Lower';
+
+  if (
+    ['bro split', 'bro-split', 'bro_split', 'brosplit'].includes(value)
+    || compact === 'brosplit'
+  ) return 'Bro Split';
+
+  if (ALLOWED_TRAINING_SPLITS.has(raw)) return raw;
+  return null;
+};
+
 // GET /api/clients — list clients with pagination, server-side search and latest plan per client
 export async function GET(request) {
   const supabase = getSupabase();
@@ -47,7 +102,9 @@ export async function GET(request) {
   let clientsQuery = supabase
     .from('clients')
     .select(
-      `id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences, created_at, user_id, has_new_progress,
+      `id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences,
+       training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, injuries_limitations, workout_preferences,
+       created_at, user_id, has_new_progress,
        client_invitations!client_invitations_client_id_fkey(id, status, client_email, created_at)`,
       { count: 'exact' }
     )
@@ -60,11 +117,17 @@ export async function GET(request) {
   }
 
   // Run queries IN PARALLEL — optimizat pentru speed
-  const [clientsResult, plansResult] = await Promise.all([
+  const [clientsResult, plansResult, workoutPlansResult] = await Promise.all([
     clientsQuery,
     // Optimizare: Doar ultimul plan per client (folosește DISTINCT ON în Postgres)
     supabase
       .from('meal_plans')
+      .select('id, client_id, created_at')
+      .eq('trainer_id', auth.userId)
+      .order('created_at', { ascending: false })
+      .limit(500),
+    supabase
+      .from('workout_plans')
       .select('id, client_id, created_at')
       .eq('trainer_id', auth.userId)
       .order('created_at', { ascending: false })
@@ -92,6 +155,15 @@ export async function GET(request) {
     for (const plan of plansResult.data) {
       if (!planMap[plan.client_id]) {
         planMap[plan.client_id] = { planId: plan.id, createdAt: plan.created_at };
+      }
+    }
+  }
+
+  const workoutPlanMap = {};
+  if (workoutPlansResult.data) {
+    for (const plan of workoutPlansResult.data) {
+      if (!workoutPlanMap[plan.client_id]) {
+        workoutPlanMap[plan.client_id] = { planId: plan.id, createdAt: plan.created_at };
       }
     }
   }
@@ -124,6 +196,7 @@ export async function GET(request) {
   return NextResponse.json({
     clients: processedClients,
     plans: planMap,
+    workoutPlans: workoutPlanMap,
     total,
     page,
     limit,
@@ -173,17 +246,69 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }
 
+  // ─── Subscription check (live din DB, nu din JWT stale) ───────────────────
+  const { checkSubscription } = await import('@/app/lib/checkSubscription');
+  const sub = await checkSubscription(auth.userId);
+  if (!sub.allowed) return sub.response;
+
+  // ─── Client Limit — atomic check-and-reserve în DB (previne race condition) ─
+  // Pentru trial: limita se aplică pe total_clients_created (nu scade la ștergere)
+  // Pentru paid: limita se aplică pe clienți activi
+  {
+    let maxClients = sub.maxClients;
+
+    let limitReached = false;
+    if (sub.status === 'trial') {
+      // Atomic: incrementează DOAR dacă sub limită — un singur query, fără race
+      const { data: incremented, error: incErr } = await supabase
+        .rpc('try_increment_clients_created', {
+          p_user_id: String(auth.userId),
+          p_max_count: maxClients,
+        });
+      if (incErr) {
+        console.error('[client limit] rpc error:', incErr.message);
+        // Fail-safe: blochăm dacă RPC nu există (forțează deploy SQL)
+        return NextResponse.json({ error: 'Eroare internă la verificarea limitei.' }, { status: 500 });
+      }
+      if (!incremented) limitReached = true;
+    } else {
+      // Paid: verifică clienți activi
+      const { count: activeCount } = await supabase
+        .from('clients')
+        .select('id', { count: 'exact', head: true })
+        .eq('trainer_id', auth.userId);
+      if ((activeCount ?? 0) >= maxClients) limitReached = true;
+    }
+
+    if (limitReached) {
+      const planLabel = sub.status === 'trial'
+        ? `trial (maxim ${maxClients} clienți, inclusiv cei șterși)`
+        : sub.plan === 'pro' ? 'Pro' : 'Starter';
+      return NextResponse.json(
+        {
+          error: `Ai atins limita de ${maxClients} client${maxClients === 1 ? '' : 'i'} pentru planul ${planLabel}. Fă upgrade pentru mai mulți clienți.`,
+          code: 'CLIENT_LIMIT_REACHED',
+          limit: maxClients,
+        },
+        { status: 403 }
+      );
+    }
+  }
+
   // ─── Sanitizare input-uri (XSS Protection) ───────────────────
   try {
     if (body.name) body.name = sanitizeName(body.name);
     if (body.allergies) body.allergies = sanitizeFoodRestrictions(body.allergies);
     if (body.foodPreferences) body.foodPreferences = sanitizeFoodPreferences(body.foodPreferences);
+    if (body.injuriesLimitations) body.injuriesLimitations = sanitizeText(body.injuriesLimitations);
+    if (body.workoutPreferences) body.workoutPreferences = sanitizeText(body.workoutPreferences);
     
     // Sanitizare numere
     if (body.age) body.age = sanitizeNumber(body.age, { min: 10, max: 120, allowFloat: false });
     if (body.weight) body.weight = sanitizeNumber(body.weight, { min: 20, max: 300 });
     if (body.height) body.height = sanitizeNumber(body.height, { min: 100, max: 250, allowFloat: false });
     if (body.mealsPerDay) body.mealsPerDay = sanitizeNumber(body.mealsPerDay, { min: 1, max: 6, allowFloat: false });
+    if (body.workoutsPerWeek) body.workoutsPerWeek = sanitizeNumber(body.workoutsPerWeek, { min: 2, max: 5, allowFloat: false });
   } catch (sanitizeError) {
     return NextResponse.json(
       { error: `Date invalide: ${sanitizeError.message}` },
@@ -192,12 +317,17 @@ export async function POST(request) {
   }
 
   const { name, age, weight, height, goal, gender, activityLevel, dietType, allergies, mealsPerDay, foodPreferences } = body;
+  const resolvedWorkoutsPerWeek = body.workoutsPerWeek
+    ? parseInt(body.workoutsPerWeek)
+    : mapActivityToWorkouts(activityLevel || 'moderate');
+  const resolvedTrainingSplit = normalizeTrainingSplit(body.trainingSplit);
 
   const missing = [];
   if (!name)          missing.push('nume');
   if (!age)           missing.push('vârstă');
   if (!weight)        missing.push('greutate');
   if (!height)        missing.push('înălțime');
+  if (!resolvedTrainingSplit) missing.push('split antrenament');
   if (missing.length) {
     return NextResponse.json({ error: `Câmpuri obligatorii lipsă: ${missing.join(', ')}.` }, { status: 400 });
   }
@@ -217,6 +347,13 @@ export async function POST(request) {
       allergies: allergies || null,
       meals_per_day: parseInt(mealsPerDay) || 5,
       food_preferences: foodPreferences || null,
+      training_split: resolvedTrainingSplit,
+      workouts_per_week: resolvedWorkoutsPerWeek,
+      fitness_level: body.fitnessLevel || 'beginner',
+      available_equipment: body.availableEquipment || 'full gym',
+      fitness_goal: body.fitnessGoal || 'muscle gain',
+      injuries_limitations: body.injuriesLimitations || null,
+      workout_preferences: body.workoutPreferences || null,
     }])
     .select()
     .single();
@@ -245,6 +382,9 @@ export async function POST(request) {
       notes: 'Greutate inițială la înregistrare'
     }]);
   if (wErr) console.error('[weight_history] Eroare la inserare (client nou):', wErr.message, wErr);
+
+  // Nota: total_clients_created a fost deja incrementat atomic mai sus (try_increment_clients_created)
+  // Nu mai e nevoie de un al doilea increment aici.
 
   logActivity({
     action: 'client.create',

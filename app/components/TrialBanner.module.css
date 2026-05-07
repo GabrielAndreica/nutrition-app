@@ -1,0 +1,66 @@
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  /* Break out of .main's 55px side padding */
+  margin: 0 -55px 20px -55px;
+  padding: 11px 55px;
+  font-size: 13px;
+  font-weight: 500;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+  background: #0f0f0f;
+  border-bottom: 1px solid #1e1e1e;
+  color: #888;
+}
+
+/* Urgency: inset left accent */
+.normal  { box-shadow: inset 4px 0 0 #B7FF00; }
+.warning { box-shadow: inset 4px 0 0 #ffaa00; }
+.urgent  { box-shadow: inset 4px 0 0 #ff6b6b; }
+
+.message {
+  flex: 1;
+  color: #888;
+  line-height: 1.4;
+}
+
+.daysLeft {
+  font-weight: 700;
+}
+
+.normal  .daysLeft { color: #B7FF00; }
+.warning .daysLeft { color: #ffaa00; }
+.urgent  .daysLeft { color: #ff6b6b; }
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.upgradeBtn {
+  background: #B7FF00;
+  color: #0a0a0a;
+  border: none;
+  padding: 6px 16px;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.upgradeBtn:hover {
+  opacity: 0.85;
+}
+
+/* Mobile: match .main's mobile padding */
+@media (max-width: 768px) {
+  .banner {
+    margin: 0 -20px 16px -20px;
+    padding: 10px 20px;
+  }
+}

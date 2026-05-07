@@ -40,13 +40,16 @@ function SkeletonMealPlan() {
   );
 }
 
-export default function InlineMealPlanView({ planId: initialPlanId, scrollContainerRef, onBack, onViewProgress }) {
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+export default function InlineMealPlanView({ planId: initialPlanId, clientDataVersion, scrollContainerRef, onBack, onViewProgress, onViewWorkoutPlan, onEditClient, onDeleteClient }) {
   // DEBUG
   
   const [currentPlanId, setCurrentPlanId] = useState(initialPlanId);
   const [planTab, setPlanTab] = useState('alimentar');
   const [mealPlan, setMealPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
+  const [workoutPlanId, setWorkoutPlanId] = useState(null);
 
   // Scroll to top când se montează componenta
   useEffect(() => {
@@ -62,6 +65,27 @@ export default function InlineMealPlanView({ planId: initialPlanId, scrollContai
   const abortControllerRef = useRef(null);
   // Prevent re-fetch when currentPlanId updates after regeneration (data already loaded from stream)
   const skipFetchRef = useRef(false);
+  const resolveWorkoutPlanId = useCallback(async (clientId, token, maxAttempts = 4) => {
+    if (!clientId || !token) return null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const workoutRes = await fetch(`/api/workout-plans?clientId=${encodeURIComponent(clientId)}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        if (!workoutRes.ok) return null;
+        const plansData = await workoutRes.json();
+        const foundPlanId = plansData.plans?.[clientId]?.planId || null;
+        if (foundPlanId) return foundPlanId;
+      } catch {
+        // Retry below
+      }
+      if (attempt < maxAttempts) {
+        await delay(350);
+      }
+    }
+    return null;
+  }, []);
 
   useEffect(() => {
     if (skipFetchRef.current) {
@@ -70,6 +94,7 @@ export default function InlineMealPlanView({ planId: initialPlanId, scrollContai
     }
     let cancelled = false;
     setMealPlan(null);
+    setWorkoutPlanId(null);
     setLoading(true);
     setError(null);
 
@@ -85,6 +110,7 @@ export default function InlineMealPlanView({ planId: initialPlanId, scrollContai
 
     fetch(`/api/meal-plans/${currentPlanId}`, {
       headers: { 'Authorization': `Bearer ${token}` },
+      cache: 'no-store',
     })
       .then(res => res.json())
       .then(data => {
@@ -108,12 +134,17 @@ export default function InlineMealPlanView({ planId: initialPlanId, scrollContai
           mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
           foodPreferences: c.food_preferences || '',
         });
+
+        (async () => {
+          const foundPlanId = await resolveWorkoutPlanId(client_id, token);
+          if (!cancelled) setWorkoutPlanId(foundPlanId);
+        })();
       })
       .catch(err => { if (!cancelled) setError(err.message); })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [currentPlanId]);
+  }, [currentPlanId, resolveWorkoutPlanId, clientDataVersion]);
 
   useEffect(() => {
     return () => { abortControllerRef.current?.abort(); };
@@ -221,6 +252,24 @@ export default function InlineMealPlanView({ planId: initialPlanId, scrollContai
 
   // Memoized computed values
   const nutritionalNeedsMemo = useMemo(() => nutritionalNeeds, [nutritionalNeeds]);
+  const handleOpenWorkoutPlan = useCallback(async () => {
+    if (!onViewWorkoutPlan || !clientData?.clientId) return;
+
+    let targetWorkoutPlanId = workoutPlanId;
+    if (!targetWorkoutPlanId) {
+      const token = localStorage.getItem('token');
+      targetWorkoutPlanId = await resolveWorkoutPlanId(clientData.clientId, token, 6);
+      if (targetWorkoutPlanId) {
+        setWorkoutPlanId(targetWorkoutPlanId);
+      }
+    }
+
+    if (targetWorkoutPlanId) {
+      onViewWorkoutPlan(targetWorkoutPlanId);
+    } else {
+      setError('Planul de antrenament nu este încă disponibil pentru acest client.');
+    }
+  }, [clientData?.clientId, onViewWorkoutPlan, resolveWorkoutPlanId, workoutPlanId]);
 
   return (
     <div className={styles.content}>
@@ -243,12 +292,46 @@ export default function InlineMealPlanView({ planId: initialPlanId, scrollContai
           </button>
           <button
             className={styles.planTab}
-            disabled
-            title="Va fi disponibil în curând"
+            disabled={!onViewWorkoutPlan}
+            title={workoutPlanId ? 'Deschide planul de antrenament' : 'Caută planul de antrenament'}
+            onClick={handleOpenWorkoutPlan}
           >
             Plan de antrenament
           </button>
         </div>
+        {clientData?.clientId && (onEditClient || onDeleteClient) && (
+          <div className={styles.navClientActions}>
+            {onEditClient && (
+              <button
+                className={styles.navEditBtn}
+                onClick={() => onEditClient(clientData.clientId)}
+                aria-label="Editează clientul"
+                title="Editează clientul"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+                Editează
+              </button>
+            )}
+            {onDeleteClient && (
+              <button
+                className={styles.navDeleteBtn}
+                onClick={() => onDeleteClient(clientData.clientId)}
+                aria-label="Şterge clientul"
+                title="Şterge clientul"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                  <path d="M10 11v6M14 11v6"/>
+                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                </svg>
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {loading && !regenerating && <SkeletonMealPlan />}
@@ -280,7 +363,7 @@ export default function InlineMealPlanView({ planId: initialPlanId, scrollContai
 
       {!loading && !regenerating && error && (
         <div className={styles.error}>
-          <span className={styles.errorIcon}>⚠️</span>
+          <span className={styles.errorIcon}>!</span>
           <span>{error}</span>
         </div>
       )}

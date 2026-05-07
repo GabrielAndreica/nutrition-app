@@ -3,10 +3,13 @@ import OpenAI from 'openai';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { checkSubscription } from '@/app/lib/checkSubscription';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
+
+const MEAL_AI_MODEL = process.env.OPENAI_MEAL_MODEL || 'gpt-4o-mini';
 
 // ── Constante pentru generarea bazată pe rețete ───────────────────────────────
 
@@ -63,6 +66,27 @@ const BASE_MAX_GRAMS_BY_CATEGORY = {
   vegetables: 150,   // legumele sunt garnitură, nu sursă de calorii — max 150g per masă
   default:    250,
 };
+
+const HUMAN_PORTION_RULES = [
+  { keywords: ['usturoi'], max: 15 },
+  { keywords: ['ceapa'], max: 80 },
+  { keywords: ['salata verde', 'rucola', 'salata'], max: 120 },
+  { keywords: ['castravete', 'castraveti'], max: 200 },
+  { keywords: ['rosii cherry'], max: 200 },
+  { keywords: ['rosii', 'rosie', 'tomate'], max: 200 },
+  { keywords: ['ardei'], max: 180 },
+  { keywords: ['dovlecel', 'vinete', 'morcov'], max: 180 },
+  { keywords: ['broccoli', 'conopida', 'spanac', 'fasole verde'], max: 200 },
+  { keywords: ['ou intreg', 'oua', 'ou'], max: 120, min: 50 },
+  { keywords: ['iaurt grecesc', 'iaurt'], max: 300, min: 150 },
+  { keywords: ['fulgi de ovaz', 'ovaz'], max: 80, min: 30 },
+  { keywords: ['ulei'], max: 15, min: 5 },
+  { keywords: ['paste', 'orez', 'quinoa', 'bulgur', 'couscous', 'hrisca'], max: 110, min: 40 },
+  { keywords: ['paine'], max: 140, min: 40 },
+  { keywords: ['rondele de orez'], max: 60, min: 20 },
+  { keywords: ['piept de pui', 'pui', 'curcan'], max: 220, min: 80 },
+  { keywords: ['vita', 'porc', 'somon', 'peste', 'ton', 'cod'], max: 220, min: 80 },
+];
 
 function getMaxGramsByCategory(weightKg = 70, heightCm = 175) {
   const factor = Math.max(0.5, Math.min(2.0, weightKg / 70));
@@ -273,7 +297,8 @@ async function getNutritionalData(foodName) {
 // Format: { keywords[], cal, p, c, f, maxAmt }
 const NUTRITION_FALLBACKS = [
   // Pâine & cereale
-  { kw: ['paine', 'bread', 'toast', 'bagheta', 'covrigi'],         cal: 255, p:  9, c: 48, f:  3, max: 150 },
+  { kw: ['paine integrala', 'paine', 'bread', 'toast', 'bagheta', 'covrigi'], cal: 255, p:  9, c: 48, f:  3, max: 150 },
+  { kw: ['rondele de orez', 'orez expandat', 'rice cakes', 'rice cake'], cal: 387, p: 8, c: 82, f: 3, max: 60 },
   { kw: ['fulgi de ovaz', 'ovaz', 'oatmeal', 'porridge'],          cal: 389, p: 17, c: 66, f:  7, max: 120 },
   { kw: ['orez', 'rice'],                                           cal: 365, p:  7, c: 80, f:  1, max: 120 },
   { kw: ['paste', 'penne', 'spaghete', 'tagliatelle', 'fusilli'],  cal: 358, p: 12, c: 72, f:  2, max: 120 },
@@ -315,13 +340,15 @@ const NUTRITION_FALLBACKS = [
   { kw: ['hummus'],                                                cal: 166, p:  8, c: 14, f: 10, max: 100 },
   // Fructe
   { kw: ['banana'],                                                cal:  89, p:  1, c: 23, f:  0, max: 150 },
-  { kw: ['mar', 'apple'],                                          cal:  52, p:  0, c: 14, f:  0, max: 200 },
+  { kw: ['mar', 'mere', 'apple'],                                  cal:  52, p:  0, c: 14, f:  0, max: 200 },
+  { kw: ['portocala', 'portocale', 'orange'],                      cal:  47, p:  1, c: 12, f:  0, max: 200 },
   { kw: ['capsuni', 'afine', 'zmeura', 'fructe de padure', 'kiwi', 'fructe'], cal: 50, p: 1, c: 12, f: 0, max: 200 },
   { kw: ['miere', 'sirop'],                                        cal: 304, p:  0, c: 82, f:  0, max:  30 },
   // Legume
   { kw: ['broccoli', 'conopida', 'spanac', 'fasole verde', 'sparanghel'], cal: 35, p: 3, c: 6, f: 0, max: 300 },
-  { kw: ['ardei', 'castraveti', 'rosii', 'dovlecel', 'morcov', 'vinete'], cal: 30, p: 2, c: 6, f: 0, max: 300 },
-  { kw: ['ceapa', 'usturoi'],                                      cal:  40, p:  2, c:  9, f:  0, max: 100 },
+  { kw: ['ardei', 'castravete', 'castraveti', 'rosii', 'rosie', 'tomate', 'dovlecel', 'morcov', 'vinete'], cal: 30, p: 2, c: 6, f: 0, max: 200 },
+  { kw: ['ceapa'],                                                 cal:  40, p:  1, c:  9, f:  0, max: 80 },
+  { kw: ['usturoi'],                                               cal: 149, p:  6, c: 33, f:  1, max: 15 },
   { kw: ['salata verde', 'rucola', 'salata'],                      cal:  15, p:  1, c:  2, f:  0, max: 150 },
   // Proteine praf
   { kw: ['pudra de proteine', 'proteina', 'whey'],                 cal: 380, p: 80, c: 10, f:  5, max:  50 },
@@ -546,7 +573,7 @@ Reguli OBLIGATORII:
 - "amount" este ÎNTOTDEAUNA în grame (chiar și lichide — ex: lapte 200g)`;
 
   const response = await openai.chat.completions.create({
-    model: 'gpt-4o',
+    model: MEAL_AI_MODEL,
     messages: [{ role: 'user', content: prompt }],
     temperature: 0.8,
     max_tokens: 600,
@@ -671,7 +698,7 @@ async function loadFoodsFromSupabase() {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from('foods')
-    .select('name, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, max_amount_per_meal, category');
+    .select('name, aliases, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, max_amount_per_meal, category');
   if (error) {
     console.error('[loadFoodsFromSupabase] Eroare:', error.message);
     return [];
@@ -688,6 +715,16 @@ function buildFoodsMap(foods) {
   for (const f of foods) {
     map.set(f.name, f);
     map.set(normalizeForMatch(f.name), f);
+    const aliases = Array.isArray(f.aliases)
+      ? f.aliases
+      : (typeof f.aliases === 'string' ? f.aliases.replace(/[{}"]/g, '').split(',') : []);
+    aliases
+      .map(alias => String(alias || '').trim())
+      .filter(Boolean)
+      .forEach(alias => {
+        map.set(alias, f);
+        map.set(normalizeForMatch(alias), f);
+      });
   }
   return map;
 }
@@ -913,6 +950,61 @@ function filterRecipesByDiet(recipes, dietType, allergies = [], prefExcludes = [
   });
 }
 
+function enforceWeeklyRecipeVariety(selection, eligibleRecipes, mealDistribution) {
+  const recipeById = new Map(eligibleRecipes.map(r => [r.id, r]));
+  const usedWeek = new Set();
+  const normalizedDays = [];
+
+  for (let dayIndex = 0; dayIndex < 7; dayIndex += 1) {
+    const sourceDay = selection?.[dayIndex] || {};
+    const sourceMeals = Array.isArray(sourceDay.meals) ? sourceDay.meals : [];
+    const usedToday = new Set();
+    const meals = [];
+
+    for (const [slot] of mealDistribution) {
+      const mealType = MEAL_TYPE_MAP[slot] || 'snack';
+      const aiSlot = sourceMeals.find(m => m.slot === slot);
+      const aiRecipe = aiSlot?.recipe_id ? recipeById.get(aiSlot.recipe_id) : null;
+      const aiIsUsable = aiRecipe
+        && aiRecipe.meal_type === mealType
+        && !usedToday.has(aiRecipe.id)
+        && !usedWeek.has(aiRecipe.id);
+
+      let recipe = aiIsUsable ? aiRecipe : null;
+      if (!recipe) {
+        const freshPool = eligibleRecipes.filter(r =>
+          r.meal_type === mealType &&
+          !usedToday.has(r.id) &&
+          !usedWeek.has(r.id)
+        );
+        const relaxedPool = eligibleRecipes.filter(r =>
+          r.meal_type === mealType &&
+          !usedToday.has(r.id)
+        );
+        const pool = freshPool.length > 0 ? freshPool : relaxedPool;
+        if (pool.length > 0) {
+          const seed = (dayIndex + 1) * 31 + slot.length * 17;
+          recipe = [...pool].sort((a, b) => {
+            const ah = (a.id.charCodeAt(0) + a.name.length + seed) % 101;
+            const bh = (b.id.charCodeAt(0) + b.name.length + seed) % 101;
+            return ah - bh;
+          })[0];
+        }
+      }
+
+      if (recipe) {
+        meals.push({ slot, recipe_id: recipe.id });
+        usedToday.add(recipe.id);
+        usedWeek.add(recipe.id);
+      }
+    }
+
+    normalizedDays.push({ day: dayIndex + 1, meals });
+  }
+
+  return normalizedDays;
+}
+
 /**
  * PROMPT 1 — O singură cerere AI pentru toate cele 7 zile.
  * AI primește lista de rețete (id, name, meal_type, protein_source) și returnează
@@ -958,7 +1050,7 @@ ROLUL TĂU:
 PRINCIPII DE SELECȚIE:
 1. SIMPLITATE PRIMUL — preferă rețete cu 3-5 ingrediente față de rețete complexe
 2. ACCESIBILITATE — ingrediente comune, ușor de găsit în orice supermarket
-3. VARIETATE — nicio rețetă repetată de mai mult de o dată în 7 zile dacă există alternative
+3. VARIETATE STRICTĂ — nu repeta aceeași rețetă de mic dejun, prânz, cină sau gustare în 7 zile dacă există alternative
 4. ROTAȚIE PROTEICĂ — surse diferite de proteină în fiecare zi
 5. RESTRICȚII ABSOLUTE — alergiile și excluderile din preferințe sunt LEGE, nu sugestii`;
 
@@ -995,7 +1087,7 @@ REGULI OBLIGATORII:
 2. Fiecare zi trebuie să aibă TOATE mesele: ${mealsPerDay.join(', ')}
 3. Folosește EXCLUSIV recipe_id-uri din lista de mai jos
 4. Nu repeta aceeași rețetă în aceeași zi
-5. Maximizează varietatea pe parcursul săptămânii
+5. Maximizează varietatea pe parcursul săptămânii: mic dejun diferit în fiecare zi dacă lista permite, gustări diferite, prânz/cină diferite
 6. Tipul mesei trebuie să corespundă: breakfast→Mic Dejun, lunch→Prânz, dinner→Cină, snack→Gustare
 7. Pește și fructe de mare NICIODATĂ la mic dejun sau gustare
 8. Mic dejun — preferă rețete rapide (ovăz, ouă, iaurt) față de rețete complexe
@@ -1023,37 +1115,368 @@ Răspunde EXCLUSIV cu JSON valid, fără text adițional, fără markdown:
   let rawText = '';
   try {
     const resp = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: MEAL_AI_MODEL,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user',   content: userPrompt   },
       ],
       temperature: 0.8,
-      max_tokens: 2500,
+      max_tokens: 1800,
       response_format: { type: 'json_object' },
     });
     rawText = resp.choices[0].message.content;
     const parsed = JSON.parse(rawText);
     const arr = parsed.days || (Array.isArray(parsed) ? parsed : Object.values(parsed)[0]);
     if (Array.isArray(arr) && arr.length > 0) {
-      console.log(`[selectRecipesWithAI] Plan selectat: ${arr.length} zile`);
-      return arr;
+      const repaired = enforceWeeklyRecipeVariety(arr, eligibleRecipes, mealDistribution);
+      console.log(`[selectRecipesWithAI] Plan selectat: ${repaired.length} zile`);
+      return repaired;
     }
   } catch (err) {
     console.error('[selectRecipesWithAI] Eroare GPT:', err.message, 'Raw:', rawText.slice(0, 200));
   }
+  throw new Error(`Selecția AI pentru rețete a eșuat. ${rawText ? `Răspuns parțial: ${rawText.slice(0, 180)}` : 'Răspuns gol sau invalid.'}`);
+}
 
-  // Fallback: selecție aleatorie
-  console.warn('[selectRecipesWithAI] Fallback la selecție aleatorie.');
-  return Array.from({ length: 7 }, (_, i) => ({
-    day: i + 1,
-    meals: mealDistribution.map(([slot]) => {
-      const mealType = MEAL_TYPE_MAP[slot] || 'snack';
-      const pool     = eligibleRecipes.filter(r => r.meal_type === mealType);
-      const recipe   = pool[Math.floor(Math.random() * pool.length)] || eligibleRecipes[0];
-      return { slot, recipe_id: recipe?.id };
-    }),
-  }));
+/**
+ * Variantă specială pentru regenerare după progres client.
+ * Primește feedback-ul clientului + mesele din planul anterior și construiește
+ * un prompt contextualizat care ține cont de tot.
+ */
+async function selectRecipesWithAIFromProgress(
+  eligibleRecipes, clientData, targets, mealDistribution, parsedPrefs,
+  progressData, previousPlanDays
+) {
+  const dietType  = clientData.dietType || 'omnivore';
+  const allergies = (clientData.allergies || []).join(', ');
+  const prefs     = parsedPrefs || parsePreferences(clientData.foodPreferences || clientData.preferences || '');
+  const rawPrefText = prefs.raw || '';
+
+  const dietLabel = { omnivore: 'omnivoră', vegetarian: 'vegetariană', vegan: 'vegană' }[dietType] || 'omnivoră';
+
+  // Grupează rețetele pe meal_type
+  const byType = {};
+  for (const r of eligibleRecipes) {
+    if (!byType[r.meal_type]) byType[r.meal_type] = [];
+    byType[r.meal_type].push({ id: r.id, name: r.name, protein_source: r.protein_source || 'mixed' });
+  }
+  const recipeListText = Object.entries(byType)
+    .map(([type, recipes]) =>
+      `${type.toUpperCase()}:\n${recipes.map(r => `  - id:"${r.id}" | "${r.name}" | proteina:${r.protein_source}`).join('\n')}`)
+    .join('\n\n');
+
+  const mealsPerDay = mealDistribution.map(([slot]) => slot);
+
+  // Rotație proteică pe zile
+  const dayProteinHints = PROTEIN_SOURCE_BY_DAY.map((srcs, i) => {
+    const dbKeys = srcs.map(s => PROTEIN_SOURCE_TO_DB_KEY[s]).filter(Boolean);
+    return `Ziua ${i + 1}: ${dbKeys.join(' sau ')}`;
+  }).join('\n');
+
+  // Construiește textul cu planul anterior
+  let previousPlanText = '';
+  if (previousPlanDays && previousPlanDays.length > 0) {
+    previousPlanText = previousPlanDays.map((day, i) => {
+      const mealsText = (day.meals || []).map(m => {
+        const macros = m.mealTotals
+          ? ` (${m.mealTotals.calories || '?'} kcal | P:${m.mealTotals.protein || '?'}g C:${m.mealTotals.carbs || '?'}g G:${m.mealTotals.fat || '?'}g)`
+          : '';
+        return `    - ${m.label || m.name || 'Masă'}: ${m.name || ''}${macros}`;
+      }).join('\n');
+      return `Ziua ${i + 1}:\n${mealsText}`;
+    }).join('\n');
+  }
+
+  // Construiește textul cu feedback-ul clientului
+  const adherenceLabels = { great: 'excelent', good: 'bun', ok: 'ok', poor: 'slab' };
+  const energyLabels    = { high: 'ridicat', normal: 'normal', low: 'scăzut' };
+  const hungerLabels    = { full: 'sătul tot timpul', ok: 'ok', hungry: 'mereu foame' };
+  const feedbackText = [
+    progressData?.adherence  ? `- Respectare plan alimentar: ${adherenceLabels[progressData.adherence] || progressData.adherence}` : null,
+    progressData?.energyLevel ? `- Nivel energie: ${energyLabels[progressData.energyLevel] || progressData.energyLevel}` : null,
+    progressData?.hungerLevel ? `- Nivel sațietate: ${hungerLabels[progressData.hungerLevel] || progressData.hungerLevel}` : null,
+    progressData?.notes?.trim() ? `- Observații client: "${progressData.notes.trim()}"` : null,
+  ].filter(Boolean).join('\n') || 'Niciun feedback specific.';
+
+  const systemPrompt = `Ești un nutriționist expert care actualizează planuri alimentare pe baza progresului și feedback-ului clientului.
+
+ROLUL TĂU:
+- Selectezi EXCLUSIV rețete existente din lista furnizată
+- Analizezi feedback-ul clientului și îl folosești pentru a îmbunătăți planul
+- Dacă clientul a avut foame constantă — alege rețete mai sățioase (proteine + fibre ridicate)
+- Dacă energia a fost scăzută — prioritizează carbohidrați complecși la mesele principale
+- Dacă aderența a fost slabă — alege rețete mai simple și mai rapide
+- Respecti ABSOLUT alergiile, excluderile și preferințele clientului
+- Maximizezi varietatea față de planul anterior
+
+PRINCIPII:
+1. FEEDBACK PRIMUL — adaptează selecția pe baza feedback-ului real al clientului
+2. VARIETATE — evită rețetele deja folosite în planul anterior
+3. RESTRICȚII ABSOLUTE — alergiile și excluderile sunt LEGE
+4. SIMPLITATE — preferă rețete cu 3-5 ingrediente față de rețete complexe
+5. ROTAȚIE PROTEICĂ — surse diferite de proteină în fiecare zi`;
+
+  const userPrompt = `Actualizează planul alimentar pe baza progresului clientului.
+
+CLIENT:
+- Dietă: ${dietLabel}
+- Alergii/restricții medicale: ${allergies || 'niciuna'}
+- Mese pe zi: ${mealsPerDay.join(', ')}
+- Obiectiv: ${clientData.goal || 'nespecificat'}
+
+NECESAR ACTUALIZAT:
+- Calorii: ${targets.calories} kcal/zi
+- Proteine: ${targets.protein}g | Carbohidrați: ${targets.carbs}g | Grăsimi: ${targets.fat}g
+
+${prefs.excludes.length > 0 ? `══════════════════════════════════════════
+ALIMENTE EXCLUSE DIN PREFERINȚE (OBLIGATORIU):
+Clientul NU vrea: ${prefs.excludes.join(', ')}
+Tratează aceste alimente IDENTIC cu alergiile.
+NU selecta NICIO rețetă care conține aceste alimente.
+══════════════════════════════════════════
+` : ''}${allergies ? `══════════════════════════════════════════
+ALERGII MEDICALE — CRITIC ABSOLUT:
+Clientul NU poate consuma: ${allergies}
+Verifică FIECARE rețetă selectată să nu conțină aceste ingrediente.
+══════════════════════════════════════════
+` : ''}${rawPrefText ? `══════════════════════════════════════════
+PREFERINȚELE CLIENTULUI — OBLIGATORIU DE RESPECTAT:
+"${rawPrefText}"
+══════════════════════════════════════════
+` : ''}
+══════════════════════════════════════════
+FEEDBACK CLIENT (săptămâna trecută):
+${feedbackText}
+══════════════════════════════════════════
+${previousPlanText ? `
+PLANUL ANTERIOR (săptămâna trecută) — evită repetarea acelorași rețete:
+${previousPlanText}
+` : ''}
+ROTAȚIE PROTEINE PE ZILE (respectă pentru prânz și cină):
+${dayProteinHints}
+
+REGULI OBLIGATORII:
+1. Returnează EXACT 7 obiecte day (zilele 1-7)
+2. Fiecare zi trebuie să aibă TOATE mesele: ${mealsPerDay.join(', ')}
+3. Folosește EXCLUSIV recipe_id-uri din lista de mai jos
+4. Nu repeta aceeași rețetă în aceeași zi
+5. Maximizează varietatea față de planul anterior
+6. Tipul mesei trebuie să corespundă: breakfast→Mic Dejun, lunch→Prânz, dinner→Cină, snack→Gustare
+7. Pește și fructe de mare NICIODATĂ la mic dejun sau gustare
+8. Mic dejun — preferă rețete rapide (ovăz, ouă, iaurt)
+9. Gustare — preferă rețete simple cu maxim 2-3 ingrediente
+10. Adaptează selecția la feedback-ul clientului (energie, sațietate, aderență)
+
+RETETE DISPONIBILE:
+${recipeListText}
+
+Răspunde EXCLUSIV cu JSON valid, fără text adițional, fără markdown:
+{
+  "days": [
+    {
+      "day": 1,
+      "meals": [
+        {"slot": "Mic Dejun", "recipe_id": "uuid-exact-din-lista"},
+        {"slot": "Prânz", "recipe_id": "uuid-exact-din-lista"},
+        {"slot": "Cină", "recipe_id": "uuid-exact-din-lista"}
+      ]
+    }
+  ]
+}`;
+
+  let rawText = '';
+  try {
+    const resp = await openai.chat.completions.create({
+      model: MEAL_AI_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userPrompt   },
+      ],
+      temperature: 0.8,
+      max_tokens: 1800,
+      response_format: { type: 'json_object' },
+    });
+    rawText = resp.choices[0].message.content;
+    const parsed = JSON.parse(rawText);
+    const arr = parsed.days || (Array.isArray(parsed) ? parsed : Object.values(parsed)[0]);
+    if (Array.isArray(arr) && arr.length > 0) {
+      const repaired = enforceWeeklyRecipeVariety(arr, eligibleRecipes, mealDistribution);
+      console.log(`[selectRecipesWithAIFromProgress] Plan selectat: ${repaired.length} zile`);
+      return repaired;
+    }
+  } catch (err) {
+    console.error('[selectRecipesWithAIFromProgress] Eroare GPT:', err.message, 'Raw:', rawText.slice(0, 200));
+  }
+  throw new Error(`Selecția AI pentru rețete (progres) a eșuat. ${rawText ? `Răspuns parțial: ${rawText.slice(0, 180)}` : 'Răspuns gol sau invalid.'}`);
+}
+
+function getHumanPortionRule(foodName) {
+  const n = normalizeName(foodName);
+  return HUMAN_PORTION_RULES.find(rule => rule.keywords.some(k => n.includes(k))) || null;
+}
+
+function getHumanMaxAmount(foodName, fallbackMax = null) {
+  const rule = getHumanPortionRule(foodName);
+  return rule?.max || fallbackMax;
+}
+
+function scaleFoodToAmount(food, newAmount) {
+  const oldAmount = Math.max(Number(food.amount) || 1, 1);
+  const amount = roundToNearest5(Math.max(newAmount, 5));
+  const scale = amount / oldAmount;
+  food.amount = amount;
+  food.unit = food.unit || 'g';
+  food.calories = Math.round((food.calories || 0) * scale);
+  food.protein = Math.round((food.protein || 0) * scale);
+  food.carbs = Math.round((food.carbs || 0) * scale);
+  food.fat = Math.round((food.fat || 0) * scale);
+}
+
+function getFoodNutrition(foodName, foodsMap) {
+  const dbFood = foodsMap?.get(foodName) || foodsMap?.get(normalizeForMatch(foodName));
+  if (dbFood?.calories_per_100g) {
+    return {
+      name: dbFood.name,
+      cal: dbFood.calories_per_100g,
+      p: dbFood.protein_per_100g,
+      c: dbFood.carbs_per_100g,
+      f: dbFood.fat_per_100g,
+      max: dbFood.max_amount_per_meal || getHumanMaxAmount(dbFood.name, null),
+    };
+  }
+  return getNutritionFallback(foodName);
+}
+
+function addOrIncreaseFood(meal, foodName, amount, foodsMap) {
+  const nutrition = getFoodNutrition(foodName, foodsMap);
+  const maxAmount = getHumanMaxAmount(foodName, nutrition.max || 200) || nutrition.max || 200;
+  const existing = (meal.foods || []).find(f => normalizeName(f.name) === normalizeName(nutrition.name || foodName));
+  const safeAmount = roundToNearest5(Math.min(Math.max(amount, 5), Math.max(maxAmount - (existing?.amount || 0), 0)));
+  if (safeAmount < 5) return false;
+
+  const s = safeAmount / 100;
+  if (existing) {
+    existing.amount += safeAmount;
+    existing.calories += Math.round(nutrition.cal * s);
+    existing.protein += Math.round(nutrition.p * s);
+    existing.carbs += Math.round(nutrition.c * s);
+    existing.fat += Math.round(nutrition.f * s);
+  } else {
+    meal.foods.push({
+      name: nutrition.name || foodName,
+      amount: safeAmount,
+      unit: 'g',
+      calories: Math.round(nutrition.cal * s),
+      protein: Math.round(nutrition.p * s),
+      carbs: Math.round(nutrition.c * s),
+      fat: Math.round(nutrition.f * s),
+    });
+  }
+  return true;
+}
+
+function chooseCarbComplement(meal) {
+  const mealName = normalizeName(meal.name || '');
+  const foodNames = (meal.foods || []).map(f => normalizeName(f.name)).join(' ');
+  const isBreakfast = meal.mealType === 'breakfast';
+  const hasEggs = /\bou|oua|omleta|shakshuka/.test(`${mealName} ${foodNames}`);
+  const hasYogurt = /iaurt/.test(`${mealName} ${foodNames}`);
+  const hasOats = /ovaz|fulgi/.test(foodNames);
+
+  if (isBreakfast && hasEggs) return 'Pâine integrală';
+  if (isBreakfast && hasYogurt && !hasOats) return 'Fulgi de ovăz';
+  if (isBreakfast) return 'Pâine integrală';
+  if (meal.mealType === 'snack') return 'Banană';
+  return foodNames.includes('paste') ? 'Paste integrale' : 'Orez alb';
+}
+
+function formatHumanAmount(food) {
+  const n = normalizeName(food.name);
+  const amount = Number(food.amount) || 0;
+  if (n.includes('ou')) {
+    const eggs = Math.max(1, Math.round(amount / 55));
+    return `${eggs} ${eggs === 1 ? 'ou' : 'ouă'} (~${roundToNearest5(amount)}g)`;
+  }
+  if (n.includes('iaurt')) {
+    if (amount >= 230) return `1 cană mare (~${roundToNearest5(amount)}g)`;
+    if (amount >= 140) return `1 cană (~${roundToNearest5(amount)}g)`;
+  }
+  if (n.includes('paine')) {
+    const slices = Math.max(1, Math.round(amount / 35));
+    return `${slices} ${slices === 1 ? 'felie' : 'felii'} (~${roundToNearest5(amount)}g)`;
+  }
+  if (n.includes('rondele de orez')) {
+    const pieces = Math.max(1, Math.round(amount / 10));
+    return `${pieces} rondele (~${roundToNearest5(amount)}g)`;
+  }
+  if (n.includes('banana')) {
+    if (amount >= 100) return `1 banană medie (~${roundToNearest5(amount)}g)`;
+    return `1/2 banană (~${roundToNearest5(amount)}g)`;
+  }
+  if (n.includes('mar')) return `1 măr ${amount > 150 ? 'mare' : 'mediu'} (~${roundToNearest5(amount)}g)`;
+  if (n.includes('portocala')) return `1 portocală (~${roundToNearest5(amount)}g)`;
+  return `${roundToNearest5(amount)}${food.unit || 'g'}`;
+}
+
+function humanizeMealPortions(meal, foodsMap) {
+  if (!meal?.foods?.length) return;
+
+  // 1. Cap-uri culinare: legumele și condimentele nu au voie să devină sursă de calorii.
+  for (const food of meal.foods) {
+    const fb = getNutritionFallback(food.name);
+    const max = getHumanMaxAmount(food.name, fb.max || 250);
+    if (max && food.amount > max) {
+      scaleFoodToAmount(food, max);
+    }
+  }
+
+  // 2. Raport logic iaurt/ovăz: bolul trebuie să poată fi mâncat cu lingura, nu cu dalta.
+  const yogurt = meal.foods.find(f => normalizeName(f.name).includes('iaurt'));
+  const oats = meal.foods.find(f => normalizeName(f.name).includes('ovaz'));
+  if (yogurt && oats) {
+    const targetYogurt = Math.min(300, Math.max(150, oats.amount * 2.8));
+    if (yogurt.amount < targetYogurt) {
+      const nutrition = getFoodNutrition(yogurt.name, foodsMap);
+      const oldAmount = yogurt.amount;
+      yogurt.amount = roundToNearest5(targetYogurt);
+      const s = yogurt.amount / 100;
+      yogurt.calories = Math.round(nutrition.cal * s);
+      yogurt.protein = Math.round(nutrition.p * s);
+      yogurt.carbs = Math.round(nutrition.c * s);
+      yogurt.fat = Math.round(nutrition.f * s);
+      const addedCalories = yogurt.calories - Math.round((nutrition.cal * oldAmount) / 100);
+      if (addedCalories > 80 && oats.amount > 40) {
+        scaleFoodToAmount(oats, Math.max(40, oats.amount - 15));
+      }
+    }
+  }
+
+  // 3. Dacă masa a rămas prea mică după cap-uri, completează cu un carbohidrat normal.
+  recalculateDayTotals({ meals: [meal] });
+  const target = meal.targetCalories || meal.mealTotals?.calories || 0;
+  const current = meal.mealTotals?.calories || 0;
+  const deficit = target - current;
+  if (target > 0 && deficit > Math.max(120, target * 0.18)) {
+    const complement = chooseCarbComplement(meal);
+    const nutrition = getFoodNutrition(complement, foodsMap);
+    const needed = Math.min((nutrition.max || 120), deficit / Math.max(nutrition.cal / 100, 0.01));
+    addOrIncreaseFood(meal, complement, needed, foodsMap);
+  }
+
+  for (const food of meal.foods) {
+    food.amount = roundToNearest5(food.amount || 0);
+    food.unit = food.unit || 'g';
+    food.displayAmount = formatHumanAmount(food);
+    food.nutritionNote = 'aprox.';
+  }
+}
+
+function humanizeDayMeals(day, foodsMap) {
+  if (!day?.meals) return;
+  for (const meal of day.meals) {
+    humanizeMealPortions(meal, foodsMap);
+  }
+  recalculateDayTotals(day);
 }
 
 /**
@@ -1111,7 +1534,9 @@ function scaleRecipeToTarget(recipe, mealTargetCalories, foodsMap, maxGramsMap) 
     const isSnackMeal = (recipe.meal_type === 'snack');
     // Alimente cu densitate scăzută: cap dur la 150g indiferent de ce scrie în DB
     const LOW_DENSITY_MAX = 150;
-    const maxGrams = (food.calories_per_100g < 60 ? Math.min(food.max_amount_per_meal || LOW_DENSITY_MAX, LOW_DENSITY_MAX) : null)
+    const humanMax = getHumanMaxAmount(food.name, null);
+    const maxGrams = humanMax
+      || (food.calories_per_100g < 60 ? Math.min(food.max_amount_per_meal || LOW_DENSITY_MAX, LOW_DENSITY_MAX) : null)
       || food.max_amount_per_meal
       || (isSnackMeal && isVeg ? 200 : null)
       || MAX_GRAMS_BY_CATEGORY[category]
@@ -1237,7 +1662,12 @@ function scaleRecipeToTarget(recipe, mealTargetCalories, foodsMap, maxGramsMap) 
               compName = 'Banană'; compCal100 = 89; compP100 = 1; compC100 = 23; compF100 = 0; compMax = 150;
             }
           } else if (isBreakfast && !hasGrains) {
-            compName = 'Fulgi de ovăz'; compCal100 = 389; compP100 = 17; compC100 = 66; compF100 = 7; compMax = 80;
+            const hasEggs = items.some(i => normalizeName(i.name).includes('ou'));
+            if (hasEggs) {
+              compName = 'Pâine integrală'; compCal100 = 255; compP100 = 9; compC100 = 48; compF100 = 3; compMax = 120;
+            } else {
+              compName = 'Fulgi de ovăz'; compCal100 = 389; compP100 = 17; compC100 = 66; compF100 = 7; compMax = 80;
+            }
           } else {
             compName = 'Orez alb'; compCal100 = 365; compP100 = 7; compC100 = 80; compF100 = 1; compMax = 120;
           }
@@ -1279,6 +1709,12 @@ export async function POST(request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
+    // ── Subscription check (live from DB — JWT can be stale) ─────────────
+    if (auth.role === 'trainer') {
+      const sub = await checkSubscription(auth.userId);
+      if (!sub.allowed) return sub.response;
+    }
+
     console.log('[Generate Plan] Auth successful, userId:', auth.userId);
     
     const { ip, userAgent } = getRequestMeta(request);
@@ -1311,6 +1747,55 @@ export async function POST(request) {
       );
     }
 
+    // Dacă avem clientId, folosim strict câmpurile de nutriție din tabela clients.
+    const rawClientId = clientData?.clientId ? String(clientData.clientId).trim() : '';
+    if (rawClientId) {
+      const supabase = getSupabase();
+      let clientQuery = supabase
+        .from('clients')
+        .select('id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences')
+        .eq('id', rawClientId);
+
+      if (auth.role === 'trainer') {
+        clientQuery = clientQuery.eq('trainer_id', auth.userId);
+      } else if (auth.role === 'client') {
+        clientQuery = clientQuery.eq('user_id', auth.userId);
+      }
+
+      const { data: dbClient, error: dbClientError } = await clientQuery.single();
+      if (dbClientError || !dbClient) {
+        return NextResponse.json(
+          { error: 'Clientul nu a fost găsit sau nu ai acces la el.' },
+          { status: 404 }
+        );
+      }
+
+      const dbAllergies = typeof dbClient.allergies === 'string'
+        ? dbClient.allergies
+            .replace(/\s+si\s+|\s+și\s+|\s+and\s+/gi, ',')
+            .split(/[,;]+/)
+            .map(s => s.trim())
+            .filter(Boolean)
+        : (Array.isArray(dbClient.allergies) ? dbClient.allergies : []);
+
+      clientData = {
+        ...clientData,
+        clientId: rawClientId,
+        // Câmpuri nutriție preluate din DB (sursa de adevăr)
+        name: dbClient.name,
+        age: dbClient.age,
+        weight: dbClient.weight,
+        height: dbClient.height,
+        goal: dbClient.goal,
+        gender: dbClient.gender,
+        activityLevel: dbClient.activity_level,
+        dietType: dbClient.diet_type || 'omnivore',
+        allergies: dbAllergies,
+        mealsPerDay: dbClient.meals_per_day,
+        foodPreferences: dbClient.food_preferences || '',
+      };
+    }
+
     const missingFields = [];
     if (!clientData.name)           missingFields.push('nume');
     if (!clientData.age)            missingFields.push('vârstă');
@@ -1331,15 +1816,46 @@ export async function POST(request) {
     const hasAdjustment = typeof clientData.calorieAdjustment === 'number' && clientData.calorieAdjustment !== 0;
     const hasPreviousBase = clientData.currentPlanCalories && Number(clientData.currentPlanCalories) > 0;
 
+    // Încearcă să obțină caloriile planului anterior din DB (dacă clientul are deja un plan)
+    let prevPlanCalories = hasPreviousBase ? Number(clientData.currentPlanCalories) : null;
+    if (!prevPlanCalories && rawClientId) {
+      try {
+        const supabasePrev = getSupabase();
+        const { data: prevPlanRow } = await supabasePrev
+          .from('meal_plans')
+          .select('plan_data')
+          .eq('client_id', rawClientId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        if (prevPlanRow?.plan_data?.targets?.calories) {
+          prevPlanCalories = Number(prevPlanRow.plan_data.targets.calories);
+        }
+      } catch { /* non-critical */ }
+    }
+
+    const goalMultipliers = {
+      weight_loss:   0.85,
+      muscle_gain:   1.1,
+      maintenance:   1.0,
+      recomposition: 0.95,
+    };
+
     if (hasPreviousBase && hasAdjustment) {
       // Regenerare după ajustare AI — baza este planul ANTERIOR, nu TDEE-ul recalculat
-      // Astfel schimbarea de greutate a clientului nu distorsionează ajustarea
       const base = Math.round(Number(clientData.currentPlanCalories));
       const adj  = Math.max(-500, Math.min(500, Math.round(clientData.calorieAdjustment)));
       targetCalories = base + adj;
       console.log(`[Generate Plan] Regenerare cu ajustare AI: ${base} ${adj >= 0 ? '+' : ''}${adj} = ${targetCalories} kcal`);
+    } else if (prevPlanCalories && !hasAdjustment) {
+      // Regenerare după editare câmpuri sensibile — folosim caloriile planului anterior ca bază
+      // și aplicăm multiplicatorul noului obiectiv (fără recalcul TDEE din profil).
+      // Tratăm caloriile anterioare ca TDEE adaptat al clientului (nu mai recalculăm din greutate/înălțime).
+      const newMultiplier = goalMultipliers[clientData.goal] || 1.0;
+      targetCalories = Math.round(prevPlanCalories * newMultiplier);
+      console.log(`[Generate Plan] Regenerare după editare — bază anterioară: ${prevPlanCalories} kcal, obiectiv nou: ${clientData.goal} (×${newMultiplier}) → ${targetCalories} kcal`);
     } else {
-      // Prima generare (sau regenerare manuală fără ajustare) — calculează din profil
+      // Prima generare — calculează din profil (înălțime, greutate, vârstă, activitate)
       targetCalories = calculateTargetCalories(clientData);
       if (hasAdjustment) {
         const adj = Math.max(-500, Math.min(500, Math.round(clientData.calorieAdjustment)));
@@ -1433,9 +1949,38 @@ export async function POST(request) {
       }])
     );
     // ── PROMPT 1: O singură cerere AI pentru toate cele 7 zile ──
-    sendEvent({ type: 'progress', day: 0, total: 7, message: 'Selectare rețete AI...' });
-    const weeklySelection = await selectRecipesWithAI(eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs);
-    console.log(`[generate] Selecție AI completă: ${weeklySelection.length} zile`);
+    sendEvent({ type: 'progress', phase: 'meal', day: 0, total: 7, message: 'Selectare rețete AI...' });
+
+    const isProgressRegeneration = !!(clientData.progress?.forceRegenerate);
+    let weeklySelection;
+
+    if (isProgressRegeneration) {
+      // Regenerare bazată pe progres — folosim promptul specializat
+      let previousPlanDays = [];
+      if (clientData.clientId) {
+        try {
+          const supabasePrev = getSupabase();
+          const { data: prevPlan } = await supabasePrev
+            .from('meal_plans')
+            .select('plan_data')
+            .eq('client_id', clientData.clientId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          if (prevPlan?.plan_data?.days) {
+            previousPlanDays = prevPlan.plan_data.days;
+          }
+        } catch { /* non-critical */ }
+      }
+      weeklySelection = await selectRecipesWithAIFromProgress(
+        eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs,
+        clientData.progress, previousPlanDays
+      );
+      console.log(`[generate] Selecție AI (progres) completă: ${weeklySelection.length} zile`);
+    } else {
+      weeklySelection = await selectRecipesWithAI(eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs);
+      console.log(`[generate] Selecție AI completă: ${weeklySelection.length} zile`);
+    }
 
     const days = [];
 
@@ -1456,12 +2001,15 @@ export async function POST(request) {
           mealType,
           foods,
           preparation: recipe.preparation || '',
+          targetCalories: mealCal,
+          macroTargets: mealMacroTargets.get(mealLabel) || null,
           mealTotals:  { calories: 0, protein: 0, carbs: 0, fat: 0 },
         });
       }
       const plan = { day: dayNumber, meals: dayMeals, dailyTotals: { calories: 0, protein: 0, carbs: 0, fat: 0 } };
       recalculateDayTotals(plan);
       adjustDayTotals(plan, targets, mealMacroTargets, foodsMap, maxGramsMap);
+      humanizeDayMeals(plan, foodsMap);
       return plan;
     };
 
@@ -1562,14 +2110,14 @@ export async function POST(request) {
       const dayNumber = dayIndex + 1;
       const dayName   = dayNames[dayIndex];
       console.log(`Generare ziua ${dayNumber}/7 (${dayName})...`);
-      sendEvent({ type: 'progress', day: dayNumber, total: 7 });
+      sendEvent({ type: 'progress', phase: 'meal', day: dayNumber, total: 7 });
 
       if (clientData.clientId) {
         try {
           const supabaseProgress = getSupabase();
           await supabaseProgress
             .from('generation_status')
-            .update({ current_step: dayNumber, updated_at: new Date().toISOString() })
+            .update({ current_step: dayNumber, total_steps: 8, updated_at: new Date().toISOString() })
             .eq('client_id', clientData.clientId)
             .eq('trainer_id', auth.userId)
             .eq('status', 'generating');
@@ -1659,14 +2207,38 @@ export async function POST(request) {
       details: { clientId: clientData.clientId || null, clientName: clientData.name },
     });
 
-    // Marchează generarea ca finalizată în generation_status
+    let savedWorkoutPlanId = null;
+    if (clientData.clientId) {
+      // Pas server-side: generează și planul de antrenament
+      sendEvent({ type: 'progress', phase: 'workout', step: 1, total: 2, message: 'Se generează planul de antrenament...' });
+      const supabaseProgress = getSupabase();
+      await supabaseProgress
+        .from('generation_status')
+        .update({ current_step: 8, total_steps: 8, updated_at: new Date().toISOString() })
+        .eq('client_id', clientData.clientId)
+        .eq('trainer_id', auth.userId)
+        .eq('status', 'generating');
+
+      const origin = request.nextUrl?.origin;
+      const authorizationHeader = request.headers.get('authorization');
+      savedWorkoutPlanId = await generateWorkoutPlanServerSide({
+        origin,
+        authorizationHeader,
+        clientId: clientData.clientId,
+        progress: clientData.progress || null,
+      });
+      sendEvent({ type: 'progress', phase: 'workout', step: 2, total: 2, message: 'Planul de antrenament a fost generat.' });
+    }
+
+    // Marchează generarea ca finalizată în generation_status DOAR după ambele planuri
     if (clientData.clientId) {
       const supabase2 = getSupabase();
       await supabase2
         .from('generation_status')
         .update({
           status: 'completed',
-          current_step: 7,
+          current_step: 8,
+          total_steps: 8,
           completed_at: new Date().toISOString(),
           plan_id: savedPlanId,
         })
@@ -1675,9 +2247,25 @@ export async function POST(request) {
         .eq('status', 'generating');
     }
 
-    sendEvent({ type: 'complete', plan, nutritionalNeeds: targets, planId: savedPlanId });
+    sendEvent({ type: 'complete', plan, nutritionalNeeds: targets, planId: savedPlanId, workoutPlanId: savedWorkoutPlanId });
     console.log('[generate-meal-plan] Sent complete event with planId:', savedPlanId);
         } catch (err) {
+          if (clientData?.clientId) {
+            try {
+              const supabaseFail = getSupabase();
+              await supabaseFail
+                .from('generation_status')
+                .update({
+                  status: 'failed',
+                  error_message: err.message,
+                  completed_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('client_id', clientData.clientId)
+                .eq('trainer_id', auth.userId)
+                .eq('status', 'generating');
+            } catch {}
+          }
           logActivity({
             action: 'meal_plan.generate',
             status: 'failure',
@@ -1725,6 +2313,93 @@ export async function POST(request) {
 
 // ─── Helper functions ────────────────────────────────────────────────────────
 
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+const SERVER_SIDE_WORKOUT_TIMEOUT_MS = 150000;
+
+/**
+ * Rulează server-side generarea planului de antrenament pentru un client existent.
+ * Returnează workoutPlanId-ul salvat în DB.
+ */
+async function generateWorkoutPlanServerSide({ origin, authorizationHeader, clientId, progress }) {
+  if (!origin) throw new Error('Origin invalid pentru generare workout.');
+  if (!authorizationHeader) throw new Error('Authorization header lipsă pentru generare workout.');
+  if (!clientId) throw new Error('clientId lipsă pentru generare workout.');
+  const maxAttempts = 1;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), SERVER_SIDE_WORKOUT_TIMEOUT_MS);
+    try {
+      const response = await fetch(`${origin}/api/generate-workout-plan`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authorizationHeader,
+          'x-internal-plan-orchestrator': '1',
+        },
+        body: JSON.stringify({ clientId, ...(progress ? { progress } : {}) }),
+        signal: abortController.signal,
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Eroare la generarea planului de antrenament.');
+      }
+
+      const reader = response.body?.getReader?.();
+      if (!reader) {
+        throw new Error('Răspuns invalid de la endpoint-ul de antrenament.');
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let workoutPlanId = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.type === 'error') {
+            throw new Error(event.message || 'Eroare la generarea planului de antrenament.');
+          }
+          if (event.type === 'complete') {
+            workoutPlanId = event.planId || null;
+          }
+        }
+      }
+
+      if (!workoutPlanId) {
+        throw new Error('Planul de antrenament nu a fost salvat în baza de date.');
+      }
+
+      return workoutPlanId;
+    } catch (err) {
+      lastError = err?.name === 'AbortError'
+        ? new Error('Generarea planului de antrenament a depășit timpul maxim permis.')
+        : err;
+      if (err?.name === 'AbortError') break;
+      if (attempt < maxAttempts) {
+        await delay(500 * attempt);
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  throw lastError || new Error('Eroare la generarea planului de antrenament.');
+}
+
 /**
  * Rotunjește gramajul alimentului la cel mai apropiat multiplu de 5
  */
@@ -1747,10 +2422,10 @@ const FOOD_FALLBACK_LIMITS = [
 
 // ─── TOLERANȞE NUTRIȚIONALE ────────────────────────────────────────────────
 const TOLERANCES = {
-  calories: 0.05,  // ±5%
-  protein:  0.08,  // ±8%
-  carbs:    0.10,  // ±10%
-  fat:      0.10,  // ±10%
+  calories: 0.08,  // ±8% - planuri aproximative, dar porții umane
+  protein:  0.12,  // ±12%
+  carbs:    0.15,  // ±15%
+  fat:      0.15,  // ±15%
 };
 
 function normalizeName(name) {
@@ -2706,9 +3381,9 @@ function adjustDayTotals(day, targets, _mealMacroTargets, _foodsMap, maxGramsMap
   const scaleByRole = (role, factor) => {
     const sf = Math.max(0.05, Math.min(6.0, factor));
     if (Math.abs(sf - 1) < 0.015) return;
-    for (const fd of allFoods()) {
+    for (const fd of mainFoods()) {
       if (classify(fd) !== role) continue;
-      const maxG   = MAX[role] || MAX.default;
+      const maxG   = getHumanMaxAmount(fd.name, MAX[role] || MAX.default) || MAX[role] || MAX.default;
       const newAmt = roundToNearest5(Math.max(Math.min(fd.amount * sf, maxG), 5));
       if (newAmt === fd.amount) continue;
       const s = newAmt / fd.amount;
@@ -2773,13 +3448,14 @@ function adjustDayTotals(day, targets, _mealMacroTargets, _foodsMap, maxGramsMap
             const roleLimits = {
               carb:      MAX.carb,
               mixed:     MAX.mixed,
-              vegetable: 400,    // legume — mai generos
+              vegetable: 180,
               default:   MAX.default,
             };
             const sfClamped = Math.max(0.1, Math.min(4.0, sf));
             for (const fd of scalableFoods) {
               const role   = classify(fd);
-              const maxG   = roleLimits[role] || roleLimits.default;
+              if (role === 'vegetable') continue;
+              const maxG   = getHumanMaxAmount(fd.name, roleLimits[role] || roleLimits.default) || roleLimits[role] || roleLimits.default;
               const newAmt = roundToNearest5(Math.max(Math.min(fd.amount * sfClamped, maxG), 5));
               if (newAmt === fd.amount) continue;
               const s = newAmt / fd.amount;

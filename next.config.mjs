@@ -3,7 +3,11 @@ const nextConfig = {
   // ============================================
   // PRODUCTION OPTIMIZATIONS
   // ============================================
-  
+
+  // Prevent jsPDF / fflate from being bundled in the SSR (server) environment.
+  // These are browser-only libs; they must never run on Node.js during SSR.
+  serverExternalPackages: ['jspdf', 'jspdf-autotable', 'fflate'],
+
   // Compiler optimizations
   compiler: {
     // Remove console.log in production

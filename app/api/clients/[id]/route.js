@@ -2,7 +2,62 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
-import { sanitizeName, sanitizeFoodRestrictions, sanitizeFoodPreferences, sanitizeNumber } from '@/app/lib/sanitize';
+import { sanitizeName, sanitizeText, sanitizeFoodRestrictions, sanitizeFoodPreferences, sanitizeNumber } from '@/app/lib/sanitize';
+
+const mapActivityToWorkouts = (activityLevel) => ({
+  sedentary: 2,
+  light: 2,
+  lightly_active: 2,
+  moderate: 4,
+  moderately_active: 4,
+  active: 5,
+  very_active: 5,
+  extra_active: 5,
+}[activityLevel] || 4);
+
+const ALLOWED_TRAINING_SPLITS = new Set(['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Bro Split']);
+
+const normalizeTrainingSplit = (split) => {
+  const raw = String(split || '')
+    .replace(/&#x2f;|&#47;/gi, '/')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#x27;/gi, "'")
+    .trim();
+  if (!raw) return null;
+  const value = raw
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+  const compact = value.replace(/[\s_\-/]+/g, '');
+
+  if (
+    ['full body', 'fullbody', 'full-body', 'corp complet', 'tot corpul', 'total body', 'totalbody'].includes(value)
+    || compact === 'fullbody'
+    || compact === 'corpcomplet'
+    || compact === 'totcorpul'
+  ) return 'Full Body';
+
+  if (
+    ['push/pull/legs', 'push pull legs', 'push-pull-legs', 'push_pull_legs', 'ppl'].includes(value)
+    || compact === 'pushpulllegs'
+    || compact === 'ppl'
+  ) return 'Push/Pull/Legs';
+
+  if (
+    ['upper/lower', 'upper lower', 'upper-lower', 'upper_lower'].includes(value)
+    || compact === 'upperlower'
+  ) return 'Upper/Lower';
+
+  if (
+    ['bro split', 'bro-split', 'bro_split', 'brosplit'].includes(value)
+    || compact === 'brosplit'
+  ) return 'Bro Split';
+
+  if (ALLOWED_TRAINING_SPLITS.has(raw)) return raw;
+  return null;
+};
 
 // GET /api/clients/[id] — get a single client
 export async function GET(request, {
@@ -69,18 +124,24 @@ params }) {
   }
 
   let { name, age, weight, height, goal, gender, activityLevel, dietType, allergies, mealsPerDay, foodPreferences } = body;
+  const resolvedWorkoutsPerWeek = body.workoutsPerWeek
+    ? parseInt(body.workoutsPerWeek)
+    : mapActivityToWorkouts(activityLevel || 'moderate');
 
   // ─── Sanitizare input-uri (XSS Protection) ───────────────────
   try {
     if (name) name = sanitizeName(name);
     if (allergies) allergies = sanitizeFoodRestrictions(allergies);
     if (foodPreferences) foodPreferences = sanitizeFoodPreferences(foodPreferences);
+    if (body.injuriesLimitations) body.injuriesLimitations = sanitizeText(body.injuriesLimitations);
+    if (body.workoutPreferences) body.workoutPreferences = sanitizeText(body.workoutPreferences);
     
     // Sanitizare numere
     if (age) age = sanitizeNumber(age, { min: 10, max: 120, allowFloat: false });
     if (weight) weight = sanitizeNumber(weight, { min: 20, max: 300 });
     if (height) height = sanitizeNumber(height, { min: 100, max: 250, allowFloat: false });
     if (mealsPerDay) mealsPerDay = sanitizeNumber(mealsPerDay, { min: 1, max: 6, allowFloat: false });
+    if (body.workoutsPerWeek) body.workoutsPerWeek = sanitizeNumber(body.workoutsPerWeek, { min: 2, max: 5, allowFloat: false });
   } catch (sanitizeError) {
     return NextResponse.json(
       { error: `Date invalide: ${sanitizeError.message}` },
@@ -100,7 +161,7 @@ params }) {
   // Ensure client belongs to the logged-in user și ia greutatea actuală
   const { data: existing, error: fetchError } = await supabase
     .from('clients')
-    .select('id, weight')
+    .select('id, weight, goal, activity_level, diet_type, meals_per_day, allergies, food_preferences, training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, injuries_limitations, workout_preferences')
     .eq('id', id)
     .eq('trainer_id', auth.userId)
     .single();
@@ -111,6 +172,13 @@ params }) {
 
   const oldWeight = existing.weight;
   const newWeight = parseFloat(weight);
+  const resolvedTrainingSplit = normalizeTrainingSplit(body.trainingSplit ?? existing.training_split);
+  if (!resolvedTrainingSplit) {
+    return NextResponse.json(
+      { error: 'Split antrenament invalid. Folosește: Full Body, Push/Pull/Legs, Upper/Lower sau Bro Split.' },
+      { status: 400 }
+    );
+  }
 
   const { data, error } = await supabase
     .from('clients')
@@ -126,6 +194,13 @@ params }) {
       allergies: allergies || null,
       meals_per_day: parseInt(mealsPerDay) || 5,
       food_preferences: foodPreferences || null,
+      training_split: resolvedTrainingSplit,
+      workouts_per_week: resolvedWorkoutsPerWeek || existing.workouts_per_week || 4,
+      fitness_level: body.fitnessLevel ?? existing.fitness_level ?? 'beginner',
+      available_equipment: body.availableEquipment ?? existing.available_equipment ?? 'full gym',
+      fitness_goal: body.fitnessGoal ?? existing.fitness_goal ?? 'muscle gain',
+      injuries_limitations: body.injuriesLimitations ?? existing.injuries_limitations ?? null,
+      workout_preferences: body.workoutPreferences ?? existing.workout_preferences ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
@@ -169,7 +244,41 @@ params }) {
     userAgent,
     details: { clientId: id, clientName: data.name },
   });
-  return NextResponse.json({ client: data });
+
+  const mealPlanFields = [
+    ['goal',             goal || 'maintenance',          existing.goal],
+    ['activity_level',   activityLevel || 'moderate',    existing.activity_level],
+    ['diet_type',        dietType || 'omnivore',          existing.diet_type],
+    ['meals_per_day',    String(parseInt(mealsPerDay) || 5), String(existing.meals_per_day)],
+    ['allergies',        (allergies || '').trim(),        (existing.allergies || '').trim()],
+    ['food_preferences', (foodPreferences || '').trim(),  (existing.food_preferences || '').trim()],
+  ];
+  const workoutPlanFields = [
+    ['training_split',      resolvedTrainingSplit,                                          existing.training_split],
+    ['workouts_per_week',   String(resolvedWorkoutsPerWeek || existing.workouts_per_week),  String(existing.workouts_per_week)],
+    ['fitness_level',       String(body.fitnessLevel ?? existing.fitness_level),            String(existing.fitness_level)],
+    ['available_equipment', String(body.availableEquipment ?? existing.available_equipment), String(existing.available_equipment)],
+    ['fitness_goal',        String(body.fitnessGoal ?? existing.fitness_goal),              String(existing.fitness_goal)],
+    ['injuries_limitations',(body.injuriesLimitations ?? existing.injuries_limitations ?? '').trim(), (existing.injuries_limitations || '').trim()],
+    ['workout_preferences', (body.workoutPreferences ?? existing.workout_preferences ?? '').trim(),   (existing.workout_preferences || '').trim()],
+  ];
+  const changedMealFields    = mealPlanFields.filter(([, n, o]) => String(n) !== String(o)).map(([k]) => k);
+  const changedWorkoutFields = workoutPlanFields.filter(([, n, o]) => String(n) !== String(o)).map(([k]) => k);
+  const needsRegen = changedMealFields.length > 0 || changedWorkoutFields.length > 0;
+
+  // Dacă s-au schimbat date sensibile, șterge badge-ul "Progres nou" (planurile vor fi oricum regenerate)
+  if (needsRegen) {
+    await supabase.from('clients').update({ has_new_progress: false }).eq('id', id);
+  }
+
+  const requiresRegeneration = {
+    mealPlan:    changedMealFields.length > 0,
+    workoutPlan: changedWorkoutFields.length > 0,
+    changedMealFields,
+    changedWorkoutFields,
+  };
+
+  return NextResponse.json({ client: { ...data, has_new_progress: needsRegen ? false : data.has_new_progress }, requiresRegeneration });
 }
 
 // PATCH /api/clients/[id] — partial update for trainer-controlled fields

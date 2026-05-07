@@ -14,12 +14,17 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: {
-    default: "NutriApp - Planuri Nutriționale Personalizate",
-    template: "%s | NutriApp"
+    default: "trevano - Planuri Nutriționale Personalizate",
+    template: "%s | trevano"
   },
   description: "Aplicație de nutriție pentru antrenori: generează planuri alimentare personalizate, monitorizează progresul clienților și gestionează portofoliul de clienți.",
   keywords: ['nutriție', 'planuri alimentare', 'antrenori', 'fitness', 'dieta'],
-  authors: [{ name: 'NutriApp' }],
+  authors: [{ name: 'trevano' }],
+  icons: {
+    icon: '/favicon-patrat-negru.svg',
+    apple: '/favicon-patrat-negru.svg',
+    shortcut: '/favicon-patrat-negru.svg',
+  },
   robots: {
     index: true,
     follow: true,
@@ -27,7 +32,7 @@ export const metadata = {
   openGraph: {
     type: 'website',
     locale: 'ro_RO',
-    title: 'NutriApp - Planuri Nutriționale',
+    title: 'trevano - Planuri Nutriționale',
     description: 'Platformă pentru antrenori - Creează planuri alimentare personalizate',
   },
 };

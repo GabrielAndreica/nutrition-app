@@ -32,29 +32,13 @@
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.logoMark {
-  width: 34px;
-  height: 34px;
-  background: #b7ff00;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 17px;
-  font-weight: 900;
-  color: #000;
-  flex-shrink: 0;
-  letter-spacing: -1px;
 }
 
 .logoText {
-  font-size: 17px;
+  font-size: 22px;
   font-weight: 700;
-  color: #fff;
-  letter-spacing: -0.4px;
+  color: #B7FF00;
+  letter-spacing: -0.5px;
 }
 
 /* ── Tagline block ────────────────────────────────────────── */
@@ -200,6 +184,56 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
+}
+
+/* ── Password label row (label + forgot link) ─────────────── */
+.passwordLabelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.passwordLabelRow label {
+  margin-bottom: 0;
+}
+.forgotLink {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  transition: color 0.15s;
+  letter-spacing: -0.1px;
+}
+.forgotLink:hover {
+  color: #0a0a0a;
+}
+.forgotBackBtn {
+  display: block;
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #888;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.forgotBackBtn:hover {
+  color: #0a0a0a;
+}
+
+.brandLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+.brandLink:hover .logoText {
+  opacity: 0.8;
 }
 
 .submitBtn:hover:not(:disabled) {
