@@ -30,9 +30,10 @@
   top: 100%;
   left: 0;
   right: 0;
-  height: 24px;
+  height: 16px;
   background: linear-gradient(to bottom, #ffffff, transparent);
   pointer-events: none;
+  z-index: -1;
 }
 
 .listTitle {
@@ -616,7 +617,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 11px 6px;
+  padding: 11px 0;
   border-bottom: 1px solid #f2f2f7;
   transition: background 0.12s;
   border-radius: 8px;
@@ -1489,58 +1490,54 @@
 
 /* Main content card — matches day cards from meal-plan */
 .progressInlineCard {
-  background: #ffffff;
-  border: 1px solid #e8e8ed;
-  border-radius: 16px;
-  overflow: hidden;
-  margin-top: 16px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  margin-top: 0;
 }
 
 /* ─── Chip-grid metrici ──────────────────────────────────── */
 .progressMetricsGrid {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  padding: 18px 20px 14px;
-  align-items: stretch;
+  padding: 0 0 14px;
 }
 
 .progressMetricChip {
-  flex: 1 1 128px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 7px 11px;
+  gap: 3px;
+  padding: 10px 12px;
   background: #f5f5f7;
-  border: 1px solid transparent;
+  border: 1px solid #e5e5ea;
   border-radius: 10px;
-  min-width: 90px;
 }
 
 .progressMetricChipGood {
-  background: #effaf3;
-  border-color: #b9e7c8;
+  background: rgba(183, 255, 0, 0.1);
+  border-color: rgba(183, 255, 0, 0.35);
 }
 
 .progressMetricChipWarning {
-  background: #fff8e6;
-  border-color: #f1d58b;
+  background: rgba(255, 190, 50, 0.08);
+  border-color: rgba(255, 190, 50, 0.3);
 }
 
 .progressMetricChipBad {
-  background: #fff0f0;
-  border-color: #f1b7b7;
+  background: rgba(220, 38, 38, 0.07);
+  border-color: rgba(220, 38, 38, 0.25);
 }
 
 .progressMetricChipNeutral {
   background: #f5f5f7;
-  border-color: transparent;
+  border-color: #e5e5ea;
 }
 
 .progressMetricChipGood .progressMetricKey,
 .progressMetricChipGood .progressMetricVal {
-  color: #176b35;
+  color: #4a7000;
 }
 
 .progressMetricChipWarning .progressMetricKey,
@@ -1554,11 +1551,11 @@
 }
 
 .progressMetricKey {
-  font-size: 9.5px;
-  font-weight: 600;
+  font-size: 9px;
+  font-weight: 700;
   color: #86868b;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .progressMetricVal {
@@ -1571,9 +1568,9 @@
 
 .progressDetailsGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
-  gap: 12px;
-  padding: 0 20px 16px;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 10px;
+  padding: 0 0 18px;
   align-items: stretch;
 }
 
@@ -1622,50 +1619,96 @@
   align-items: stretch;
   gap: 8px;
   padding: 10px 12px;
-  background: #fbfbfd;
+  background: #f9f9fb;
   border: 1px solid #e8e8ed;
   border-radius: 10px;
 }
 
-.progressWeightBandLabel {
-  font-size: 9.5px;
+/* Before / After săptămână */
+.progressBeforeAfter {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px;
+  background: #f0f0f5;
+  border: 1px solid #e5e5ea;
+  border-radius: 8px;
+}
+
+.progressBeforeAfterItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.progressBeforeAfterLabel {
+  font-size: 9px;
   font-weight: 700;
   color: #86868b;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  white-space: nowrap;
+}
+
+.progressBeforeAfterVal {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1c1c1e;
+  letter-spacing: -1px;
+}
+
+.progressBeforeAfterDate {
+  font-size: 10px;
+  color: #aeaeb2;
+}
+
+.progressBeforeAfterArrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.progressWeightBandLabel {
+  font-size: 9px;
+  font-weight: 700;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .progressWeightBandEntries {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   width: 100%;
 }
 
 .progressWeightEntry {
   display: grid;
-  grid-template-columns: 74px 76px minmax(58px, auto);
+  grid-template-columns: 1fr 1fr auto;
   align-items: center;
   gap: 6px;
   width: 100%;
   padding: 6px 8px;
-  background: #f5f5f7;
+  background: #f0f0f5;
   border-radius: 7px;
   font-size: 12px;
-  color: #3c3c43;
 }
 
 .progressWeightDate {
   font-size: 11px;
-  color: inherit;
-  opacity: 0.7;
+  color: #86868b;
 }
 
 .progressWeightVal {
   font-size: 12.5px;
   font-weight: 700;
-  color: inherit;
+  color: #1d1d1f;
 }
 
 /* ─── Recomandare AI ──────────────────────────────────────── */
@@ -1932,8 +1975,8 @@
 .progressSheetDiffDown {
   font-size: 11.5px;
   font-weight: 700;
-  color: #16a34a;
-  background: rgba(22, 163, 74, 0.08);
+  color: #4a7000;
+  background: rgba(183, 255, 0, 0.18);
   padding: 3px 8px;
   border-radius: 6px;
   min-width: 54px;
@@ -1955,7 +1998,7 @@
   font-size: 11.5px;
   font-weight: 600;
   color: #86868b;
-  background: #f5f5f7;
+  background: #f0f0f5;
   padding: 3px 8px;
   border-radius: 6px;
   min-width: 54px;
@@ -2112,8 +2155,8 @@
   gap: 14px;
   margin: 0 0 20px;
   padding: 16px 20px;
-  background: linear-gradient(135deg, rgba(183, 255, 0, 0.15), rgba(183, 255, 0, 0.08));
-  border: 1px solid rgba(183, 255, 0, 0.4);
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
   border-radius: 14px;
 }
 
@@ -2139,7 +2182,7 @@
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #5a8000;
+  color: #b7ff00;
   margin-bottom: 4px;
   letter-spacing: -0.2px;
 }
@@ -2147,7 +2190,7 @@
 .progressOptimalText p {
   margin: 0;
   font-size: 13px;
-  color: #6a9000;
+  color: #888;
   font-weight: 500;
   line-height: 1.5;
 }
@@ -2259,18 +2302,19 @@
 /* ─── Client row mobile ──────────────────────────────────── */
 @media (max-width: 600px) {
   .clientRow {
-    gap: 12px;
-    padding: 12px 4px;
-    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 12px;
+    align-items: center;
   }
   .clientAvatar {
-    width: 32px;
-    height: 32px;
-    font-size: 12px;
-    margin-top: 2px;
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
+    flex-shrink: 0;
+    margin-top: 0;
   }
   .clientName {
-    font-size: 13.5px;
+    font-size: 14px;
   }
   .clientRowInfo {
     flex: 1;
@@ -2280,8 +2324,8 @@
     flex-shrink: 0;
     flex-direction: column;
     align-items: stretch;
-    gap: 5px;
-    min-width: 120px;
+    gap: 6px;
+    min-width: 110px;
   }
   .inviteBtn,
   .inviteBtnPending,
@@ -2289,8 +2333,8 @@
   .generateBtn {
     text-align: center;
     justify-content: center;
-    font-size: 12.5px;
-    padding: 8px 10px;
+    font-size: 13px;
+    padding: 9px 12px;
   }
 }
 
@@ -2325,24 +2369,72 @@
   }
 
   .progressMetricsGrid {
-    padding: 14px 16px 12px;
+    grid-template-columns: repeat(2, 1fr);
+    padding: 0 0 12px;
+    gap: 8px;
   }
 
   .progressMetricChip {
-    flex-basis: 118px;
+    flex-basis: unset;
+    padding: 10px 12px;
+  }
+
+  .progressMetricKey {
+    font-size: 9px;
+  }
+
+  .progressMetricVal {
+    font-size: 13px;
   }
 
   .progressDetailsGrid {
     grid-template-columns: 1fr;
-    padding: 0 16px 14px;
+    padding: 0 0 14px;
+    gap: 8px;
   }
 
   .progressNotesRow {
     flex-direction: column;
+    gap: 8px;
+  }
+
+  .progressBeforeAfterVal {
+    font-size: 18px;
   }
 
   .progressWeightEntry {
     grid-template-columns: 74px 76px minmax(58px, auto);
+  }
+
+  .progressAiBlock {
+    padding: 16px 18px;
+  }
+
+  .progressAiTag {
+    font-size: 9px;
+  }
+
+  .progressAiAction {
+    font-size: 13px;
+  }
+
+  .progressAiReason {
+    font-size: 12px;
+  }
+
+  .progressSheetFooter {
+    padding: 14px 16px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .cancelBtn,
+  .saveBtn {
+    padding: 10px 16px;
+    font-size: 13px;
+    flex: 1;
+    min-width: 120px;
+    justify-content: center;
   }
 
   .progressSheetMainGrid {

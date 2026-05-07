@@ -197,6 +197,8 @@ const ClientsList = forwardRef(function ClientsList({
   const [deleting, setDeleting] = useState(false);
 
   const [generateConfirmClientId, setGenerateConfirmClientId] = useState(null);
+  const [regenRequiredClient, setRegenRequiredClient] = useState(null); // { id, name, mealPlan, workoutPlan }
+  const [pendingRegenClientIds, setPendingRegenClientIds] = useState(new Set());
   const [generatingBusyModal, setGeneratingBusyModal] = useState(false);
   const [generating, setGenerating] = useState(false);
 
@@ -903,8 +905,18 @@ const ClientsList = forwardRef(function ClientsList({
       if (!res.ok) throw new Error(data.error || 'Eroare la salvare');
       if (editingClient) {
         setClients(prev => prev.map(c => c.id === editingClient.id ? data.client : c));
-        onClientSaved?.();
-        closeAddForm();
+        if (data.requiresRegeneration?.mealPlan || data.requiresRegeneration?.workoutPlan) {
+          setRegenRequiredClient({
+            id: editingClient.id,
+            name: data.client?.name || editingClient.name,
+            mealPlan: !!data.requiresRegeneration.mealPlan,
+            workoutPlan: !!data.requiresRegeneration.workoutPlan,
+          });
+          closeAddForm();
+        } else {
+          onClientSaved?.();
+          closeAddForm();
+        }
       } else {
         setSearch('');
         setDebouncedSearch('');
@@ -1404,7 +1416,20 @@ const ClientsList = forwardRef(function ClientsList({
                       {isPending ? 'Reinvită' : 'Invită'}
                     </button>
                   )}
-                  {plan || isGenerating ? (
+                  {pendingRegenClientIds.has(client.id) ? (
+                    <button className={styles.viewPlanBtn}
+                      disabled={isGenerating}
+                      style={isGenerating ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
+                      onClick={() => {
+                        if (isGenerating) return;
+                        if (generatingClients.size > 0) { setGeneratingBusyModal(true); return; }
+                        setPendingRegenClientIds(prev => { const s = new Set(prev); s.delete(client.id); return s; });
+                        if (onGeneratePlan) onGeneratePlan(client.id);
+                        window.dispatchEvent(new Event('generationStarted'));
+                      }}>
+                      Generează plan nou <ArrowIcon />
+                    </button>
+                  ) : plan || isGenerating ? (
                     <button className={styles.viewPlanBtn}
                       disabled={isGenerating}
                       style={isGenerating ? { opacity: 0.6, cursor: 'not-allowed' } : {}}
@@ -1468,6 +1493,63 @@ const ClientsList = forwardRef(function ClientsList({
             <p>Există deja o generare activă. Așteptați să se termine înainte de a porni un nou set de planuri.</p>
             <div className={styles.confirmActions}>
               <button className={styles.saveBtn} onClick={() => setGeneratingBusyModal(false)}>Am înțeles</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {regenRequiredClient && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.confirmModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.confirmIcon}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+            <h3>Regenerare planuri necesară</h3>
+            <p>
+              Ai modificat date sensibile ale clientului <strong>{regenRequiredClient.name}</strong>.
+              {regenRequiredClient.mealPlan && regenRequiredClient.workoutPlan
+                ? ' Planul alimentar și planul de antrenament trebuie regenerate.'
+                : regenRequiredClient.mealPlan
+                  ? ' Planul alimentar trebuie regenerat.'
+                  : ' Planul de antrenament trebuie regenerat.'}
+            </p>
+            <div className={styles.confirmActions}>
+              <button
+                className={styles.cancelBtn}
+                onClick={() => {
+                  setPendingRegenClientIds(prev => new Set([...prev, regenRequiredClient.id]));
+                  setRegenRequiredClient(null);
+                  onClientSaved?.();
+                }}
+              >
+                Mai târziu
+              </button>
+              <button
+                className={styles.saveBtn}
+                disabled={generating}
+                onClick={async () => {
+                  if (onGeneratePlan) {
+                    setGenerating(true);
+                    try {
+                      await onGeneratePlan(regenRequiredClient.id);
+                      window.dispatchEvent(new Event('generationStarted'));
+                    } catch (e) {
+                      console.error('Eroare la regenerare:', e);
+                    } finally {
+                      setGenerating(false);
+                    }
+                  }
+                  setRegenRequiredClient(null);
+                  onClientSaved?.();
+                }}
+              >
+                {generating ? 'Se generează...' : 'Regenerează acum'}
+              </button>
             </div>
           </div>
         </div>

@@ -323,7 +323,7 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Istoric recent</span>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                          {weightHistory.slice(0, 6).map((entry, idx) => (
+                          {weightHistory.slice(0, 3).map((entry, idx) => (
                             <div key={entry.id || idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#374151' }}>
                               <span>{new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}</span>
                               <span style={{ fontWeight: 600 }}>{entry.weight} kg</span>
@@ -552,15 +552,15 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
           <div className={styles.clientStats}>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.age}</span>
-              <span className={styles.clientStatLabel}>ani</span>
+              <span className={styles.clientStatLabel}>Vârstă</span>
             </div>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.weight}</span>
-              <span className={styles.clientStatLabel}>kg</span>
+              <span className={styles.clientStatLabel}>Greutate</span>
             </div>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.height}</span>
-              <span className={styles.clientStatLabel}>cm</span>
+              <span className={styles.clientStatLabel}>Înălțime</span>
             </div>
             {clientData.activityLevel && (
               <div className={styles.clientStat}>

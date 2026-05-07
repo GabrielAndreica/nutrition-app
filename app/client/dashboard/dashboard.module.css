@@ -1084,6 +1084,10 @@
     left: 0;
   }
 
+  .sidebarSection {
+    display: none;
+  }
+
   .sidebarCloseBtn {
     display: flex;
     align-items: center;

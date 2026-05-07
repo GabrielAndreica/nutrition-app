@@ -492,7 +492,7 @@ function DashboardContent() {
           </svg>
         </button>
         <div className={styles.mobileLogo}>
-          <img src="/favicon-patrat-negru.svg" alt="trevano" style={{height:'28px',width:'28px'}} />
+          <span style={{fontSize:'20px',fontWeight:700,color:'#B7FF00',letterSpacing:'-0.5px',fontFamily:"'Space Grotesk', sans-serif"}}>trevano</span>
         </div>
         <button className={styles.mobileNotificationsBtn} onClick={() => setNotificationsOpen(v => !v)} aria-label="Notificări" data-notification-trigger>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -580,7 +580,7 @@ function DashboardContent() {
         {/* Sidebar */}
         <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
           <div className={styles.sidebarLogo}>
-            <img src="/logo-verde-transparent.svg" alt="trevano" style={{height:'22px',width:'auto'}} />
+            <span style={{fontSize:'20px',fontWeight:700,color:'#B7FF00',letterSpacing:'-0.5px',fontFamily:"'Space Grotesk', sans-serif"}}>trevano</span>
             <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Închide meniu">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>

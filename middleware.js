@@ -1,8 +1,27 @@
 import { NextResponse } from 'next/server';
 
+const PROTECTED_ROUTES = [
+  '/dashboard',
+  '/clients',
+  '/client',
+  '/generator-plan',
+  '/generator-antrenament',
+  '/meal-plan',
+  '/workout-plan',
+];
+
 export function middleware(request) {
-  // For now, let Next.js handle everything
-  // Client-side protection will handle redirects
+  const { pathname } = request.nextUrl;
+  const token = request.cookies.get('token')?.value;
+
+  const isProtected = PROTECTED_ROUTES.some((route) => pathname.startsWith(route));
+
+  if (isProtected && !token) {
+    const loginUrl = new URL('/auth', request.url);
+    loginUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
   return NextResponse.next();
 }
 

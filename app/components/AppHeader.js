@@ -43,8 +43,7 @@ export default function AppHeader({ title, backHref, backLabel = 'Înapoi' }) {
             onClick={() => router.push('/dashboard')}
             aria-label="Acasă"
           >
-            <span className={styles.logoMark}>N</span>
-            <span className={styles.logoText}>NutritionApp</span>
+            <span className={`${spaceGrotesk.className} ${styles.logoText}`}>trevano</span>
           </button>
 
           {title && (

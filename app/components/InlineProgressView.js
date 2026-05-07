@@ -40,7 +40,7 @@ const getMetricToneClass = (key, value) => {
   const normalized = normalizeMetricValue(value);
   if (!normalized || normalized === '-') return styles.progressMetricChipNeutral;
 
-  if (key === 'Plan alimentar' || key === 'Plan antrenament') {
+  if (key === 'Respectare plan alimentar' || key === 'Respectare plan antrenament') {
     if (normalized === 'complet') return styles.progressMetricChipGood;
     if (normalized === 'partial') return styles.progressMetricChipWarning;
     if (normalized === 'deloc') return styles.progressMetricChipBad;
@@ -51,13 +51,13 @@ const getMetricToneClass = (key, value) => {
     if (normalized === 'normal' || normalized === 'ridicat') return styles.progressMetricChipGood;
   }
 
-  if (key === 'Foame') {
+  if (key === 'Nivel foame') {
     if (normalized === 'normal') return styles.progressMetricChipGood;
     if (normalized === 'crescut') return styles.progressMetricChipWarning;
     if (normalized === 'extrem') return styles.progressMetricChipBad;
   }
 
-  if (key === 'Dificultate') {
+  if (key === 'Dificultate antrenament') {
     if (normalized === 'usor' || normalized === 'moderat') return styles.progressMetricChipGood;
     if (normalized === 'greu') return styles.progressMetricChipWarning;
   }
@@ -592,7 +592,7 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
   };
 
   return (
-    <div className={styles.progressInlinePage}>
+    <div className={viewStyles.content}>
       {/* Navigare înapoi */}
       <div className={viewStyles.navRow}>
         <button className={viewStyles.navBackBtn} onClick={handleBackToPlan} aria-label="Înapoi la plan">
@@ -659,29 +659,10 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
                 <p className={mealPlanStyles.clientSub}>
                   {client.goal && `${goalLabels[client.goal] || client.goal} · `}
                   {client.diet_type && `${dietLabels[client.diet_type] || client.diet_type}`}
-                  {progressData && ` · Progres ${new Date(progressData.recordedAt).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}`}
                 </p>
               </div>
             </div>
             <div className={mealPlanStyles.clientStats}>
-              {client.age && (
-                <div className={mealPlanStyles.clientStat}>
-                  <span className={mealPlanStyles.clientStatValue}>{client.age}</span>
-                  <span className={mealPlanStyles.clientStatLabel}>ani</span>
-                </div>
-              )}
-              {client.weight && (
-                <div className={mealPlanStyles.clientStat}>
-                  <span className={mealPlanStyles.clientStatValue}>{client.weight}</span>
-                  <span className={mealPlanStyles.clientStatLabel}>kg</span>
-                </div>
-              )}
-              {client.height && (
-                <div className={mealPlanStyles.clientStat}>
-                  <span className={mealPlanStyles.clientStatValue}>{client.height}</span>
-                  <span className={mealPlanStyles.clientStatLabel}>cm</span>
-                </div>
-              )}
               {client.activity_level && (
                 <div className={mealPlanStyles.clientStat}>
                   <span className={mealPlanStyles.clientStatValue}>{activityLabels[client.activity_level] || client.activity_level}</span>
@@ -728,12 +709,12 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
                 {/* Chip-grid plat cu toate metricile */}
                 <div className={styles.progressMetricsGrid}>
                   {[
-                    { k: 'Greutate', v: progressData.weight ? `${progressData.weight} kg` : '—' },
-                    { k: 'Plan alimentar', v: progressData.respectare || '—' },
+                    { k: 'Greutate actuală', v: progressData.weight ? `${progressData.weight} kg` : '—' },
+                    { k: 'Respectare plan alimentar', v: progressData.respectare || '—' },
                     { k: 'Energie', v: progressData.energie || '—' },
-                    { k: 'Foame', v: progressData.foame || '—' },
-                    { k: 'Plan antrenament', v: progressData.workoutAdherence || '—' },
-                    { k: 'Dificultate', v: progressData.workoutDifficulty || '—' },
+                    { k: 'Nivel foame', v: progressData.foame || '—' },
+                    { k: 'Respectare plan antrenament', v: progressData.workoutAdherence || '—' },
+                    { k: 'Dificultate antrenament', v: progressData.workoutDifficulty || '—' },
                     { k: 'Oboseală', v: progressData.generalFatigue || '—' },
                     { k: 'Febră musculară', v: progressData.doms || '—' },
                   ].map(({ k, v }) => (
@@ -761,32 +742,63 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
                     </div>
                   </div>
 
-                  {/* Istoric greutăți */}
-                  {weightHistory.length > 0 && (
-                    <div className={styles.progressWeightBand}>
-                      <span className={styles.progressWeightBandLabel}>Ultimele {Math.min(weightHistory.length, 5)} greutăți</span>
-                      <div className={styles.progressWeightBandEntries}>
-                        {weightHistory.slice(0, 5).map((entry, idx, arr) => {
-                          const diff = idx < arr.length - 1
-                            ? (entry.weight - arr[idx + 1].weight).toFixed(1)
-                            : null;
-                          return (
-                            <div key={entry.id || idx} className={styles.progressWeightEntry}>
-                              <span className={styles.progressWeightDate}>
-                                {new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
+                  {/* Istoric greutăți — before/after + ultimele 3 */}
+                  {weightHistory.length > 0 && (() => {
+                    const latest = weightHistory[0];
+                    const previous = weightHistory.length > 1 ? weightHistory[1] : null;
+                    const diff = previous ? (parseFloat(latest.weight) - parseFloat(previous.weight)).toFixed(1) : null;
+                    const diffNum = diff !== null ? parseFloat(diff) : null;
+                    return (
+                      <div className={styles.progressWeightBand}>
+                        {/* Before / After */}
+                        {previous && (
+                          <div className={styles.progressBeforeAfter}>
+                            <div className={styles.progressBeforeAfterItem}>
+                              <span className={styles.progressBeforeAfterLabel}>Săptămâna trecută</span>
+                              <span className={styles.progressBeforeAfterVal}>{previous.weight} kg</span>
+                              <span className={styles.progressBeforeAfterDate}>
+                                {new Date(previous.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
                               </span>
-                              <span className={styles.progressWeightVal}>{entry.weight} kg</span>
-                              {diff !== null && (
-                                <span className={parseFloat(diff) < 0 ? styles.progressSheetDiffDown : parseFloat(diff) > 0 ? styles.progressSheetDiffUp : styles.progressSheetDiffNeutral}>
-                                  {parseFloat(diff) > 0 ? '+' : ''}{diff}
-                                </span>
-                              )}
                             </div>
-                          );
-                        })}
+                            <div className={styles.progressBeforeAfterArrow}>
+                              <span className={diffNum < 0 ? styles.progressSheetDiffDown : diffNum > 0 ? styles.progressSheetDiffUp : styles.progressSheetDiffNeutral}>
+                                {diffNum > 0 ? '+' : ''}{diff} kg
+                              </span>
+                            </div>
+                            <div className={styles.progressBeforeAfterItem}>
+                              <span className={styles.progressBeforeAfterLabel}>Acum</span>
+                              <span className={styles.progressBeforeAfterVal}>{latest.weight} kg</span>
+                              <span className={styles.progressBeforeAfterDate}>
+                                {new Date(latest.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        {/* Ultimele 3 înregistrări */}
+                        <span className={styles.progressWeightBandLabel}>Ultimele {Math.min(weightHistory.length, 3)} greutăți raportate</span>
+                        <div className={styles.progressWeightBandEntries}>
+                          {weightHistory.slice(0, 3).map((entry, idx, arr) => {
+                            const d = idx < arr.length - 1
+                              ? (entry.weight - arr[idx + 1].weight).toFixed(1)
+                              : null;
+                            return (
+                              <div key={entry.id || idx} className={styles.progressWeightEntry}>
+                                <span className={styles.progressWeightDate}>
+                                  {new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
+                                </span>
+                                <span className={styles.progressWeightVal}>{entry.weight} kg</span>
+                                {d !== null && (
+                                  <span className={parseFloat(d) < 0 ? styles.progressSheetDiffDown : parseFloat(d) > 0 ? styles.progressSheetDiffUp : styles.progressSheetDiffNeutral}>
+                                    {parseFloat(d) > 0 ? '+' : ''}{d}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
                 </div>
 
                 {/* Recomandare alimentară */}

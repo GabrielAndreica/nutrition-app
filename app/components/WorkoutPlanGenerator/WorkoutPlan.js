@@ -104,19 +104,19 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
           {clientData?.age && (
             <div className={mealStyles.clientStat}>
               <span className={mealStyles.clientStatValue}>{clientData.age}</span>
-              <span className={mealStyles.clientStatLabel}>ani</span>
+              <span className={mealStyles.clientStatLabel}>Vârstă</span>
             </div>
           )}
           {clientData?.weight && (
             <div className={mealStyles.clientStat}>
               <span className={mealStyles.clientStatValue}>{clientData.weight}</span>
-              <span className={mealStyles.clientStatLabel}>kg</span>
+              <span className={mealStyles.clientStatLabel}>Greutate</span>
             </div>
           )}
           {clientData?.height && (
             <div className={mealStyles.clientStat}>
               <span className={mealStyles.clientStatValue}>{clientData.height}</span>
-              <span className={mealStyles.clientStatLabel}>cm</span>
+              <span className={mealStyles.clientStatLabel}>Înălțime</span>
             </div>
           )}
           {clientData?.activity_level && (

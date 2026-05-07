@@ -853,6 +853,10 @@
     left: 0;
   }
 
+  .sidebarSection {
+    display: none;
+  }
+
   .sidebarCloseBtn {
     display: flex;
     align-items: center;
@@ -876,6 +880,7 @@
 
   .main {
     padding: 0 max(20px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left));
+    margin-top: -1px;
   }
 
   .hero {

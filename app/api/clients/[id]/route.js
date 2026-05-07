@@ -161,7 +161,7 @@ params }) {
   // Ensure client belongs to the logged-in user și ia greutatea actuală
   const { data: existing, error: fetchError } = await supabase
     .from('clients')
-    .select('id, weight, training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, injuries_limitations, workout_preferences')
+    .select('id, weight, goal, activity_level, diet_type, meals_per_day, allergies, food_preferences, training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, injuries_limitations, workout_preferences')
     .eq('id', id)
     .eq('trainer_id', auth.userId)
     .single();
@@ -244,7 +244,41 @@ params }) {
     userAgent,
     details: { clientId: id, clientName: data.name },
   });
-  return NextResponse.json({ client: data });
+
+  const mealPlanFields = [
+    ['goal',             goal || 'maintenance',          existing.goal],
+    ['activity_level',   activityLevel || 'moderate',    existing.activity_level],
+    ['diet_type',        dietType || 'omnivore',          existing.diet_type],
+    ['meals_per_day',    String(parseInt(mealsPerDay) || 5), String(existing.meals_per_day)],
+    ['allergies',        (allergies || '').trim(),        (existing.allergies || '').trim()],
+    ['food_preferences', (foodPreferences || '').trim(),  (existing.food_preferences || '').trim()],
+  ];
+  const workoutPlanFields = [
+    ['training_split',      resolvedTrainingSplit,                                          existing.training_split],
+    ['workouts_per_week',   String(resolvedWorkoutsPerWeek || existing.workouts_per_week),  String(existing.workouts_per_week)],
+    ['fitness_level',       String(body.fitnessLevel ?? existing.fitness_level),            String(existing.fitness_level)],
+    ['available_equipment', String(body.availableEquipment ?? existing.available_equipment), String(existing.available_equipment)],
+    ['fitness_goal',        String(body.fitnessGoal ?? existing.fitness_goal),              String(existing.fitness_goal)],
+    ['injuries_limitations',(body.injuriesLimitations ?? existing.injuries_limitations ?? '').trim(), (existing.injuries_limitations || '').trim()],
+    ['workout_preferences', (body.workoutPreferences ?? existing.workout_preferences ?? '').trim(),   (existing.workout_preferences || '').trim()],
+  ];
+  const changedMealFields    = mealPlanFields.filter(([, n, o]) => String(n) !== String(o)).map(([k]) => k);
+  const changedWorkoutFields = workoutPlanFields.filter(([, n, o]) => String(n) !== String(o)).map(([k]) => k);
+  const needsRegen = changedMealFields.length > 0 || changedWorkoutFields.length > 0;
+
+  // Dacă s-au schimbat date sensibile, șterge badge-ul "Progres nou" (planurile vor fi oricum regenerate)
+  if (needsRegen) {
+    await supabase.from('clients').update({ has_new_progress: false }).eq('id', id);
+  }
+
+  const requiresRegeneration = {
+    mealPlan:    changedMealFields.length > 0,
+    workoutPlan: changedWorkoutFields.length > 0,
+    changedMealFields,
+    changedWorkoutFields,
+  };
+
+  return NextResponse.json({ client: { ...data, has_new_progress: needsRegen ? false : data.has_new_progress }, requiresRegeneration });
 }
 
 // PATCH /api/clients/[id] — partial update for trainer-controlled fields

@@ -312,6 +312,58 @@ function formatWeeklyTargetsForPrompt(targets) {
     .join('\n');
 }
 
+/**
+ * Generează secțiunea de echilibru volum și variație exerciții.
+ * Previne încărcarea excesivă a unei grupe și exerciții identice cross-sesiune.
+ */
+function buildVolumeAndVarietySection(trainingSplit, workoutsPerWeek) {
+  // Limite per sesiune pentru fiecare grupă (excepție Bro Split unde ziua e dedicată)
+  const isBroSplit = trainingSplit === 'Bro Split';
+
+  const perSessionLimits = isBroSplit
+    ? `- Bro Split: sesiunea dedicată unei grupe poate avea 4-6 exerciții pentru acea grupă, dar NU include alte grupe decât ca accesorii (max 1-2 exerciții accesorii).`
+    : [
+        '- Per sesiune, numărul MAXIM de exerciții per grupă musculară:',
+        '  • Piept: max 3 exerciții / sesiune',
+        '  • Spate: max 3 exerciții / sesiune',
+        '  • Umeri: max 2 exerciții / sesiune',
+        '  • Biceps: max 2 exerciții / sesiune',
+        '  • Triceps: max 2 exerciții / sesiune',
+        '  • Cvadricepși: max 3 exerciții / sesiune',
+        '  • Femurali/Fesieri: max 3 exerciții / sesiune',
+        '  • Gambe: max 2 exerciții / sesiune',
+        '  • Abdomen: max 2 exerciții / sesiune',
+      ].join('\n');
+
+  // Regula de echilibru — brațele nu trebuie ignorate față de mușchii mari
+  const balanceRule = isBroSplit
+    ? ''
+    : `- ECHILIBRU OBLIGATORIU: Brațele (biceps + triceps total) trebuie să aibă cel puțin 40% din volumul pieptului în aceeași sesiune. Dacă pieptul are 3 exerciții, biceps+triceps trebuie să aibă minim 2 exerciții combinate. NU lăsa 4+ exerciții de piept și 1 exercițiu de brațe.`;
+
+  // Regula de variație cross-sesiune — exerciții diferite pentru aceeași grupă
+  const varietyRule = workoutsPerWeek >= 2
+    ? [
+        '══════════════════════════════════════════',
+        'VARIAȚIE OBLIGATORIE INTER-SESIUNI:',
+        'Dacă aceeași grupă musculară apare în 2 sau mai multe sesiuni pe săptămână, exercițiile TREBUIE să fie COMPLET DIFERITE în fiecare sesiune.',
+        '',
+        'EXEMPLE CORECTE:',
+        '  ✓ Sesiunea 1 Piept: Împins cu bara la bancă plată → Sesiunea 2 Piept: Împins înclinat cu gantere',
+        '  ✓ Sesiunea 1 Spate: Ramat cu bara → Sesiunea 2 Spate: Tracțiuni / Lat pulldown',
+        '  ✓ Sesiunea 1 Picioare: Genuflexiuni cu bara → Sesiunea 2 Picioare: Leg press + Fandări',
+        '',
+        'EXEMPLE INTERZISE:',
+        '  ✗ Sesiunea 1: Împins cu bara la bancă plată, Sesiunea 2: Împins cu bara la bancă plată (ACELAȘI exercițiu)',
+        '  ✗ Sesiunea 1: Tracțiuni, Sesiunea 2: Tracțiuni (INTERZIS)',
+        '',
+        'PRINCIPIU: Prima sesiune = compound greu (bară/aparat). A doua sesiune = variație unghi/echipament (gantere, cablu, unghi diferit) SAU izolație.',
+        '══════════════════════════════════════════',
+      ].join('\n')
+    : '';
+
+  return [perSessionLimits, balanceRule, varietyRule].filter(Boolean).join('\n\n');
+}
+
 function applyGenderTargetOverrides(targets, gender, split) {
   if (!targets || gender !== 'F') return targets;
   // Femei: prioritate tren inferior (posterior/quads/calves) + abs; redus piept/biceps/triceps
@@ -842,6 +894,7 @@ function buildWorkoutPrompt(data, catalogPrompt, weeklyTargets = null, previousE
   const previousExercisesSection = previousExercises && previousExercises.length > 0
     ? `\nEXERCIȚII INTERZISE (au fost folosite săptămâna trecută — NU le repeta, alege alternative diferite):\n${previousExercises.map(e => `- ${e}`).join('\n')}\n`
     : '';
+  const volumeAndVarietySection = buildVolumeAndVarietySection(trainingSplit, workoutsPerWeek);
 
   return `Generează un plan de antrenament JSON pentru clientul "${name}".
 Tip plan: "${trainingSplit}".
@@ -854,6 +907,8 @@ ${splitStructure}
 ${genderSection}
 ${weeklyTargetsSection}${previousExercisesSection}${injurySection}${prefSection}
 
+${volumeAndVarietySection}
+
 Reguli:
 - Returnează EXACT ${workoutsPerWeek} zile de antrenament.
 - Respectă strict split-ul "${trainingSplit}" (nu transforma în Full Body dacă nu e Full Body).
@@ -863,6 +918,136 @@ Reguli:
   • Sesiuni cu grupe mari (ex: Picioare, Spate, Full Body): 6-${volume.maxExercises} exerciții
 - NU adăuga exerciții inutile doar pentru a umple un număr fix.
 - Respectă țintele pe grupe musculare de mai sus (număr de exerciții/săptămână).
+- Respectă limitele maxime per grupă per sesiune de mai sus.
+- Asigură-te că exercițiile pentru aceeași grupă sunt DIFERITE între sesiuni.
+- Alege EXCLUSIV exerciții din lista de mai jos (nume exact).
+- NU trimite seturi, repetări, pauze, instrucțiuni sau descrieri.
+
+LISTA OFICIALĂ DE EXERCIȚII:
+${catalogPrompt}
+
+Răspuns JSON:
+{
+  "days": [
+    { "day": 1, "exercises": ["Nume exact din listă", "Nume exact din listă"] }
+  ]
+}
+Răspunde strict JSON valid.`;
+}
+
+/**
+ * Prompt specializat pentru regenerarea planului de antrenament după progres client.
+ * Include planul anterior, feedback-ul clientului și toate restricțiile.
+ */
+function buildWorkoutProgressPrompt(data, catalogPrompt, weeklyTargets = null, previousExercises = [], progressData = {}) {
+  const { name, trainingSplit, workoutsPerWeek, fitnessLevel, availableEquipment, fitnessGoal, gender } = data;
+  const schedule = DAY_SCHEDULES[workoutsPerWeek] || DAY_SCHEDULES[3];
+
+  const levelRules = {
+    beginner: 'Nivel: BEGINNER. Săptămâna 2-3 serii / exercițiu, 12-15 repetări, pauze 75-90s. Exerciții simple, tehnică prioritară.',
+    intermediate: 'Nivel: INTERMEDIATE. 3-4 serii / exercițiu, 8-12 repetări, pauze 90-120s. Mix compound + izolație.',
+    advanced: 'Nivel: ADVANCED. 4-5 serii / exercițiu, 6-12 repetări, pauze 120-180s. Exerciții compound grele + tehnici avansate.',
+  }[fitnessLevel] || '';
+
+  const goalRules = {
+    'weight loss': 'Scop: SLĂBIT. Prioritizează circuite metabolice, supraset-uri, volum moderat, pauze scurte (45-60s). Include exerciții cardio funcționale.',
+    'muscle gain': 'Scop: CREȘTERE MASĂ. Prioritizează exerciții compound grele (genuflexiuni, îndr. rom., împins la bancă). Volum ridicat, progresie de forță.',
+    'maintenance': 'Scop: MENȚINERE. Echilibru între forță și condiție fizică, volum moderat, variat.',
+  }[fitnessGoal] || '';
+
+  const genderSection = gender === 'F'
+    ? '\nGEN: FEMININ. Prioritizează exerciții pentru fesieri și coapse (hip thrust, fandări, glute bridge, etc.). Reduce exerciții pentru trunchiul superior.'
+    : '';
+
+  const injurySection = data.injuriesLimitations?.trim()
+    ? `\nLIMITĂRI / LEZIUNI (CRITIC — respectă ABSOLUT):\n${data.injuriesLimitations}\nNU include exerciții contraindicate pentru aceste leziuni.`
+    : '';
+
+  const prefSection = data.workoutPreferences?.trim()
+    ? `\nPREFERINȚE ANTRENAMENT (respectă în limita posibilului):\n${data.workoutPreferences}`
+    : '';
+
+  const equipmentRules = {
+    'full gym': 'Echipament: SALĂ COMPLETĂ. Aparatură, gantere, helcometru, bare.',
+    'dumbbells only': 'Echipament: GANTERE DOAR. Fără aparate și helcometru.',
+    'no equipment': 'Echipament: GREUTATEA CORPULUI. Fără gantere sau aparate.',
+  }[availableEquipment] || '';
+
+  const splitStructure = {
+    'Full Body': 'SPLIT: FULL BODY. Fiecare sesiune lucrează întreg corpul.',
+    'Push/Pull/Legs': 'SPLIT: PPL. Sesiuni separate pentru Piept+Umeri+Triceps / Spate+Biceps / Picioare.',
+    'Upper/Lower': 'SPLIT: UPPER/LOWER. Alternă Upper Body și Lower Body.',
+    'Bro Split': 'SPLIT: BRO SPLIT. Fiecare sesiune — o singură grupă musculară.',
+  }[trainingSplit] || '';
+
+  const weeklyTargetsSection = weeklyTargets && Object.keys(weeklyTargets).length > 0
+    ? `\nȚINTE OBLIGATORII exerciții / grupă / săptămână:\n${formatWeeklyTargetsForPrompt(weeklyTargets)}\n`
+    : '';
+
+  const previousExercisesSection = previousExercises && previousExercises.length > 0
+    ? `\nEXERCIȚII INTERZISE (au fost folosite săptămâna trecută — NU le repeta, alege alternative diferite):\n${previousExercises.map(e => `- ${e}`).join('\n')}\n`
+    : '';
+
+  const volumeAndVarietySection = buildVolumeAndVarietySection(trainingSplit, workoutsPerWeek);
+
+  // Feedback antrenament
+  const adherenceLabels = { great: 'excelent', good: 'bun', ok: 'ok', poor: 'slab' };
+  const difficultyLabels = { too_easy: 'prea ușor', perfect: 'perfect', too_hard: 'prea greu' };
+  const domsLabels = { none: 'deloc', mild: 'ușoară', strong: 'intensă', extreme: 'extremă' };
+  const pumpLabels = { great: 'excelent', good: 'bun', ok: 'ok', poor: 'slab' };
+  const fatigueLabels = { low: 'scăzută', normal: 'normală', high: 'ridicată', very_high: 'foarte ridicată' };
+
+  const workoutFeedback = [
+    progressData?.workoutAdherence  ? `- Aderență antrenament: ${adherenceLabels[progressData.workoutAdherence] || progressData.workoutAdherence}` : null,
+    progressData?.workoutDifficulty ? `- Dificultate percepută: ${difficultyLabels[progressData.workoutDifficulty] || progressData.workoutDifficulty}` : null,
+    progressData?.doms               ? `- Dureri musculare (DOMS): ${domsLabels[progressData.doms] || progressData.doms}` : null,
+    progressData?.pump               ? `- Pump muscular: ${pumpLabels[progressData.pump] || progressData.pump}` : null,
+    progressData?.generalFatigue     ? `- Oboseală generală: ${fatigueLabels[progressData.generalFatigue] || progressData.generalFatigue}` : null,
+    progressData?.workoutNotes?.trim() ? `- Observații: "${progressData.workoutNotes.trim()}"` : null,
+  ].filter(Boolean).join('\n') || 'Niciun feedback specific.';
+
+  // Adaptează intensitatea la feedback
+  let intensityAdaptation = '';
+  if (progressData?.workoutDifficulty === 'too_easy') {
+    intensityAdaptation = '\n⚠️ ADAPTĂ INTENSITATE: Clientul consideră antrenamentele prea ușoare. Crește dificultatea: exerciții mai complexe, volum mai mare, tehnici avansate.';
+  } else if (progressData?.workoutDifficulty === 'too_hard') {
+    intensityAdaptation = '\n⚠️ ADAPTĂ INTENSITATE: Clientul consideră antrenamentele prea grele. Reduce dificultatea: exerciții mai accesibile, volum mai mic, pauze mai lungi.';
+  }
+  if (progressData?.generalFatigue === 'very_high' || progressData?.generalFatigue === 'high') {
+    intensityAdaptation += '\n⚠️ OBOSEALĂ RIDICATĂ: Include mai multă muncă de mobilitate/stretching, reduce volumul cu ~20%, mărește pauzele.';
+  }
+  if (progressData?.doms === 'extreme') {
+    intensityAdaptation += '\n⚠️ DOMS EXTREM: Evită suprasolicitarea aceluiași grup muscular. Introduce mai multe zile de recuperare activă.';
+  }
+
+  return `Actualizează planul de antrenament JSON pentru clientul "${name}" pe baza progresului său.
+Tip plan: "${trainingSplit}".
+Număr sesiuni pe săptămână: ${workoutsPerWeek}.
+Zile: ${schedule.join(', ')}.
+${levelRules}
+${equipmentRules}
+${goalRules}
+${splitStructure}
+${genderSection}
+${weeklyTargetsSection}${previousExercisesSection}${injurySection}${prefSection}
+
+${volumeAndVarietySection}
+
+FEEDBACK ANTRENAMENT (săptămâna trecută — FOLOSEȘTE-L pentru a adapta planul):
+${workoutFeedback}
+${intensityAdaptation}
+
+Reguli:
+- Returnează EXACT ${workoutsPerWeek} zile de antrenament.
+- Respectă strict split-ul "${trainingSplit}".
+- Adaptează exercițiile la feedback-ul clientului (dificultate, oboseală, DOMS).
+- NU repeta exercițiile interzise listate mai sus.
+- Respectă limitele maxime per grupă per sesiune din secțiunea de mai sus.
+- Asigură-te că exercițiile pentru aceeași grupă sunt DIFERITE între sesiuni.
+- Numărul de exerciții per zi:
+  • Sesiuni cu o singură grupă mică: 4-5 exerciții
+  • Sesiuni cu grupă mare + una mică: 5-6 exerciții
+  • Sesiuni cu grupe mari: 6-8 exerciții
 - Alege EXCLUSIV exerciții din lista de mai jos (nume exact).
 - NU trimite seturi, repetări, pauze, instrucțiuni sau descrieri.
 
@@ -1291,7 +1476,13 @@ export async function POST(request) {
       }
     }
 
-    const prompt = buildWorkoutPrompt(input, exerciseCatalogPrompt, weeklyTargets, previousExercises);
+    // Folosește promptul de progres dacă cererea vine după actualizare progres
+    const progressData = body?.progress || null;
+    const isProgressRegeneration = !!(progressData?.forceRegenerate);
+    const prompt = isProgressRegeneration
+      ? buildWorkoutProgressPrompt(input, exerciseCatalogPrompt, weeklyTargets, previousExercises, progressData)
+      : buildWorkoutPrompt(input, exerciseCatalogPrompt, weeklyTargets, previousExercises);
+    console.log(`[generate-workout-plan] Tip generare: ${isProgressRegeneration ? 'progres' : 'prima generare'}`);
     const encoder = new TextEncoder();
     const requestId = generateRequestId();
 

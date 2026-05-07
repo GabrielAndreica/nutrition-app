@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { validateEmail, sanitizeInput } from '@/app/lib/validation';
 import { useAuth } from '@/app/contexts/AuthContext';
 import styles from './auth.module.css';
@@ -131,8 +132,9 @@ export default function AuthPage() {
 
       <div className={styles.leftPanel}>
         <div className={styles.brand}>
-          <span className={styles.logoMark}>N</span>
-          <span className={styles.logoText}>trevano</span>
+          <Link href="/landing" className={styles.brandLink}>
+            <span className={styles.logoText}>trevano</span>
+          </Link>
         </div>
 
         <div className={styles.tagline}>

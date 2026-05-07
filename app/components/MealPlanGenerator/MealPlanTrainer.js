@@ -91,15 +91,15 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
           <div className={styles.clientStats}>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.age}</span>
-              <span className={styles.clientStatLabel}>ani</span>
+              <span className={styles.clientStatLabel}>Vârstă</span>
             </div>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.weight}</span>
-              <span className={styles.clientStatLabel}>kg</span>
+              <span className={styles.clientStatLabel}>Greutate</span>
             </div>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.height}</span>
-              <span className={styles.clientStatLabel}>cm</span>
+              <span className={styles.clientStatLabel}>Înălțime</span>
             </div>
             {clientData.activityLevel && (
               <div className={styles.clientStat}>

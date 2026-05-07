@@ -80,27 +80,11 @@
   flex-shrink: 0;
 }
 
-.logoMark {
-  width: 26px;
-  height: 26px;
-  background: #b7ff00;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 900;
-  color: #0a0a0a;
-  letter-spacing: -0.5px;
-  flex-shrink: 0;
-  user-select: none;
-}
-
 .logoText {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
-  color: #0a0a0a;
-  letter-spacing: -0.3px;
+  color: #B7FF00;
+  letter-spacing: -0.5px;
   user-select: none;
 }
 
@@ -205,10 +189,6 @@
   .inner {
     height: 50px;
     padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
-  }
-
-  .logoText {
-    display: none;
   }
 
   .userName {

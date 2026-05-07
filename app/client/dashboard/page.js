@@ -483,14 +483,14 @@ function ClientDashboardContent() {
             </svg>
           </button>
           <div className={styles.mobileLogo}>
-            <img src="/favicon-patrat-negru.svg" alt="trevano" style={{height:'28px',width:'28px'}} />
+            <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
           </div>
         </div>
         {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
         <div className={styles.pageLayout}>
           <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
             <div className={styles.sidebarLogo}>
-              <img src="/logo-verde-transparent.svg" alt="trevano" style={{height:'22px',width:'auto'}} />
+              <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
               <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Închide meniu">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -566,7 +566,7 @@ function ClientDashboardContent() {
           </svg>
         </button>
         <div className={styles.mobileLogo}>
-          <img src="/favicon-patrat-negru.svg" alt="trevano" style={{height:'28px',width:'28px'}} />
+          <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
         </div>
         <button 
           className={styles.mobileNotificationBtn}
@@ -631,7 +631,7 @@ function ClientDashboardContent() {
         {/* Sidebar */}
         <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
           <div className={styles.sidebarLogo}>
-            <img src="/logo-verde-transparent.svg" alt="trevano" style={{height:'22px',width:'auto'}} />
+            <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
             <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Închide meniu">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
