@@ -32,7 +32,7 @@ export function ProtectedRoute({ children, requiredRole = 'trainer' }) {
         minHeight: '100vh',
         backgroundColor: 'var(--bg-primary)',
         color: 'var(--text-secondary)',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        fontFamily: 'var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}>
         <div style={{ textAlign: 'center' }}>
           <p style={{ fontSize: '16px', marginBottom: '12px' }}>Loading...</p>

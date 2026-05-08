@@ -32,6 +32,22 @@
 .brand {
   display: flex;
   align-items: center;
+  gap: 10px;
+}
+
+.logoMark {
+  width: 34px;
+  height: 34px;
+  background: #B7FF00;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-space-grotesk), Inter, sans-serif;
+  font-size: 17px;
+  font-weight: 900;
+  color: #0A0A0A;
+  letter-spacing: -1px;
 }
 
 .logoText {

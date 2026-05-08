@@ -12,7 +12,7 @@ export default function ConfirmPage() {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
-    if (!token) { setState('error'); setMessage('Token lipsă.'); return; }
+    if (!token) return;
 
     fetch(`/api/auth/confirm/${token}`)
       .then(async (res) => {
@@ -33,13 +33,15 @@ export default function ConfirmPage() {
       .catch(() => { setState('error'); setMessage('Eroare de rețea. Încearcă din nou.'); });
   }, [token, router]);
 
-  const stateColor = { loading: '#888', success: '#22c55e', error: '#ef4444', expired: '#f59e0b' }[state];
+  const effectiveState = token ? state : 'error';
+  const effectiveMessage = token ? message : 'Token lipsă.';
+  const stateColor = { loading: '#888', success: '#22c55e', error: '#ef4444', expired: '#f59e0b' }[effectiveState];
   const title = {
     loading: 'Se verifică...',
     success: 'Email confirmat!',
     error: 'Link invalid',
     expired: 'Link expirat',
-  }[state];
+  }[effectiveState];
 
   return (
     <div className={styles.page}>
@@ -61,23 +63,23 @@ export default function ConfirmPage() {
 
       <div className={styles.rightPanel}>
         <div className={styles.card} style={{ textAlign: 'center' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', background: stateColor, margin: '0 auto 20px', opacity: state === 'loading' ? 0.4 : 1, transition: 'background 0.3s' }} />
+          <div style={{ width: 48, height: 48, borderRadius: '50%', background: stateColor, margin: '0 auto 20px', opacity: effectiveState === 'loading' ? 0.4 : 1, transition: 'background 0.3s' }} />
           <h2 className={styles.cardTitle}>{title}</h2>
-          <p className={styles.cardSub} style={{ marginBottom: 24 }}>{message}</p>
+          <p className={styles.cardSub} style={{ marginBottom: 24 }}>{effectiveMessage}</p>
 
-          {state === 'success' && (
+          {effectiveState === 'success' && (
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
               Vei fi redirecționat automat în câteva secunde...
             </p>
           )}
 
-          {(state === 'error' || state === 'expired') && (
+          {(effectiveState === 'error' || effectiveState === 'expired') && (
             <Link href="/register" className={styles.submitBtn} style={{ display: 'inline-block', textDecoration: 'none' }}>
               Înregistrează-te din nou
             </Link>
           )}
 
-          {state !== 'loading' && (
+          {effectiveState !== 'loading' && (
             <div style={{ marginTop: 20 }}>
               <Link href="/auth" style={{ color: '#666', fontSize: 13, textDecoration: 'underline' }}>
                 ← Mergi la autentificare

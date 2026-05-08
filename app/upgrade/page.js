@@ -1,15 +1,33 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/contexts/AuthContext';
+import { markExternalNavigation } from '@/app/components/ExternalNavigationReloadGuard';
 import styles from './upgrade.module.css';
 
 function UpgradeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { logout, token } = useAuth();
   const reason = searchParams.get('reason');
+  const payment = searchParams.get('payment');
+  const [loadingPlan, setLoadingPlan] = useState(null);
+  const [checkoutError, setCheckoutError] = useState('');
+
+  useEffect(() => {
+    const resetCheckoutState = () => {
+      setLoadingPlan(null);
+    };
+
+    window.addEventListener('pageshow', resetCheckoutState);
+    window.addEventListener('focus', resetCheckoutState);
+
+    return () => {
+      window.removeEventListener('pageshow', resetCheckoutState);
+      window.removeEventListener('focus', resetCheckoutState);
+    };
+  }, [payment]);
 
   const handleLogout = async () => {
     await logout();
@@ -19,13 +37,38 @@ function UpgradeContent() {
   function getBannerText() {
     if (reason === 'trial_expired') return 'Perioada de trial a expirat. Alege un plan pentru a continua.';
     if (reason === 'subscription_inactive') return 'Abonamentul tău este inactiv. Reactivează-l pentru a continua.';
+    if (payment === 'cancelled') return 'Plata a fost anulată. Poți alege oricând un plan.';
     return 'Alege planul potrivit pentru tine.';
   }
 
-  function handlePlanClick(plan) {
-    // TODO: Integrate Stripe payment
-    console.log(`[Upgrade] Plan selectat: ${plan}`);
-    alert(`Integrare Stripe în curând! Plan ales: ${plan}`);
+  async function handlePlanClick(planType) {
+    setCheckoutError('');
+    setLoadingPlan(planType);
+
+    try {
+      const authToken = token || localStorage.getItem('token');
+      const res = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({ planType }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setCheckoutError(data.error || 'Nu am putut porni plata. Încearcă din nou.');
+        return;
+      }
+
+      markExternalNavigation();
+      window.location.assign(data.url);
+    } catch {
+      setCheckoutError('Eroare de rețea. Încearcă din nou.');
+    } finally {
+      setLoadingPlan(null);
+    }
   }
 
   return (
@@ -42,6 +85,12 @@ function UpgradeContent() {
       <div className={reason === 'trial_expired' || reason === 'subscription_inactive' ? styles.bannerExpired : styles.bannerInfo}>
         {getBannerText()}
       </div>
+
+      {checkoutError && (
+        <div className={styles.bannerExpired}>
+          {checkoutError}
+        </div>
+      )}
 
       {/* Page title */}
       <div className={styles.titleSection}>
@@ -68,8 +117,8 @@ function UpgradeContent() {
             <li className={styles.feature}><span className={styles.check}>✓</span> Monitorizare progres</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Suport email</li>
           </ul>
-          <button className={styles.btnPrimary} onClick={() => handlePlanClick('Starter 149 RON/lună')}>
-            Alege Starter
+          <button className={styles.btnPrimary} onClick={() => handlePlanClick('starter')} disabled={loadingPlan !== null}>
+            {loadingPlan === 'starter' ? 'Se deschide plata...' : 'Alege Starter'}
           </button>
         </div>
 
@@ -86,11 +135,10 @@ function UpgradeContent() {
             <li className={styles.feature}><span className={styles.check}>✓</span> Până la <strong>30 de clienți</strong></li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Tot ce include Starter</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Statistici avansate</li>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Branding personalizat</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Suport prioritar</li>
           </ul>
-          <button className={styles.btnAccent} onClick={() => handlePlanClick('Pro 249 RON/lună')}>
-            Alege Pro
+          <button className={styles.btnAccent} onClick={() => handlePlanClick('pro')} disabled={loadingPlan !== null}>
+            {loadingPlan === 'pro' ? 'Se deschide plata...' : 'Alege Pro'}
           </button>
         </div>
 

@@ -11,33 +11,32 @@ const PROTECTED_ROUTES = [
   '/workout-plan',
 ];
 
-// ── Rute publice (nu necesită token) ─────────────────────────────────────
-const PUBLIC_ROUTES = ['/', '/landing', '/auth', '/register', '/confirm', '/upgrade'];
-
 // ── API-uri care nu trebuie blocate de subscription check ─────────────────
 // (rutele de auth sunt publice; /api/auth/me este apelat DE subscription check)
 const PUBLIC_API_PREFIXES = [
   '/api/auth/',      // login, register, confirm, me, signout
+  '/api/stripe/webhook',
 ];
 
-/**
- * Decode JWT payload fără verificarea semnăturii.
- * Sigur în Edge middleware — citim doar claims, nu validăm.
- */
-function decodeJwtPayload(token) {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const base64url = parts[1];
-    const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
-    const json = typeof atob !== 'undefined'
-      ? atob(padded)
-      : Buffer.from(padded, 'base64').toString('utf-8');
-    return JSON.parse(json);
-  } catch {
-    return null;
+function withSecurityHeaders(response, request) {
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=(self)'
+  );
+  response.headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+  response.headers.set(
+    'Content-Security-Policy',
+    "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'"
+  );
+
+  if (request.nextUrl.protocol === 'https:' || process.env.NODE_ENV === 'production') {
+    response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   }
+
+  return response;
 }
 
 export function middleware(request) {
@@ -45,40 +44,25 @@ export function middleware(request) {
 
   // Lasă trece toate API-urile publice (auth, health etc.) — le verifică propria logică
   if (PUBLIC_API_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
-    return NextResponse.next();
+    return withSecurityHeaders(NextResponse.next(), request);
   }
 
   const token = request.cookies.get('token')?.value;
 
-  const isPublic    = PUBLIC_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'));
   const isProtected = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
 
   // Redirect unauthenticated users → login
   if (isProtected && !token) {
     const loginUrl = new URL('/auth', request.url);
     loginUrl.searchParams.set('redirect', pathname);
-    return NextResponse.redirect(loginUrl);
+    return withSecurityHeaders(NextResponse.redirect(loginUrl), request);
   }
 
-  // Verifică subscription status din JWT (prima linie de apărare — fără DB)
-  // AuthContext face verificarea live din DB la fiecare mount (a doua linie)
-  if (isProtected && token) {
-    const payload = decodeJwtPayload(token);
-    if (payload) {
-      const status      = payload.subscription_status;
-      const trialEndsAt = payload.trial_ends_at ? new Date(payload.trial_ends_at) : null;
+  // Nu blocăm rutele protejate pe baza subscription status din JWT.
+  // Statusul se schimbă prin Stripe webhook, iar JWT-ul/cookie-ul poate rămâne stale.
+  // AuthContext și API-urile fac verificarea live din DB.
 
-      if (status === 'trial' && trialEndsAt && trialEndsAt < new Date()) {
-        return NextResponse.redirect(new URL('/upgrade?reason=trial_expired', request.url));
-      }
-
-      if (status === 'cancelled' || status === 'inactive') {
-        return NextResponse.redirect(new URL('/upgrade?reason=subscription_inactive', request.url));
-      }
-    }
-  }
-
-  return NextResponse.next();
+  return withSecurityHeaders(NextResponse.next(), request);
 }
 
 export const config = {

@@ -39,7 +39,7 @@
   font-weight: 700;
   color: #B7FF00;
   letter-spacing: -0.5px;
-  font-family: 'Space Grotesk', sans-serif;
+  font-family: var(--font-space-grotesk), var(--font-inter), sans-serif;
 }
 
 /* ── Status banners ──────────────────────────── */
@@ -206,6 +206,12 @@
 .btnAccent:hover {
   opacity: 0.88;
   transform: translateY(-1px);
+}
+.btnPrimary:disabled,
+.btnAccent:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
 }
 .btnPrimary {
   background: #fff;

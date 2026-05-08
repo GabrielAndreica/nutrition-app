@@ -2,9 +2,11 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import jwt from 'jsonwebtoken';
 import { Resend } from 'resend';
-import { logActivity } from '@/app/lib/logger';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { sanitizeEmail } from '@/app/lib/sanitize';
+import { getJwtSecret } from '@/app/lib/jwtSecret';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(request) {
@@ -15,10 +17,30 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }
 
-  const { email } = body;
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const { ip, userAgent } = getRequestMeta(request);
+  let { email } = body;
+
+  try {
+    email = sanitizeEmail(email || '');
+  } catch {
     return NextResponse.json({ error: 'Email invalid.' }, { status: 400 });
   }
+
+  const ipLimit = await enforceRateLimit(request, {
+    identifier: `ip:${ip}`,
+    endpoint: 'auth-forgot-password-ip',
+    maxRequests: 10,
+    windowMinutes: 15,
+  });
+  if (ipLimit) return ipLimit;
+
+  const emailLimit = await enforceRateLimit(request, {
+    identifier: `email:${email.toLowerCase()}`,
+    endpoint: 'auth-forgot-password-email',
+    maxRequests: 3,
+    windowMinutes: 30,
+  });
+  if (emailLimit) return NextResponse.json({ success: true });
 
   const supabase = getSupabase();
 
@@ -33,7 +55,7 @@ export async function POST(request) {
     // Generate a short-lived reset token (1 hour)
     const resetToken = jwt.sign(
       { userId: user.id, email: user.email, purpose: 'password_reset' },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '1h' }
     );
 
@@ -41,15 +63,15 @@ export async function POST(request) {
     const resetLink = `${appUrl}/auth/reset-password?token=${resetToken}`;
 
     try {
-      await resend.emails.send({
+      const { data: emailData, error: emailError } = await resend.emails.send({
         from: 'trevano <noreply@trevano.app>',
         to: user.email,
         subject: 'Resetare parola — trevano',
         html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #fff;">
+          <div style="font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #fff;">
             <div style="margin-bottom: 32px;">
-              <span style="display: inline-block; width: 34px; height: 34px; background: #b7ff00; border-radius: 8px; text-align: center; line-height: 34px; font-size: 17px; font-weight: 900; color: #000;">N</span>
-              <span style="font-size: 17px; font-weight: 700; color: #0a0a0a; margin-left: 10px; vertical-align: middle;">trevano</span>
+              <span style="display: inline-block; width: 34px; height: 34px; background: #b7ff00; border-radius: 8px; text-align: center; line-height: 34px; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #000;">t</span>
+              <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #0a0a0a; margin-left: 10px; vertical-align: middle;">trevano</span>
             </div>
             <h1 style="font-size: 22px; font-weight: 800; color: #0a0a0a; letter-spacing: -0.5px; margin: 0 0 8px;">Resetare parola</h1>
             <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 28px;">
@@ -66,10 +88,50 @@ export async function POST(request) {
           </div>
         `,
       });
+
+      if (emailError) {
+        await logActivity({
+          action: 'email.password_reset_send',
+          status: 'error',
+          userId: user.id,
+          email: user.email,
+          ipAddress: ip,
+          userAgent,
+          details: { provider: 'resend', error: emailError.message || 'resend_error' },
+        });
+      } else {
+        await logActivity({
+          action: 'email.password_reset_send',
+          status: 'success',
+          userId: user.id,
+          email: user.email,
+          ipAddress: ip,
+          userAgent,
+          details: { provider: 'resend', messageId: emailData?.id || null },
+        });
+      }
     } catch (emailErr) {
       console.error('[forgot-password] Email send error:', emailErr);
+      await logActivity({
+        action: 'email.password_reset_send',
+        status: 'error',
+        userId: user.id,
+        email: user.email,
+        ipAddress: ip,
+        userAgent,
+        details: { provider: 'resend', error: emailErr?.message || 'unknown_email_error' },
+      });
     }
-    await logActivity({ action: 'auth.password_reset_request', status: 'success', userId: user.id, email: user.email });
+    await logActivity({ action: 'auth.password_reset_request', status: 'success', userId: user.id, email: user.email, ipAddress: ip, userAgent });
+  } else {
+    await logActivity({
+      action: 'auth.password_reset_request',
+      status: 'failure',
+      email,
+      ipAddress: ip,
+      userAgent,
+      details: { reason: 'user_not_found' },
+    });
   }
 
   return NextResponse.json({ success: true });

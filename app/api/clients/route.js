@@ -79,7 +79,7 @@ export async function GET(request) {
     if (rateLimitError) {
       console.error('Rate limit check error:', rateLimitError);
     } else if (rateLimitResult && rateLimitResult.length > 0) {
-      const { allowed, remaining } = rateLimitResult[0];
+      const { allowed } = rateLimitResult[0];
       
       if (!allowed) {
         return NextResponse.json(
@@ -104,11 +104,12 @@ export async function GET(request) {
     .select(
       `id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences,
        training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, injuries_limitations, workout_preferences,
-       created_at, user_id, has_new_progress,
+       created_at, user_id, has_new_progress, status, deleted_at, usage_counted_at,
        client_invitations!client_invitations_client_id_fkey(id, status, client_email, created_at)`,
       { count: 'exact' }
     )
     .eq('trainer_id', auth.userId)
+    .is('deleted_at', null)
     .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -224,7 +225,7 @@ export async function POST(request) {
     if (rateLimitError) {
       console.error('Rate limit check error:', rateLimitError);
     } else if (rateLimitResult && rateLimitResult.length > 0) {
-      const { allowed, remaining, reset_at } = rateLimitResult[0];
+      const { allowed, reset_at } = rateLimitResult[0];
       
       if (!allowed) {
         const resetDate = new Date(reset_at);
@@ -251,49 +252,8 @@ export async function POST(request) {
   const sub = await checkSubscription(auth.userId);
   if (!sub.allowed) return sub.response;
 
-  // ─── Client Limit — atomic check-and-reserve în DB (previne race condition) ─
-  // Pentru trial: limita se aplică pe total_clients_created (nu scade la ștergere)
-  // Pentru paid: limita se aplică pe clienți activi
-  {
-    let maxClients = sub.maxClients;
-
-    let limitReached = false;
-    if (sub.status === 'trial') {
-      // Atomic: incrementează DOAR dacă sub limită — un singur query, fără race
-      const { data: incremented, error: incErr } = await supabase
-        .rpc('try_increment_clients_created', {
-          p_user_id: String(auth.userId),
-          p_max_count: maxClients,
-        });
-      if (incErr) {
-        console.error('[client limit] rpc error:', incErr.message);
-        // Fail-safe: blochăm dacă RPC nu există (forțează deploy SQL)
-        return NextResponse.json({ error: 'Eroare internă la verificarea limitei.' }, { status: 500 });
-      }
-      if (!incremented) limitReached = true;
-    } else {
-      // Paid: verifică clienți activi
-      const { count: activeCount } = await supabase
-        .from('clients')
-        .select('id', { count: 'exact', head: true })
-        .eq('trainer_id', auth.userId);
-      if ((activeCount ?? 0) >= maxClients) limitReached = true;
-    }
-
-    if (limitReached) {
-      const planLabel = sub.status === 'trial'
-        ? `trial (maxim ${maxClients} clienți, inclusiv cei șterși)`
-        : sub.plan === 'pro' ? 'Pro' : 'Starter';
-      return NextResponse.json(
-        {
-          error: `Ai atins limita de ${maxClients} client${maxClients === 1 ? '' : 'i'} pentru planul ${planLabel}. Fă upgrade pentru mai mulți clienți.`,
-          code: 'CLIENT_LIMIT_REACHED',
-          limit: maxClients,
-        },
-        { status: 403 }
-      );
-    }
-  }
+  // Clienții noi sunt Draft și nu consumă limită lunară.
+  // Limita se consumă doar la generare plan, invitație sau export PDF.
 
   // ─── Sanitizare input-uri (XSS Protection) ───────────────────
   try {
@@ -382,9 +342,6 @@ export async function POST(request) {
       notes: 'Greutate inițială la înregistrare'
     }]);
   if (wErr) console.error('[weight_history] Eroare la inserare (client nou):', wErr.message, wErr);
-
-  // Nota: total_clients_created a fost deja incrementat atomic mai sus (try_increment_clients_created)
-  // Nu mai e nevoie de un al doilea increment aici.
 
   logActivity({
     action: 'client.create',

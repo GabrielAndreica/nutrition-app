@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useAuth } from '@/app/contexts/AuthContext';
 import mealStyles from '@/app/components/MealPlanGenerator/meal-plan.module.css';
 import styles from './workout-plan.module.css';
 
@@ -42,6 +43,7 @@ const EQUIPMENT_LABELS = {
 
 // ─── Main WorkoutPlan component ───────────────────────────────────────────────
 export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmitProgress, progressCooldownUntil }) {
+  const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
 
@@ -82,6 +84,24 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
     if (pdfLoading) return;
     setPdfLoading(true);
     try {
+      const clientId = clientData?.clientId || clientData?.id;
+      if (user?.role === 'trainer' && clientId) {
+        const token = localStorage.getItem('token');
+        const usageRes = await fetch('/api/client-usage/record', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ clientId, reason: 'workout_plan_pdf_export' }),
+        });
+        const usageData = await usageRes.json().catch(() => ({}));
+        if (!usageRes.ok) {
+          alert(usageData.error || 'Nu am putut exporta PDF-ul din cauza limitei de clienți.');
+          return;
+        }
+      }
+
       const { generateWorkoutPlanPDF } = await generateWorkoutPDFModule();
       generateWorkoutPlanPDF(plan, clientData);
     } finally {

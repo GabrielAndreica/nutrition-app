@@ -163,15 +163,15 @@ export async function POST(request) {
   const confirmLink = `${appUrl}/confirm/${confirmationToken}`;
 
   try {
-    await resend.emails.send({
+    const { data: emailData, error: emailError } = await resend.emails.send({
       from: 'trevano <noreply@trevano.app>',
       to: newUser.email,
       subject: 'Confirmă-ți adresa de email — trevano',
       html: `
-        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #fff;">
+        <div style="font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #fff;">
           <div style="margin-bottom: 32px;">
-            <span style="display: inline-block; width: 34px; height: 34px; background: #b7ff00; border-radius: 8px; text-align: center; line-height: 34px; font-size: 17px; font-weight: 900; color: #000;">t</span>
-            <span style="font-size: 17px; font-weight: 700; color: #0a0a0a; margin-left: 10px; vertical-align: middle;">trevano</span>
+            <span style="display: inline-block; width: 34px; height: 34px; background: #b7ff00; border-radius: 8px; text-align: center; line-height: 34px; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #000;">t</span>
+            <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #0a0a0a; margin-left: 10px; vertical-align: middle;">trevano</span>
           </div>
           <h1 style="font-size: 22px; font-weight: 800; color: #0a0a0a; letter-spacing: -0.5px; margin: 0 0 8px;">Confirmă adresa de email</h1>
           <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 28px;">
@@ -188,8 +188,39 @@ export async function POST(request) {
         </div>
       `,
     });
+
+    if (emailError) {
+      await logActivity({
+        action: 'email.confirmation_send',
+        status: 'error',
+        userId: newUser.id,
+        email: newUser.email,
+        ipAddress: ip,
+        userAgent,
+        details: { provider: 'resend', error: emailError.message || 'resend_error' },
+      });
+    } else {
+      await logActivity({
+        action: 'email.confirmation_send',
+        status: 'success',
+        userId: newUser.id,
+        email: newUser.email,
+        ipAddress: ip,
+        userAgent,
+        details: { provider: 'resend', messageId: emailData?.id || null },
+      });
+    }
   } catch (emailErr) {
     console.error('[register] email send error:', emailErr);
+    await logActivity({
+      action: 'email.confirmation_send',
+      status: 'error',
+      userId: newUser.id,
+      email: newUser.email,
+      ipAddress: ip,
+      userAgent,
+      details: { provider: 'resend', error: emailErr?.message || 'unknown_email_error' },
+    });
     // Don't fail the registration if email fails — user can request resend
   }
 

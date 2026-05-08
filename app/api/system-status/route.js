@@ -1,12 +1,27 @@
 import { NextResponse } from 'next/server';
 import { requestQueue } from '@/app/lib/rateLimiter';
 import { getCacheStats } from '@/app/lib/nutritionCache';
+import { verifyToken } from '@/app/lib/verifyToken';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 /**
  * API endpoint pentru monitorizarea stării sistemului
  * Util pentru dashboard admin și alerting
  */
-export async function GET() {
+export async function GET(request) {
+  const auth = verifyToken(request);
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'system-status',
+    maxRequests: 30,
+    windowMinutes: 1,
+  });
+  if (rateLimit) return rateLimit;
+
   const queueStats = requestQueue.getStats();
   const cacheStats = getCacheStats();
   

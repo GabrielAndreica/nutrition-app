@@ -60,6 +60,7 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
   const [regenerating, setRegenerating] = useState(false);
   const [regenProgress, setRegenProgress] = useState(0);
   const [regenStep, setRegenStep] = useState(0);
+  const [regenMessage, setRegenMessage] = useState('Se pregătește...');
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const abortControllerRef = useRef(null);
@@ -157,6 +158,20 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
     return () => clearTimeout(timer);
   }, [successMessage]);
 
+  useEffect(() => {
+    if (!regenerating) return;
+
+    const timer = setInterval(() => {
+      setRegenProgress(prev => {
+        const cap = regenStep > 0 ? 84 : 30;
+        if (prev >= cap) return prev;
+        return Math.min(cap, prev + (regenStep > 0 ? 0.5 : 0.8));
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [regenerating, regenStep]);
+
   // Memoized regenerate handler pentru performanță
   const handleRegenerate = useCallback(async (progressData) => {
     if (!clientData) return;
@@ -167,6 +182,7 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
     setRegenerating(true);
     setRegenStep(0);
     setRegenProgress(0);
+    setRegenMessage('Se pregătește...');
     setError(null);
     setSuccessMessage(null);
 
@@ -224,8 +240,23 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
           if (!line.trim()) continue;
           const event = JSON.parse(line);
           if (event.type === 'progress') {
-            setRegenStep(event.day);
-            setRegenProgress(Math.round((event.day / event.total) * 90));
+            const eventProgress = typeof event.progress === 'number' ? event.progress : null;
+            if (event.phase === 'setup') {
+              setRegenStep(0);
+              setRegenProgress(prev => Math.max(prev, eventProgress ?? 8));
+              setRegenMessage(event.message || 'Pregătim datele clientului...');
+            } else if (event.phase === 'workout') {
+              setRegenStep(7);
+              setRegenProgress(prev => Math.max(prev, eventProgress ?? 92));
+              setRegenMessage(event.message || 'Se generează planul de antrenament...');
+            } else {
+              setRegenStep(event.day || 0);
+              setRegenProgress(prev => Math.max(
+                prev,
+                eventProgress ?? Math.round(((event.day || 0) / Math.max(event.total || 7, 1)) * 86)
+              ));
+              setRegenMessage(event.message || (event.day > 0 ? `Plan alimentar: ziua ${event.day} din ${event.total}...` : 'Selectare rețete potrivite...'));
+            }
           } else if (event.type === 'complete') {
             setRegenProgress(100);
             setMealPlan(event.plan);
@@ -341,7 +372,7 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
           <div className={styles.loadingBox}>
             <p className={styles.loadingTitle}>Se regenerează planul alimentar</p>
             <p className={styles.loadingStep}>
-              {regenStep > 0 ? `Ziua ${regenStep} din 7...` : 'Se pregătește...'}
+              {regenMessage || (regenStep > 0 ? `Ziua ${regenStep} din 7...` : 'Se pregătește...')}
             </p>
             <div className={styles.progressTrack}>
               <div className={styles.progressFill} style={{ width: `${regenProgress}%` }} />

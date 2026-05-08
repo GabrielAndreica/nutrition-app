@@ -5,7 +5,21 @@ import { getSupabase } from '@/app/lib/supabase';
  * Health check endpoint pentru monitoring
  * Public - nu necesită autentificare
  */
-export async function GET() {
+export async function GET(request) {
+  const detailsEnabled =
+    process.env.HEALTH_CHECK_TOKEN &&
+    request.headers.get('authorization') === `Bearer ${process.env.HEALTH_CHECK_TOKEN}`;
+
+  if (!detailsEnabled) {
+    return NextResponse.json(
+      { status: 'ok', timestamp: new Date().toISOString() },
+      {
+        status: 200,
+        headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate' },
+      }
+    );
+  }
+
   const supabase = getSupabase();
   const checks = {
     status: 'healthy',
@@ -48,7 +62,6 @@ export async function GET() {
   } catch (err) {
     return NextResponse.json({
       status: 'unhealthy',
-      error: err.message,
       timestamp: new Date().toISOString()
     }, {
       status: 503

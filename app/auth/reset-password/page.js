@@ -46,7 +46,7 @@ function ResetPasswordContent() {
     <div className={styles.page}>
       <div className={styles.leftPanel}>
         <div className={styles.brand}>
-          <span className={styles.logoMark}>N</span>
+          <span className={styles.logoMark}>t</span>
           <span className={styles.logoText}>trevano</span>
         </div>
         <div className={styles.tagline}>
@@ -55,7 +55,7 @@ function ResetPasswordContent() {
         </div>
         <div className={styles.aiBadge}>
           <span className={styles.dot} />
-          Nutriție inteligentă
+          Planuri inteligente
         </div>
       </div>
 

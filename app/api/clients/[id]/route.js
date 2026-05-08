@@ -71,7 +71,8 @@ params }) {
   let query = supabase
     .from('clients')
     .select('*')
-    .eq('id', id);
+    .eq('id', id)
+    .is('deleted_at', null);
 
   // Dacă e trainer, verifică că clientul aparține trainerului
   if (auth.role === 'trainer') {
@@ -164,6 +165,7 @@ params }) {
     .select('id, weight, goal, activity_level, diet_type, meals_per_day, allergies, food_preferences, training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, injuries_limitations, workout_preferences')
     .eq('id', id)
     .eq('trainer_id', auth.userId)
+    .is('deleted_at', null)
     .single();
 
   if (fetchError || !existing) {
@@ -313,6 +315,7 @@ params }) {
     .from('clients')
     .update(patch)
     .eq('id', id)
+    .is('deleted_at', null)
     .select('id, has_new_progress');
 
   if (error) {
@@ -341,6 +344,7 @@ params }) {
     .select('id, name, user_id')
     .eq('id', id)
     .eq('trainer_id', auth.userId)
+    .is('deleted_at', null)
     .single();
 
   if (fetchError || !existing) {
@@ -355,8 +359,15 @@ params }) {
     .delete()
     .eq('client_id', id);
 
-  // 2. Șterge contul de utilizator dacă există (eliberează emailul din tabela users)
+  // 2. Detașează contul de client înainte de ștergerea userului, ca soft-delete-ul să rămână în audit.
   if (existing.user_id) {
+    await supabase
+      .from('clients')
+      .update({ user_id: null })
+      .eq('id', id)
+      .eq('trainer_id', auth.userId);
+
+    // Șterge contul de utilizator dacă există (eliberează emailul din tabela users)
     // IMPORTANT: Verifică că user-ul este de tip 'client' înainte de ștergere
     // Previne ștergerea accidentală a conturilor de antrenori
     const { data: userToDelete, error: userCheckError } = await supabase
@@ -397,11 +408,17 @@ params }) {
     }
   }
 
-  // 3. Șterge clientul
+  // 3. Arhivează clientul. Ledger-ul lunar rămâne intact, deci ștergerea nu eliberează sloturi consumate.
   const { error } = await supabase
     .from('clients')
-    .delete()
-    .eq('id', id);
+    .update({
+      status: 'archived',
+      deleted_at: new Date().toISOString(),
+      user_id: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('trainer_id', auth.userId);
 
   if (error) {
     console.error('Supabase DELETE client error:', error);

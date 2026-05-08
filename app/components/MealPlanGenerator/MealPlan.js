@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useAuth } from '@/app/contexts/AuthContext';
 import styles from './meal-plan.module.css';
 import cStyles from '../../clients/clients.module.css';
 
 export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, onRegenerate, onSubmitProgress, onViewProgress, progressCooldownUntil, onProgressToggle, workoutOnlyMode, initialShowProgress }) {
+  const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [showProgress, setShowProgress] = useState(!!initialShowProgress);
@@ -74,6 +76,24 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
     if (pdfLoading) return;
     setPdfLoading(true);
     try {
+      const clientId = clientData?.clientId || clientData?.id;
+      if (user?.role === 'trainer' && clientId) {
+        const token = localStorage.getItem('token');
+        const usageRes = await fetch('/api/client-usage/record', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ clientId, reason: 'meal_plan_pdf_export' }),
+        });
+        const usageData = await usageRes.json().catch(() => ({}));
+        if (!usageRes.ok) {
+          alert(usageData.error || 'Nu am putut exporta PDF-ul din cauza limitei de clienți.');
+          return;
+        }
+      }
+
       const { generateMealPlanPDF } = await import('./generatePDF');
       generateMealPlanPDF(plan, clientData, nutritionalNeeds);
     } finally {

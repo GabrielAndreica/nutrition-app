@@ -520,6 +520,10 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         sessionStorage.setItem('clientOldWeight', String(oldWeight));
       }
 
+      const shouldKeepCurrentTargets =
+        aiRecommendation?.action === 'continue' ||
+        !aiRecommendation?.calChange;
+
       // Stochează datele de progres pentru generator
       sessionStorage.setItem('clientProgress', JSON.stringify({
         currentWeight: String(progressData.weight),
@@ -529,7 +533,8 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         notes: progressData.mesaj || '',
         weeksNoChange: String(stagnationWeeks),
         forceRegenerate: true,
-        calorieAdjustment: aiRecommendation?.calChange || 0,
+        keepCurrentTargets: shouldKeepCurrentTargets,
+        calorieAdjustment: shouldKeepCurrentTargets ? 0 : (aiRecommendation?.calChange || 0),
         // Câmpuri antrenament
         workoutAdherence: progressData.workoutAdherence || '',
         workoutDifficulty: progressData.workoutDifficulty || '',

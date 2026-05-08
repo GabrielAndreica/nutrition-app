@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeText, sanitizeNumber } from '@/app/lib/sanitize';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 export async function GET(request) {
   const supabase = getSupabase();
@@ -10,6 +11,14 @@ export async function GET(request) {
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'notifications-get',
+    maxRequests: 120,
+    windowMinutes: 1,
+  });
+  if (rateLimit) return rateLimit;
 
   try {
     // Get query parameters
@@ -59,6 +68,14 @@ export async function PATCH(request) {
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'notifications-patch',
+    maxRequests: 60,
+    windowMinutes: 1,
+  });
+  if (rateLimit) return rateLimit;
 
   try {
     const body = await request.json();
@@ -111,6 +128,14 @@ export async function POST(request) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'notifications-post',
+    maxRequests: 30,
+    windowMinutes: 1,
+  });
+  if (rateLimit) return rateLimit;
+
   try {
     const body = await request.json();
     let { user_id, type, title, message, related_client_id, related_plan_id } = body;
@@ -119,11 +144,11 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    // Dacă nu avem user_id direct, îl căutăm din clients.user_id pe baza client_id
-    if (!user_id && related_client_id) {
+    // Pentru notificările către client, user_id este derivat din relația trainer-client.
+    if (related_client_id) {
       const { data: clientRow, error: clientErr } = await supabase
         .from('clients')
-        .select('user_id')
+        .select('user_id, trainer_id')
         .eq('id', related_client_id)
         .single();
 
@@ -132,12 +157,18 @@ export async function POST(request) {
         return NextResponse.json({ error: 'Client negăsit' }, { status: 404 });
       }
 
+      if (String(clientRow.trainer_id) !== String(auth.userId)) {
+        return NextResponse.json({ error: 'Nu ai acces la acest client.' }, { status: 403 });
+      }
+
       if (!clientRow.user_id) {
         // Clientul nu are cont activat — notificarea nu poate fi trimisă
         return NextResponse.json({ message: 'Client fără cont activat, notificare ignorată' }, { status: 200 });
       }
 
       user_id = clientRow.user_id;
+    } else if (user_id && String(user_id) !== String(auth.userId)) {
+      return NextResponse.json({ error: 'Nu poți crea notificări pentru alt utilizator.' }, { status: 403 });
     }
 
     if (!user_id) {
@@ -147,6 +178,7 @@ export async function POST(request) {
     // Sanitizare input-uri (XSS protection)
     try {
       if (title) title = sanitizeText(title).slice(0, 200);
+      type = sanitizeText(type).slice(0, 80);
       message = sanitizeText(message).slice(0, 1000);
       user_id = sanitizeNumber(user_id, { min: 1, max: 999999999, allowFloat: false });
       // related_client_id și related_plan_id sunt UUID-uri — nu le trecem prin sanitizeNumber

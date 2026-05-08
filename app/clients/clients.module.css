@@ -752,6 +752,12 @@
   color: #d62800;
 }
 
+.badgeDraft {
+  background: rgba(10, 10, 10, 0.06);
+  border: 1px solid rgba(10, 10, 10, 0.12);
+  color: #555;
+}
+
 .badgeGenerating {
   background: rgba(183, 255, 0, 0.15);
   border: 1px solid rgba(183, 255, 0, 0.35);
@@ -2351,8 +2357,6 @@
   .searchWrap { max-width: none; flex: 1 1 100%; order: -1; }
 
   .count { flex: 1; }
-
-  .clientGrid { grid-template-columns: 1fr; }
 
   .formRow { flex-direction: column; }
 

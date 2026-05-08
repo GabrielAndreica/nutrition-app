@@ -5,23 +5,24 @@
 
 // Stochează cererile per user (în memorie - pentru producție folosiți Redis)
 const userRequests = new Map();
-const globalQueue = [];
-let activeRequests = 0;
+function positiveIntFromEnv(name, fallback) {
+  const value = Number.parseInt(process.env[name] || '', 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
 
 // Configurare
 const CONFIG = {
   // Rate limiting per user
-  MAX_REQUESTS_PER_USER_PER_MINUTE: 3,
-  MAX_REQUESTS_PER_USER_PER_HOUR: 20,
+  MAX_REQUESTS_PER_USER_PER_MINUTE: positiveIntFromEnv('PLAN_GENERATION_MAX_PER_MINUTE', 3),
+  MAX_REQUESTS_PER_USER_PER_HOUR: positiveIntFromEnv('PLAN_GENERATION_MAX_PER_HOUR', 20),
   
   // Global concurrency (OpenAI rate limits)
-  // Setăm la 1 pentru a genera planurile SECVENȚIAL - unul după altul
-  // Astfel nu se depășește niciodată rate limit-ul OpenAI
-  MAX_CONCURRENT_REQUESTS: 1,
+  // Configurabil pentru producție în funcție de limita OpenAI disponibilă.
+  MAX_CONCURRENT_REQUESTS: positiveIntFromEnv('OPENAI_MAX_CONCURRENT_REQUESTS', 3),
   
   // Queue settings
-  MAX_QUEUE_SIZE: 100,
-  QUEUE_TIMEOUT_MS: 120000, // 2 minute max wait in queue
+  MAX_QUEUE_SIZE: positiveIntFromEnv('OPENAI_MAX_QUEUE_SIZE', 200),
+  QUEUE_TIMEOUT_MS: positiveIntFromEnv('OPENAI_QUEUE_TIMEOUT_MS', 300000),
   
   // Cleanup interval
   CLEANUP_INTERVAL_MS: 60000, // cleanup every minute

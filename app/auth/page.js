@@ -1,13 +1,13 @@
 ﻿'use client';
 
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { validateEmail, sanitizeInput } from '@/app/lib/validation';
 import { useAuth } from '@/app/contexts/AuthContext';
 import styles from './auth.module.css';
 
-export default function AuthPage() {
+function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading, login } = useAuth();
@@ -139,7 +139,7 @@ export default function AuthPage() {
 
       <div className={styles.leftPanel}>
         <div className={styles.brand}>
-          <Link href="/landing" className={styles.brandLink}>
+          <Link href="/" className={styles.brandLink}>
             <span className={styles.logoText}>trevano</span>
           </Link>
         </div>
@@ -155,7 +155,7 @@ export default function AuthPage() {
 
         <div className={styles.aiBadge}>
           <span className={styles.dot} />
-          Nutriție inteligentă
+          Planuri inteligente
         </div>
       </div>
 
@@ -268,5 +268,13 @@ export default function AuthPage() {
       </div>
 
     </div>
+  );
+}
+
+export default function AuthPage() {
+  return (
+    <Suspense>
+      <AuthContent />
+    </Suspense>
   );
 }

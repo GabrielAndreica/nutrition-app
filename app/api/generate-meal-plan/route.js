@@ -4,6 +4,9 @@ import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { checkSubscription } from '@/app/lib/checkSubscription';
+import { reserveMonthlyClientUsage } from '@/app/lib/clientUsage';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
+import { requestQueue, generateRequestId } from '@/app/lib/rateLimiter';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -1709,10 +1712,20 @@ export async function POST(request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
+    const rateLimit = await enforceRateLimit(request, {
+      userId: auth.userId,
+      endpoint: 'generate-meal-plan',
+      maxRequests: 20,
+      windowMinutes: 60,
+      failClosed: true,
+    });
+    if (rateLimit) return rateLimit;
+
     // ── Subscription check (live from DB — JWT can be stale) ─────────────
+    let subscription = null;
     if (auth.role === 'trainer') {
-      const sub = await checkSubscription(auth.userId);
-      if (!sub.allowed) return sub.response;
+      subscription = await checkSubscription(auth.userId);
+      if (!subscription.allowed) return subscription.response;
     }
 
     console.log('[Generate Plan] Auth successful, userId:', auth.userId);
@@ -1753,8 +1766,9 @@ export async function POST(request) {
       const supabase = getSupabase();
       let clientQuery = supabase
         .from('clients')
-        .select('id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences')
-        .eq('id', rawClientId);
+        .select('id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences, user_id')
+        .eq('id', rawClientId)
+        .is('deleted_at', null);
 
       if (auth.role === 'trainer') {
         clientQuery = clientQuery.eq('trainer_id', auth.userId);
@@ -1793,7 +1807,19 @@ export async function POST(request) {
         allergies: dbAllergies,
         mealsPerDay: dbClient.meals_per_day,
         foodPreferences: dbClient.food_preferences || '',
+        clientUserId: dbClient.user_id || null,
       };
+
+      if (auth.role === 'trainer') {
+        const usage = await reserveMonthlyClientUsage({
+          trainerId: auth.userId,
+          clientId: rawClientId,
+          reason: 'meal_plan_generate',
+          subscription,
+        });
+
+        if (!usage.allowed) return usage.response;
+      }
     }
 
     const missingFields = [];
@@ -1813,7 +1839,12 @@ export async function POST(request) {
     }
 
     let targetCalories;
-    const hasAdjustment = typeof clientData.calorieAdjustment === 'number' && clientData.calorieAdjustment !== 0;
+    const isProgressRegeneration = !!(clientData.progress?.forceRegenerate);
+    const keepCurrentProgressTargets = !!(clientData.progress?.keepCurrentTargets);
+    const hasAdjustment =
+      !keepCurrentProgressTargets &&
+      typeof clientData.calorieAdjustment === 'number' &&
+      clientData.calorieAdjustment !== 0;
     const hasPreviousBase = clientData.currentPlanCalories && Number(clientData.currentPlanCalories) > 0;
 
     // Încearcă să obțină caloriile planului anterior din DB (dacă clientul are deja un plan)
@@ -1847,6 +1878,11 @@ export async function POST(request) {
       const adj  = Math.max(-500, Math.min(500, Math.round(clientData.calorieAdjustment)));
       targetCalories = base + adj;
       console.log(`[Generate Plan] Regenerare cu ajustare AI: ${base} ${adj >= 0 ? '+' : ''}${adj} = ${targetCalories} kcal`);
+    } else if (isProgressRegeneration && prevPlanCalories && !hasAdjustment) {
+      // Refresh de plan pornit din progres, fără ajustare calorică:
+      // păstrăm exact ținta curentă și schimbăm doar selecția rețetelor.
+      targetCalories = Math.round(prevPlanCalories);
+      console.log(`[Generate Plan] Regenerare progres fără ajustare calorică — păstrăm ${targetCalories} kcal`);
     } else if (prevPlanCalories && !hasAdjustment) {
       // Regenerare după editare câmpuri sensibile — folosim caloriile planului anterior ca bază
       // și aplicăm multiplicatorul noului obiectiv (fără recalcul TDEE din profil).
@@ -1917,11 +1953,15 @@ export async function POST(request) {
           });
         };
         try {
+    sendEvent({ type: 'progress', phase: 'setup', progress: 4, message: 'Validare date client...' });
+
     // ── Încarcă alimentele și rețetele DIN DB (o singură dată) ──
+    sendEvent({ type: 'progress', phase: 'setup', progress: 8, message: 'Încărcare rețete și alimente...' });
     const [allFoods, allRecipesRaw] = await Promise.all([
       loadFoodsFromSupabase(),
       loadRecipesFromSupabase(),
     ]);
+    sendEvent({ type: 'progress', phase: 'setup', progress: 14, message: 'Analiză preferințe și restricții...' });
     const foodsMap        = buildFoodsMap(allFoods);
     const parsedPrefs     = parsePreferences(clientData.foodPreferences || clientData.preferences || '');
     console.log(`[generate] Preferințe parsate:`, { includes: parsedPrefs.includes, excludes: parsedPrefs.excludes, special: parsedPrefs.specialMeals });
@@ -1933,6 +1973,7 @@ export async function POST(request) {
 
     const weightKg = parseFloat(clientData.weight) || 70;
     const heightCm = parseFloat(clientData.height) || 175;
+    sendEvent({ type: 'progress', phase: 'setup', progress: 18, message: 'Calcul ținte calorice și macro-uri...' });
     const maxGramsMap = getMaxGramsByCategory(weightKg, heightCm);
 
     const mealDistForPlan = getMealDistribution(mealsNum);
@@ -1949,38 +1990,44 @@ export async function POST(request) {
       }])
     );
     // ── PROMPT 1: O singură cerere AI pentru toate cele 7 zile ──
-    sendEvent({ type: 'progress', phase: 'meal', day: 0, total: 7, message: 'Selectare rețete AI...' });
+    sendEvent({ type: 'progress', phase: 'meal', day: 0, total: 7, progress: 24, message: 'Selectare rețete potrivite...' });
 
-    const isProgressRegeneration = !!(clientData.progress?.forceRegenerate);
     let weeklySelection;
 
-    if (isProgressRegeneration) {
-      // Regenerare bazată pe progres — folosim promptul specializat
-      let previousPlanDays = [];
-      if (clientData.clientId) {
-        try {
-          const supabasePrev = getSupabase();
-          const { data: prevPlan } = await supabasePrev
-            .from('meal_plans')
-            .select('plan_data')
-            .eq('client_id', clientData.clientId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-          if (prevPlan?.plan_data?.days) {
-            previousPlanDays = prevPlan.plan_data.days;
-          }
-        } catch { /* non-critical */ }
+    const aiSelectionRequestId = generateRequestId();
+    await requestQueue.waitForSlot(aiSelectionRequestId);
+    try {
+      if (isProgressRegeneration) {
+        // Regenerare bazată pe progres — folosim promptul specializat
+        let previousPlanDays = [];
+        if (clientData.clientId) {
+          try {
+            const supabasePrev = getSupabase();
+            const { data: prevPlan } = await supabasePrev
+              .from('meal_plans')
+              .select('plan_data')
+              .eq('client_id', clientData.clientId)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+            if (prevPlan?.plan_data?.days) {
+              previousPlanDays = prevPlan.plan_data.days;
+            }
+          } catch { /* non-critical */ }
+        }
+        weeklySelection = await selectRecipesWithAIFromProgress(
+          eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs,
+          clientData.progress, previousPlanDays
+        );
+        console.log(`[generate] Selecție AI (progres) completă: ${weeklySelection.length} zile`);
+      } else {
+        weeklySelection = await selectRecipesWithAI(eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs);
+        console.log(`[generate] Selecție AI completă: ${weeklySelection.length} zile`);
       }
-      weeklySelection = await selectRecipesWithAIFromProgress(
-        eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs,
-        clientData.progress, previousPlanDays
-      );
-      console.log(`[generate] Selecție AI (progres) completă: ${weeklySelection.length} zile`);
-    } else {
-      weeklySelection = await selectRecipesWithAI(eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs);
-      console.log(`[generate] Selecție AI completă: ${weeklySelection.length} zile`);
+    } finally {
+      requestQueue.releaseSlot();
     }
+    sendEvent({ type: 'progress', phase: 'meal', day: 0, total: 7, progress: 32, message: 'Rețetele au fost selectate. Construim zilele...' });
 
     const days = [];
 
@@ -2110,7 +2157,14 @@ export async function POST(request) {
       const dayNumber = dayIndex + 1;
       const dayName   = dayNames[dayIndex];
       console.log(`Generare ziua ${dayNumber}/7 (${dayName})...`);
-      sendEvent({ type: 'progress', phase: 'meal', day: dayNumber, total: 7 });
+      sendEvent({
+        type: 'progress',
+        phase: 'meal',
+        day: dayNumber,
+        total: 7,
+        progress: Math.min(82, 32 + dayNumber * 7),
+        message: `Plan alimentar: ziua ${dayNumber} din 7...`,
+      });
 
       if (clientData.clientId) {
         try {
@@ -2177,6 +2231,7 @@ export async function POST(request) {
 
     // Salvează planul în Supabase dacă există clientId
     let savedPlanId = null;
+    sendEvent({ type: 'progress', phase: 'meal', day: 7, total: 7, progress: 86, message: 'Salvare plan alimentar...' });
     if (clientData.clientId) {
       const supabase = getSupabase();
       const { data: insertedData, error: saveError } = await supabase
@@ -2210,7 +2265,7 @@ export async function POST(request) {
     let savedWorkoutPlanId = null;
     if (clientData.clientId) {
       // Pas server-side: generează și planul de antrenament
-      sendEvent({ type: 'progress', phase: 'workout', step: 1, total: 2, message: 'Se generează planul de antrenament...' });
+      sendEvent({ type: 'progress', phase: 'workout', step: 1, total: 2, progress: 91, message: 'Se generează planul de antrenament...' });
       const supabaseProgress = getSupabase();
       await supabaseProgress
         .from('generation_status')
@@ -2227,7 +2282,7 @@ export async function POST(request) {
         clientId: clientData.clientId,
         progress: clientData.progress || null,
       });
-      sendEvent({ type: 'progress', phase: 'workout', step: 2, total: 2, message: 'Planul de antrenament a fost generat.' });
+      sendEvent({ type: 'progress', phase: 'workout', step: 2, total: 2, progress: 97, message: 'Planul de antrenament a fost generat.' });
     }
 
     // Marchează generarea ca finalizată în generation_status DOAR după ambele planuri
@@ -2245,6 +2300,26 @@ export async function POST(request) {
         .eq('client_id', clientData.clientId)
         .eq('trainer_id', auth.userId)
         .eq('status', 'generating');
+
+      if (auth.role === 'trainer' && clientData.clientUserId && savedPlanId) {
+        const { error: notificationError } = await supabase2
+          .from('notifications')
+          .insert({
+            user_id: clientData.clientUserId,
+            type: 'new_meal_plan',
+            title: isProgressRegeneration ? 'Plan alimentar actualizat' : 'Plan alimentar nou',
+            message: isProgressRegeneration
+              ? 'Antrenorul tău ți-a actualizat planul alimentar pe baza progresului tău.'
+              : 'Antrenorul tău a generat un plan alimentar nou pentru tine.',
+            related_plan_id: savedPlanId,
+            related_client_id: clientData.clientId,
+            is_read: false,
+          });
+
+        if (notificationError) {
+          console.error('[generate-meal-plan] Eroare la notificarea clientului:', notificationError.message);
+        }
+      }
     }
 
     sendEvent({ type: 'complete', plan, nutritionalNeeds: targets, planId: savedPlanId, workoutPlanId: savedWorkoutPlanId });

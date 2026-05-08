@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&display=swap');
 @import "tailwindcss";
 
 @keyframes slideInRight {
@@ -81,13 +80,51 @@ html {
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 /* Typography */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.brand,
+.logo,
+.logoText,
+[class*="logo"],
+[class*="Logo"],
+[class*="Heading"],
+[class*="Title"],
+[class*="headline"],
+[class*="Headline"] {
+  font-family: var(--font-space-grotesk), var(--font-inter), sans-serif;
+}
+
+[class*="Num"],
+[class*="num"],
+[class*="Amount"],
+[class*="amount"],
+[class*="Price"],
+[class*="price"],
+[class*="Value"],
+[class*="value"],
+[class*="Val"],
+[class*="val"],
+[class*="macro"],
+[class*="Macro"],
+[class*="kcal"],
+[class*="Kcal"],
+[class*="weight"],
+[class*="Weight"] {
+  font-family: var(--font-space-grotesk), var(--font-inter), sans-serif;
+  font-weight: 500;
+}
+
 h1 {
   font-size: 32px;
   font-weight: 700;

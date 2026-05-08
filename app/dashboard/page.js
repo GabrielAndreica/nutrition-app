@@ -1,14 +1,49 @@
 'use client';
 
 import { useEffect, useState, useRef, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import { createClient } from '@supabase/supabase-js';
 import styles from './dashboard.module.css';
+import clientStyles from '@/app/clients/clients.module.css';
 import ClientsList from '@/app/components/ClientsList';
 import TrialBanner from '@/app/components/TrialBanner';
+import { markExternalNavigation } from '@/app/components/ExternalNavigationReloadGuard';
+
+function getPlanLabel(plan, status) {
+  if (status === 'trial') return 'Trial';
+  if (plan === 'pro') return 'Pro';
+  if (plan === 'starter') return 'Starter';
+  return 'Fără plan';
+}
+
+function getStatusLabel(status) {
+  const labels = {
+    active: 'Activ',
+    trial: 'Trial activ',
+    expired: 'Expirat',
+    cancelled: 'Anulat',
+    inactive: 'Inactiv',
+  };
+
+  return labels[status] || 'Necunoscut';
+}
+
+function getPlanBadgeClass(plan, status) {
+  if (status === 'trial') return styles.plan_trial;
+  if (plan === 'pro') return styles.plan_pro;
+  if (plan === 'starter') return styles.plan_starter;
+  return styles.plan_default;
+}
+
+function getStatusTextClass(status) {
+  if (status === 'active' || status === 'trial') return styles.statusTextActive;
+  if (status === 'expired' || status === 'cancelled' || status === 'inactive') return styles.statusTextProblem;
+  return styles.statusTextNeutral;
+}
+
 
 // Dynamic imports cu ssr: false pentru componente care folosesc jsPDF
 const InlineMealPlanView = dynamic(() => import('@/app/components/InlineMealPlanView'), { 
@@ -49,7 +84,8 @@ const InlineWorkoutPlanView = dynamic(() => import('@/app/components/InlineWorko
 
 function DashboardContent() {
   const router = useRouter();
-  const { logout, user } = useAuth();
+  const searchParams = useSearchParams();
+  const { logout, user, login } = useAuth();
   const mainRef = useRef(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -70,6 +106,8 @@ function DashboardContent() {
   const [returnWorkoutPlanId, setReturnWorkoutPlanId] = useState(null);
   const [clientDataVersion, setClientDataVersion] = useState(0);
   const clientsListRef = useRef(null);
+  const paymentSyncSessionRef = useRef(null);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
 
   const handleConfirmDeleteFromPlan = async () => {
     if (!confirmDeleteClientId) return;
@@ -138,6 +176,53 @@ function DashboardContent() {
     }
   }, [router]);
 
+  useEffect(() => {
+    if (searchParams.get('payment') !== 'success') return;
+
+    let cancelled = false;
+    const sessionId = searchParams.get('session_id');
+    const token = localStorage.getItem('token');
+
+    const syncCheckoutSession = async () => {
+      if (!token) return;
+      const syncKey = sessionId || 'latest-subscription';
+      if (paymentSyncSessionRef.current === syncKey) return;
+      paymentSyncSessionRef.current = syncKey;
+
+      try {
+        const res = await fetch(sessionId ? '/api/stripe/sync-checkout-session' : '/api/stripe/sync-subscription', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          cache: 'no-store',
+          body: JSON.stringify(sessionId ? { sessionId } : {}),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok || cancelled) return;
+
+        setBilling(data);
+        if (user) {
+          login({ ...user, ...data }, token);
+        }
+      } catch (err) {
+        console.warn('[dashboard] Stripe checkout sync failed:', err);
+      }
+    };
+
+    syncCheckoutSession().finally(() => {
+      if (!cancelled) setPaymentSuccess(true);
+    });
+
+    const timeoutId = setTimeout(() => setPaymentSuccess(false), 5000);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [searchParams, user, login]);
+
   const firstName = user?.name?.split(' ')[0] || user?.name || '';
   const handleLogout = () => { logout(); router.push('/'); };
   const handleNav = (path) => { setSidebarOpen(false); router.push(path); };
@@ -148,14 +233,144 @@ function DashboardContent() {
   const [profileError, setProfileError] = useState('');
   const [profileSuccess, setProfileSuccess] = useState('');
   const [profileConfirm, setProfileConfirm] = useState(false);
+  const [billing, setBilling] = useState(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState('');
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [passwordResetLoading, setPasswordResetLoading] = useState(false);
+  const [passwordResetMessage, setPasswordResetMessage] = useState('');
+  const [passwordResetError, setPasswordResetError] = useState('');
+  const subscriptionStatus = billing?.subscription_status || user?.subscription_status || 'trial';
+  const subscriptionPlan = billing?.subscription_plan || user?.subscription_plan || null;
+  const monthlyClientUsage = billing?.monthly_client_usage || user?.monthly_client_usage || null;
 
   const openProfile = () => {
     setProfileForm({ name: user?.name || '', email: user?.email || '', currentPassword: '', newPassword: '' });
     setProfileError('');
     setProfileSuccess('');
+    setBillingError('');
+    setPasswordResetMessage('');
+    setPasswordResetError('');
     setProfileConfirm(false);
     setProfileOpen(true);
     setSidebarOpen(false);
+  };
+
+  const closeProfile = () => {
+    setProfileOpen(false);
+    setProfileError('');
+    setProfileSuccess('');
+    setBillingError('');
+    setPasswordResetMessage('');
+    setPasswordResetError('');
+    setProfileConfirm(false);
+  };
+
+  const handleSendPasswordReset = async () => {
+    setPasswordResetLoading(true);
+    setPasswordResetMessage('');
+    setPasswordResetError('');
+
+    try {
+      const resetEmail = user?.email || profileForm.email;
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPasswordResetError(data.error || 'Nu am putut trimite linkul de resetare.');
+        return;
+      }
+
+      setPasswordResetMessage(`Am trimis un link de resetare la ${resetEmail}.`);
+    } catch {
+      setPasswordResetError('Eroare de rețea. Încearcă din nou.');
+    } finally {
+      setPasswordResetLoading(false);
+    }
+  };
+
+  const fetchBilling = async () => {
+    setBillingLoading(true);
+    setBillingError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setBillingError(data.error || 'Nu am putut încărca abonamentul.');
+        return;
+      }
+
+      let billingData = data;
+      if (data.subscription_status === 'trial') {
+        const syncRes = await fetch('/api/stripe/sync-subscription', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        const syncData = await syncRes.json().catch(() => null);
+        if (syncRes.ok && syncData) {
+          billingData = syncData;
+        }
+      }
+
+      setBilling(billingData);
+      if (user) {
+        login({ ...user, ...billingData }, token);
+      }
+    } catch {
+      setBillingError('Eroare de rețea la încărcarea abonamentului.');
+    } finally {
+      setBillingLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    fetchBilling();
+    // Rulăm doar când se deschide pagina de cont.
+    // fetchBilling actualizează user-ul, iar includerea lui în dependency array repornește încărcarea la infinit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileOpen]);
+
+  const openBillingPortal = async () => {
+    setPortalLoading(true);
+    setBillingError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/stripe/create-portal-session', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setBillingError(data.error || 'Nu am putut deschide portalul de billing.');
+        return;
+      }
+
+      markExternalNavigation();
+      window.location.assign(data.url);
+    } catch {
+      setBillingError('Eroare de rețea. Încearcă din nou.');
+    } finally {
+      setPortalLoading(false);
+    }
+  };
+
+  const reactivateSubscription = () => {
+    setProfileOpen(false);
+    router.push('/upgrade');
   };
 
   const handleProfileSave = async () => {
@@ -493,7 +708,7 @@ function DashboardContent() {
           </svg>
         </button>
         <div className={styles.mobileLogo}>
-          <span style={{fontSize:'20px',fontWeight:700,color:'#B7FF00',letterSpacing:'-0.5px',fontFamily:"'Space Grotesk', sans-serif"}}>trevano</span>
+          <span style={{fontSize:'20px',fontWeight:700,color:'#B7FF00',letterSpacing:'-0.5px',fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif'}}>trevano</span>
         </div>
         <button className={styles.mobileNotificationsBtn} onClick={() => setNotificationsOpen(v => !v)} aria-label="Notificări" data-notification-trigger>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -508,80 +723,13 @@ function DashboardContent() {
 
       {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
 
-      {/* Profile Modal */}
-      {profileOpen && (
-        <div className={styles.profileModalOverlay} onClick={() => setProfileOpen(false)}>
-          <div className={styles.profileModal} onClick={e => e.stopPropagation()}>
-            <div className={styles.profileModalHeader}>
-              <h3 className={styles.profileModalTitle}>Profilul meu</h3>
-              <button className={styles.profileModalClose} onClick={() => setProfileOpen(false)} aria-label="Închide">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-            <form onSubmit={e => e.preventDefault()} className={styles.profileModalForm}>
-              <div className={styles.profileModalGroup}>
-                <label className={styles.profileModalLabel}>Nume</label>
-                <input
-                  className={styles.profileModalInput}
-                  type="text"
-                  value={profileForm.name}
-                  onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
-                  placeholder="Numele tău"
-                />
-              </div>
-              <div className={styles.profileModalGroup}>
-                <label className={styles.profileModalLabel}>Email</label>
-                <input
-                  className={styles.profileModalInput}
-                  type="email"
-                  value={profileForm.email}
-                  onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="email@exemplu.com"
-                />
-              </div>
-              <div className={styles.profileModalDivider} />
-              <p className={styles.profileModalSectionLabel}>Schimbă parola (opțional)</p>
-              <div className={styles.profileModalGroup}>
-                <label className={styles.profileModalLabel}>Parola curentă</label>
-                <input
-                  className={styles.profileModalInput}
-                  type="password"
-                  value={profileForm.currentPassword}
-                  onChange={e => setProfileForm(f => ({ ...f, currentPassword: e.target.value }))}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                />
-              </div>
-              <div className={styles.profileModalGroup}>
-                <label className={styles.profileModalLabel}>Parola nouă</label>
-                <input
-                  className={styles.profileModalInput}
-                  type="password"
-                  value={profileForm.newPassword}
-                  onChange={e => setProfileForm(f => ({ ...f, newPassword: e.target.value }))}
-                  placeholder="Minim 8 caractere"
-                  autoComplete="new-password"
-                />
-              </div>
-              {profileError && <p className={styles.profileModalError}>{profileError}</p>}
-              {profileSuccess && <p className={styles.profileModalSuccess}>{profileSuccess}</p>}
-              <button type="button" className={styles.profileModalSave} onClick={handleProfileSave} disabled={profileLoading}>
-                {profileLoading ? 'Se salvează...' : 'Salvează modificările'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
       {notificationsOpen && <div className={styles.notificationsOverlay} onClick={() => setNotificationsOpen(false)} />}
 
       <div className={styles.pageLayout}>
         {/* Sidebar */}
         <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
           <div className={styles.sidebarLogo}>
-            <span style={{fontSize:'20px',fontWeight:700,color:'#B7FF00',letterSpacing:'-0.5px',fontFamily:"'Space Grotesk', sans-serif"}}>trevano</span>
+            <span style={{fontSize:'20px',fontWeight:700,color:'#B7FF00',letterSpacing:'-0.5px',fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif'}}>trevano</span>
             <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Închide meniu">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -713,6 +861,154 @@ function DashboardContent() {
         {/* Main */}
         <main ref={mainRef} className={styles.main}>
           <TrialBanner />
+          {paymentSuccess && (
+            <div className={styles.paymentSuccessBanner}>
+              Abonament activat! Bun venit pe Trevano.
+            </div>
+          )}
+          {profileOpen ? (
+            <div className={clientStyles.addPage}>
+              <div className={clientStyles.addPageShell}>
+                <div className={clientStyles.addPageNav}>
+                  <button className={clientStyles.addFormBackBtn} onClick={closeProfile} aria-label="Înapoi">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                  </button>
+                  <span className={clientStyles.addPageTitle}>Editează contul</span>
+                </div>
+
+                <div className={clientStyles.addWizardHeader}>
+                  <div className={clientStyles.addWizardMeta}>
+                    <span className={clientStyles.addWizardStep}>Profilul meu</span>
+                    <span className={clientStyles.addWizardHint}>Date de cont, parolă și abonament</span>
+                  </div>
+                  <div className={clientStyles.addWizardProgress}>
+                    <span style={{ width: '100%' }} />
+                  </div>
+                </div>
+
+                <form onSubmit={(e) => { e.preventDefault(); handleProfileSave(); }} className={clientStyles.addPageForm} noValidate>
+                  <div className={clientStyles.addStepTriple}>
+                    <div className={clientStyles.addSection}>
+                      <div className={clientStyles.addSectionHeader}>
+                        <span className={clientStyles.addSectionNum}>1</span>
+                        <span className={clientStyles.addSectionTitle}>Date cont</span>
+                      </div>
+
+                      <div className={clientStyles.addField}>
+                        <label>Nume</label>
+                        <input
+                          type="text"
+                          value={profileForm.name}
+                          onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
+                          placeholder="Numele tău"
+                        />
+                      </div>
+
+                      <div className={clientStyles.addField}>
+                        <label>Email</label>
+                        <input
+                          type="email"
+                          value={profileForm.email}
+                          placeholder="email@exemplu.com"
+                          readOnly
+                          className={styles.accountReadonlyInput}
+                        />
+                      </div>
+                    </div>
+
+                    <div className={clientStyles.addSection}>
+                      <div className={clientStyles.addSectionHeader}>
+                        <span className={clientStyles.addSectionNum}>2</span>
+                        <span className={clientStyles.addSectionTitle}>Modificare parolă</span>
+                      </div>
+
+                      <p className={styles.billingText}>
+                        Pentru schimbarea parolei îți trimitem un link securizat pe adresa de email a contului.
+                        Linkul expiră în 1 oră.
+                      </p>
+
+                      <button
+                        type="button"
+                        className={styles.accountFormBtn}
+                        onClick={handleSendPasswordReset}
+                        disabled={passwordResetLoading}
+                      >
+                        {passwordResetLoading ? 'Se trimite...' : 'Trimite link de resetare'}
+                      </button>
+
+                      {passwordResetMessage && <p className={styles.profileModalSuccess}>{passwordResetMessage}</p>}
+                      {passwordResetError && <p className={styles.profileModalError}>{passwordResetError}</p>}
+                    </div>
+
+                    <div className={clientStyles.addSection}>
+                      <div className={clientStyles.addSectionHeader}>
+                        <span className={clientStyles.addSectionNum}>3</span>
+                        <span className={clientStyles.addSectionTitle}>Abonament</span>
+                      </div>
+
+                      {billingLoading ? (
+                        <p className={styles.billingText}>Se încarcă abonamentul...</p>
+                      ) : (
+                        <div className={styles.billingRow}>
+                          <div className={styles.subscriptionBadges}>
+                            <span className={`${styles.planBadge} ${getPlanBadgeClass(subscriptionPlan, subscriptionStatus)}`}>
+                              {getPlanLabel(subscriptionPlan, subscriptionStatus)}
+                            </span>
+                            <span className={`${styles.statusText} ${getStatusTextClass(subscriptionStatus)}`}>
+                              {getStatusLabel(subscriptionStatus)}
+                            </span>
+                          </div>
+                          {monthlyClientUsage && (
+                            <p className={styles.billingText}>
+                              {monthlyClientUsage.used} / {monthlyClientUsage.limit} clienți consumați luna aceasta.
+                              Clienții draft nu consumă loc până la generare, invitație sau export PDF.
+                            </p>
+                          )}
+
+                          {subscriptionStatus === 'active' ? (
+                            <button
+                              type="button"
+                              className={styles.accountFormBtn}
+                              onClick={openBillingPortal}
+                              disabled={portalLoading}
+                            >
+                              {portalLoading ? 'Se deschide...' : 'Gestionează abonamentul'}
+                            </button>
+                          ) : subscriptionStatus === 'expired' || subscriptionStatus === 'cancelled' || subscriptionStatus === 'inactive' ? (
+                            <button type="button" className={styles.accountFormBtn} onClick={reactivateSubscription}>
+                              Reactivează abonamentul
+                            </button>
+                          ) : (
+                            <button type="button" className={styles.accountFormBtn} onClick={() => router.push('/upgrade')}>
+                              Alege un plan
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {billingError && <p className={styles.profileModalError}>{billingError}</p>}
+                    </div>
+                  </div>
+
+                  {profileError && <p className={styles.profileModalError}>{profileError}</p>}
+                  {profileSuccess && <p className={styles.profileModalSuccess}>{profileSuccess}</p>}
+
+                  <div className={clientStyles.addFooter}>
+                    <button type="button" className={clientStyles.cancelBtn} onClick={closeProfile}>
+                      Anulează
+                    </button>
+                    <button type="submit" className={clientStyles.saveBtn} disabled={profileLoading}>
+                      {profileLoading ? 'Se salvează...' : 'Salvează modificările'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          ) : (
+          <>
           {/* ClientsList — mereu montat ca să nu se piardă starea; ascuns când altă vedere e activă */}
           <div style={{ display: (!viewingPlanId && !viewingWorkoutPlanId && !viewingProgressClientId && !generatingPlanClientId) ? undefined : 'none' }}>
             {!addingClient && (
@@ -829,6 +1125,8 @@ function DashboardContent() {
             />
             </div>
           )}
+          </>
+          )}
         </main>
       </div>
     </div>
@@ -902,7 +1200,9 @@ function DashboardContent() {
 export default function DashboardPage() {
   return (
     <ProtectedRoute requiredRole="trainer">
-      <DashboardContent />
+      <Suspense>
+        <DashboardContent />
+      </Suspense>
     </ProtectedRoute>
   );
 }

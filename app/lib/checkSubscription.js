@@ -7,6 +7,7 @@ export const SUB_STATUS = /** @type {const} */ ({
   ACTIVE:    'active',
   CANCELLED: 'cancelled',
   INACTIVE:  'inactive',
+  EXPIRED:   'expired',
 });
 
 export const SUB_PLAN = /** @type {const} */ ({
@@ -108,7 +109,11 @@ export async function checkSubscription(userId) {
   }
 
   // Subscription inactive / cancelled
-  if (subscription_status === SUB_STATUS.CANCELLED || subscription_status === SUB_STATUS.INACTIVE) {
+  if (
+    subscription_status === SUB_STATUS.CANCELLED
+    || subscription_status === SUB_STATUS.INACTIVE
+    || subscription_status === SUB_STATUS.EXPIRED
+  ) {
     const result = _denied('subscription_inactive', 403, 'SUBSCRIPTION_INACTIVE',
       'Abonamentul tău este inactiv. Reactivează-l pentru a continua.', base);
     _cacheSet(uid, result);
