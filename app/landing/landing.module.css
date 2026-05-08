@@ -85,7 +85,7 @@
   max-width: 1240px;
   margin: 0 auto;
   padding: 56px 20px 64px;
-  overflow: hidden;
+  overflow: visible;
   text-align: center;
 }
 
