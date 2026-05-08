@@ -65,6 +65,20 @@ const MEAL_LABELS = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
+function getMealTitle(meal) {
+  const rawName = String(meal?.name || '').trim();
+  const rawType = String(meal?.mealType || '').trim();
+  const normalizedName = rawName.toLowerCase();
+  const normalizedType = rawType.toLowerCase();
+  const genericTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
+
+  if (rawName && normalizedName !== normalizedType && !genericTypes.has(normalizedName)) {
+    return s(rawName);
+  }
+
+  return s(MEAL_LABELS[rawType] || rawType || 'Masă');
+}
+
 function drawDayMiniHeader(doc, dayName, clientName) {
   doc.setFillColor(...C.dark);
   doc.rect(0, 0, PAGE_W, 13, 'F');
@@ -267,7 +281,7 @@ export function generateMealPlanPDF(plan, clientData, nutritionalNeeds) {
 
     // ── Meals ────────────────────────────────────────────────
     day.meals.forEach((meal) => {
-      const mealLabel   = s(MEAL_LABELS[meal.mealType] || meal.mealType);
+      const mealLabel   = getMealTitle(meal);
       const caloriesStr = meal.mealTotals ? `${meal.mealTotals.calories} kcal` : '';
 
       // Rough height estimate: meal-header(9) + table(7 + foods*7.5) + prep(12?) + gap(5)

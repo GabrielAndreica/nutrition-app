@@ -59,6 +59,14 @@ CREATE INDEX IF NOT EXISTS idx_logs_created_at ON public.activity_logs(created_a
 -- Activează RLS; scrierile se fac exclusiv prin service role (server-side).
 ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Service role can manage activity logs" ON public.activity_logs;
+CREATE POLICY "Service role can manage activity logs"
+  ON public.activity_logs
+  FOR ALL
+  TO service_role
+  USING (true)
+  WITH CHECK (true);
+
 -- Dacă vrei ca un admin autentificat să poată citi log-urile:
 -- CREATE POLICY "admin_read_logs" ON public.activity_logs
 --   FOR SELECT USING (auth.role() = 'authenticated');
