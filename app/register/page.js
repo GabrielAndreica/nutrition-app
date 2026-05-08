@@ -10,6 +10,7 @@ export default function RegisterPage() {
     name: '',
     email: '',
     password: '',
+    confirmPassword: '',
     phone: '',
     terms: false,
     privacy: false,
@@ -22,7 +23,11 @@ export default function RegisterPage() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-    setErrors((prev) => ({ ...prev, [name]: '' }));
+    setErrors((prev) => ({
+      ...prev,
+      [name]: '',
+      ...(name === 'password' || name === 'confirmPassword' ? { confirmPassword: '' } : {}),
+    }));
     setGeneralError('');
   };
 
@@ -31,6 +36,8 @@ export default function RegisterPage() {
     if (!formData.name.trim() || formData.name.trim().length < 2) errs.name = 'Numele trebuie să aibă cel puțin 2 caractere.';
     if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Adresă de email invalidă.';
     if (!formData.password || formData.password.length < 8) errs.password = 'Parola trebuie să aibă cel puțin 8 caractere.';
+    if (!formData.confirmPassword) errs.confirmPassword = 'Confirmă parola.';
+    else if (formData.password !== formData.confirmPassword) errs.confirmPassword = 'Parolele nu se potrivesc.';
     if (formData.phone) {
       const digits = formData.phone.replace(/\D/g, '');
       if (digits.length < 7 || digits.length > 15) errs.phone = 'Număr de telefon invalid.';
@@ -52,7 +59,14 @@ export default function RegisterPage() {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          phone: formData.phone,
+          terms: formData.terms,
+          privacy: formData.privacy,
+        }),
       });
       const data = await res.json();
 
@@ -167,6 +181,23 @@ export default function RegisterPage() {
                   {errors.password && <div className={styles.fieldError}><p>{errors.password}</p></div>}
                 </div>
 
+                {/* Confirm password */}
+                <div className={styles.formGroup}>
+                  <label htmlFor="confirmPassword">Confirmă parola</label>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    placeholder="••••••••"
+                    disabled={loading}
+                    autoComplete="new-password"
+                    maxLength="128"
+                  />
+                  {errors.confirmPassword && <div className={styles.fieldError}><p>{errors.confirmPassword}</p></div>}
+                </div>
+
                 {/* Phone (optional) */}
                 <div className={styles.formGroup}>
                   <label htmlFor="phone">
@@ -198,9 +229,9 @@ export default function RegisterPage() {
                     />
                     <span>
                       Am citit și accept{' '}
-                      <a href="/terms" target="_blank" rel="noopener noreferrer" className={localStyles.inlineLink}>
+                      <Link href="/termeni-si-conditii" target="_blank" rel="noopener noreferrer" className={localStyles.inlineLink}>
                         Termenii și Condițiile
-                      </a>
+                      </Link>
                     </span>
                   </label>
                   {errors.terms && <div className={styles.fieldError}><p>{errors.terms}</p></div>}
@@ -218,9 +249,9 @@ export default function RegisterPage() {
                     />
                     <span>
                       Am citit și accept{' '}
-                      <a href="/privacy" target="_blank" rel="noopener noreferrer" className={localStyles.inlineLink}>
+                      <Link href="/politica-de-confidentialitate" target="_blank" rel="noopener noreferrer" className={localStyles.inlineLink}>
                         Politica de Confidențialitate
-                      </a>
+                      </Link>
                     </span>
                   </label>
                   {errors.privacy && <div className={styles.fieldError}><p>{errors.privacy}</p></div>}

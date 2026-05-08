@@ -14,6 +14,10 @@ const PRICE_ENV_BY_PLAN = {
   pro: 'STRIPE_PRO_PRICE_ID',
 };
 
+function isMissingStripeResource(error) {
+  return error?.statusCode === 404 || /No such/i.test(error?.message || '');
+}
+
 export async function POST(request) {
   const auth = verifyToken(request);
   if (auth.error) {
@@ -103,6 +107,27 @@ export async function POST(request) {
     const stripe = getStripe();
     let customerId = user.stripe_customer_id;
 
+    if (customerId) {
+      try {
+        const existingCustomer = await stripe.customers.retrieve(customerId);
+        if (existingCustomer?.deleted) {
+          customerId = null;
+        }
+      } catch (error) {
+        if (!isMissingStripeResource(error)) throw error;
+        await logActivity({
+          action: 'billing.customer_recreate_needed',
+          status: 'info',
+          userId: user.id,
+          email: user.email,
+          ipAddress: ip,
+          userAgent,
+          details: { oldCustomerId: customerId, reason: error.message },
+        });
+        customerId = null;
+      }
+    }
+
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: user.email,
@@ -139,8 +164,38 @@ export async function POST(request) {
         email: user.email,
         ipAddress: ip,
         userAgent,
-        details: { customerId },
+        details: { customerId, source: user.stripe_customer_id ? 'recreated' : 'new' },
       });
+    }
+
+    try {
+      const price = await stripe.prices.retrieve(priceId);
+      if (!price?.active) {
+        await logActivity({
+          action: 'billing.checkout_create',
+          status: 'error',
+          userId: user.id,
+          email: user.email,
+          ipAddress: ip,
+          userAgent,
+          details: { reason: 'inactive_price', planType, priceId },
+        });
+        return NextResponse.json({ error: 'Prețul Stripe pentru acest plan este inactiv.' }, { status: 500 });
+      }
+    } catch (error) {
+      if (!isMissingStripeResource(error)) throw error;
+      await logActivity({
+        action: 'billing.checkout_create',
+        status: 'error',
+        userId: user.id,
+        email: user.email,
+        ipAddress: ip,
+        userAgent,
+        details: { reason: 'price_not_found_for_current_stripe_mode', planType, priceId, error: error.message },
+      });
+      return NextResponse.json({
+        error: 'Price ID Stripe invalid pentru modul curent. Verifică STRIPE_STARTER_PRICE_ID / STRIPE_PRO_PRICE_ID pe VPS.',
+      }, { status: 500 });
     }
 
     const session = await stripe.checkout.sessions.create({
