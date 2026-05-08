@@ -1,19 +1,10 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabase } from '@/app/lib/supabase';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-// Simple in-memory rate limiting (in production, use Redis or database)
-const loginAttempts = new Map();
-const MAX_ATTEMPTS = 100;
-const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutes in milliseconds
+import { sanitizeEmail } from '@/app/lib/sanitize';
+import { getJwtSecret } from '@/app/lib/jwtSecret';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 const validateEmail = (email) => {
   if (!email) return 'Adresa de email este obligatorie';
@@ -26,53 +17,8 @@ const validatePassword = (password) => {
   return null;
 };
 
-const sanitizeInput = (input) => {
-  return input.trim().replace(/[<>]/g, '');
-};
-
-const checkRateLimit = (email) => {
-  const attempt = loginAttempts.get(email);
-  
-  if (attempt) {
-    if (attempt.count >= MAX_ATTEMPTS) {
-      const timePassed = Date.now() - attempt.lastAttempt;
-      
-      if (timePassed < LOCKOUT_TIME) {
-        const remainingTime = Math.ceil((LOCKOUT_TIME - timePassed) / 1000);
-        return {
-          limited: true,
-          message: `Prea multe încercări eșuate. Încearcă din nou în ${remainingTime} secunde.`,
-        };
-      } else {
-        // Reset after lockout period
-        loginAttempts.delete(email);
-        return { limited: false };
-      }
-    }
-  }
-  
-  return { limited: false };
-};
-
-const recordFailedAttempt = (email) => {
-  const attempt = loginAttempts.get(email);
-  
-  if (attempt) {
-    attempt.count += 1;
-    attempt.lastAttempt = Date.now();
-  } else {
-    loginAttempts.set(email, {
-      count: 1,
-      lastAttempt: Date.now(),
-    });
-  }
-};
-
-const recordSuccessfulLogin = (email) => {
-  loginAttempts.delete(email);
-};
-
 export async function POST(request) {
+  const supabase = getSupabase();
   const { ip, userAgent } = getRequestMeta(request);
 
   try {
@@ -80,8 +26,24 @@ export async function POST(request) {
 
     let { email, password } = body;
 
-    // Sanitize inputs
-    email = sanitizeInput(email || '');
+    // Sanitizare email (XSS protection)
+    try {
+      email = sanitizeEmail(email || '');
+    } catch (sanitizeError) {
+      await logActivity({ 
+        action: 'auth.signin', 
+        status: 'failure', 
+        email: email || 'unknown', 
+        ipAddress: ip, 
+        userAgent, 
+        details: { reason: 'sanitization_error', message: sanitizeError.message } 
+      });
+      return new Response(
+        JSON.stringify({ error: sanitizeError.message }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    
     password = password || '';
 
     // Validate email
@@ -104,28 +66,33 @@ export async function POST(request) {
       );
     }
 
-    // Check rate limiting
-    const rateLimit = checkRateLimit(email.toLowerCase());
-    if (rateLimit.limited) {
+    const ipLimit = await enforceRateLimit(request, {
+      identifier: `ip:${ip}`,
+      endpoint: 'auth-signin-ip',
+      maxRequests: 30,
+      windowMinutes: 15,
+    });
+    if (ipLimit) return ipLimit;
+
+    const emailLimit = await enforceRateLimit(request, {
+      identifier: `email:${email.toLowerCase()}`,
+      endpoint: 'auth-signin-email',
+      maxRequests: 10,
+      windowMinutes: 15,
+    });
+    if (emailLimit) {
       await logActivity({ action: 'auth.signin', status: 'blocked', email, ipAddress: ip, userAgent, details: { reason: 'rate_limited' } });
-      return new Response(
-        JSON.stringify({ 
-          error: rateLimit.message,
-          code: 'RATE_LIMITED'
-        }),
-        { status: 429, headers: { 'Content-Type': 'application/json' } }
-      );
+      return emailLimit;
     }
 
     // Get user from database
     const { data: user, error: dbError } = await supabase
       .from('users')
-      .select('id, name, email, password')
+      .select('id, name, email, password, role, status, subscription_status, subscription_plan, trial_ends_at')
       .eq('email', email.toLowerCase())
       .single();
 
     if (dbError || !user) {
-      recordFailedAttempt(email.toLowerCase());
       await logActivity({ action: 'auth.signin', status: 'failure', email, ipAddress: ip, userAgent, details: { reason: 'user_not_found' } });
       return new Response(
         JSON.stringify({ 
@@ -150,7 +117,6 @@ export async function POST(request) {
     }
 
     if (!passwordMatch) {
-      recordFailedAttempt(email.toLowerCase());
       await logActivity({ action: 'auth.signin', status: 'failure', userId: user.id, email, ipAddress: ip, userAgent, details: { reason: 'wrong_password' } });
       return new Response(
         JSON.stringify({ 
@@ -161,17 +127,31 @@ export async function POST(request) {
       );
     }
 
-    // Successful login
-    recordSuccessfulLogin(email.toLowerCase());
+    // Block unconfirmed users
+    if (user.status === 'pending') {
+      await logActivity({ action: 'auth.signin', status: 'failure', userId: user.id, email, ipAddress: ip, userAgent, details: { reason: 'email_not_confirmed' } });
+      return new Response(
+        JSON.stringify({
+          error: 'Confirmă emailul înainte de autentificare. Verifică inbox-ul.',
+          code: 'EMAIL_NOT_CONFIRMED'
+        }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
+    // Successful login
     // Generate JWT token
     const token = jwt.sign(
       { 
         id: user.id, 
         email: user.email,
-        name: user.name 
+        name: user.name,
+        role: user.role,
+        subscription_status: user.subscription_status || 'trial',
+        subscription_plan: user.subscription_plan || null,
+        trial_ends_at: user.trial_ends_at || null,
       },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 
@@ -184,7 +164,11 @@ export async function POST(request) {
         user: { 
           id: user.id, 
           name: user.name, 
-          email: user.email 
+          email: user.email,
+          role: user.role,
+          subscription_status: user.subscription_status || 'trial',
+          subscription_plan: user.subscription_plan || null,
+          trial_ends_at: user.trial_ends_at || null,
         }
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }

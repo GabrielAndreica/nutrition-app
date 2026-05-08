@@ -56,13 +56,28 @@ const ACTIVITY_LABELS = {
 };
 
 const MEAL_LABELS = {
-  'Breakfast': 'Mic Dejun', 'Lunch': 'Pranz', 'Dinner': 'Cina',
-  'Snack': 'Gustare', 'Snack 1': 'Gustare 1', 'Snack 2': 'Gustare 2',
-  'Mic Dejun': 'Mic Dejun', 'Pranz': 'Pranz', 'Cina': 'Cina',
+  'Masa 1': 'Masa 1', 'Masa 2': 'Masa 2', 'Masa 3': 'Masa 3',
   'Gustare': 'Gustare', 'Gustare 1': 'Gustare 1', 'Gustare 2': 'Gustare 2',
+  'Breakfast': 'Masa 1', 'Lunch': 'Masa 2', 'Dinner': 'Masa 3',
+  'Snack': 'Gustare', 'Snack 1': 'Gustare 1', 'Snack 2': 'Gustare 2',
+  'Mic Dejun': 'Masa 1', 'Pranz': 'Masa 2', 'Cina': 'Masa 3',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getMealTitle(meal) {
+  const rawName = String(meal?.name || '').trim();
+  const rawType = String(meal?.mealType || '').trim();
+  const normalizedName = rawName.toLowerCase();
+  const normalizedType = rawType.toLowerCase();
+  const genericTypes = new Set(['breakfast', 'lunch', 'dinner', 'snack']);
+
+  if (rawName && normalizedName !== normalizedType && !genericTypes.has(normalizedName)) {
+    return s(rawName);
+  }
+
+  return s(MEAL_LABELS[rawType] || rawType || 'Masă');
+}
 
 function drawDayMiniHeader(doc, dayName, clientName) {
   doc.setFillColor(...C.dark);
@@ -118,14 +133,11 @@ export function generateMealPlanPDF(plan, clientData, nutritionalNeeds) {
   doc.setTextColor(...C.white);
   doc.text(name, MARGIN, 42);
 
-  // Generation date
+  // Plan duration line
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
   doc.setTextColor(...C.midGray);
-  const today = new Date().toLocaleDateString('ro-RO', {
-    day: '2-digit', month: 'long', year: 'numeric',
-  });
-  doc.text(`Generat pe ${today}  ·  Plan 7 zile`, MARGIN, 54);
+  doc.text('Plan alimentar  ·  7 zile', MARGIN, 54);
 
   let y = 72;
 
@@ -269,7 +281,7 @@ export function generateMealPlanPDF(plan, clientData, nutritionalNeeds) {
 
     // ── Meals ────────────────────────────────────────────────
     day.meals.forEach((meal) => {
-      const mealLabel   = s(MEAL_LABELS[meal.mealType] || meal.mealType);
+      const mealLabel   = getMealTitle(meal);
       const caloriesStr = meal.mealTotals ? `${meal.mealTotals.calories} kcal` : '';
 
       // Rough height estimate: meal-header(9) + table(7 + foods*7.5) + prep(12?) + gap(5)
@@ -302,8 +314,8 @@ export function generateMealPlanPDF(plan, clientData, nutritionalNeeds) {
       // Foods table
       const tableBody = (meal.foods || []).map(food => [
         s(food.name),
-        `${food.amount}${food.unit || 'g'}`,
-        `${food.calories}`,
+        food.displayAmount || `${food.amount}${food.unit || 'g'}`,
+        `${food.nutritionNote ? '~' : ''}${food.calories}`,
         `${food.protein}g`,
         `${food.carbs}g`,
         `${food.fat}g`,

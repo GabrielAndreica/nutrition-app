@@ -1,22 +1,10 @@
-'use client';
+import LandingPage from '@/app/landing/page';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/app/contexts/AuthContext';
+export const metadata = {
+  title: 'trevano — Planuri alimentare și antrenament generate instant',
+  description: 'Generează planuri alimentare și de antrenament personalizate pentru clienții tăi în 2 minute. Portal client inclus.',
+};
 
-export default function Home() {
-  const router = useRouter();
-  const { user, loading } = useAuth();
-
-  useEffect(() => {
-    if (!loading) {
-      if (user) {
-        router.push('/dashboard');
-      } else {
-        router.push('/auth');
-      }
-    }
-  }, [user, loading, router]);
-
-  return null;
+export default async function Home() {
+  return <LandingPage />;
 }

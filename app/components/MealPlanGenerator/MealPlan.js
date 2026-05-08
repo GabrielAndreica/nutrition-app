@@ -1,11 +1,38 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/app/contexts/AuthContext';
 import styles from './meal-plan.module.css';
+import cStyles from '../../clients/clients.module.css';
 
-export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }) {
+export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, onRegenerate, onSubmitProgress, onViewProgress, progressCooldownUntil, onProgressToggle, workoutOnlyMode, initialShowProgress }) {
+  const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [showProgress, setShowProgress] = useState(!!initialShowProgress);
+  const [weightHistory, setWeightHistory] = useState([]);
+  const [stagnationWeeks, setStagnationWeeks] = useState(0);
+  const [stagnationInfo, setStagnationInfo] = useState(null);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [progressErrors, setProgressErrors] = useState({});
+  const [progressSubmitting, setProgressSubmitting] = useState(false);
+  const [progressSuccess, setProgressSuccess] = useState(false);
+  const [progressSubmitError, setProgressSubmitError] = useState(null);
+  const [progressSentBanner, setProgressSentBanner] = useState(null);
+  const [progressData, setProgressData] = useState({
+    currentWeight: clientData?.weight || '',
+    adherence: '',
+    energyLevel: '',
+    hungerLevel: '',
+    notes: '',
+    workoutAdherence: '',
+    workoutDifficulty: '',
+    workoutNotes: '',
+    pump: '',
+    generalFatigue: '',
+    muscleSoreness: '',
+  });
+  const [progressStep, setProgressStep] = useState(1);
 
   const goalLabels = {
     weight_loss: 'Slăbit',
@@ -24,28 +51,49 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
   const dayNamesShort = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
 
   const mealTypeLabels = {
-    'Breakfast': { name: 'Mic Dejun', emoji: '🌅' },
-    'Lunch': { name: 'Prânz', emoji: '☀️' },
-    'Dinner': { name: 'Cină', emoji: '🌙' },
-    'Snack': { name: 'Gustare', emoji: '🍎' },
-    'Snack 1': { name: 'Gustare 1', emoji: '🍎' },
-    'Snack 2': { name: 'Gustare 2', emoji: '🥗' },
-    'Mic Dejun': { name: 'Mic Dejun', emoji: '🌅' },
-    'Prânz': { name: 'Prânz', emoji: '☀️' },
-    'Cină': { name: 'Cină', emoji: '🌙' },
-    'Gustare': { name: 'Gustare', emoji: '🍎' },
-    'Gustare 1': { name: 'Gustare 1', emoji: '🍎' },
-    'Gustare 2': { name: 'Gustare 2', emoji: '🥗' },
+    'Masa 1': { name: 'Masa 1' },
+    'Masa 2': { name: 'Masa 2' },
+    'Masa 3': { name: 'Masa 3' },
+    'Gustare': { name: 'Gustare' },
+    'Gustare 1': { name: 'Gustare 1' },
+    'Gustare 2': { name: 'Gustare 2' },
+    'Breakfast': { name: 'Masa 1' },
+    'Lunch': { name: 'Masa 2' },
+    'Dinner': { name: 'Masa 3' },
+    'Snack': { name: 'Gustare' },
+    'Snack 1': { name: 'Gustare 1' },
+    'Snack 2': { name: 'Gustare 2' },
+    'Mic Dejun': { name: 'Masa 1' },
+    'Prânz': { name: 'Masa 2' },
+    'Cină': { name: 'Masa 3' },
   };
 
   const getMealLabel = (mealType) => {
-    return mealTypeLabels[mealType] || { name: mealType, emoji: '🍽️' };
+    return mealTypeLabels[mealType] || { name: mealType };
   };
 
   const handleDownload = async () => {
     if (pdfLoading) return;
     setPdfLoading(true);
     try {
+      const clientId = clientData?.clientId || clientData?.id;
+      if (user?.role === 'trainer' && clientId) {
+        const token = localStorage.getItem('token');
+        const usageRes = await fetch('/api/client-usage/record', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ clientId, reason: 'meal_plan_pdf_export' }),
+        });
+        const usageData = await usageRes.json().catch(() => ({}));
+        if (!usageRes.ok) {
+          alert(usageData.error || 'Nu am putut exporta PDF-ul din cauza limitei de clienți.');
+          return;
+        }
+      }
+
       const { generateMealPlanPDF } = await import('./generatePDF');
       generateMealPlanPDF(plan, clientData, nutritionalNeeds);
     } finally {
@@ -53,19 +101,462 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
     }
   };
 
-  if (!plan || !plan.days || plan.days.length === 0) {
+  const handleProgressChange = (e) => {
+    const { name, value } = e.target;
+    setProgressData(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Încarcă istoricul greutății când se deschide modalul
+  const loadWeightHistory = async () => {
+    if (!clientData?.clientId) return;
+    
+    setLoadingHistory(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/clients/${clientData.clientId}/weight-history`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setWeightHistory(data.weightHistory || []);
+        setStagnationWeeks(data.stagnationWeeks || 0);
+        setStagnationInfo(data.stagnationInfo || null);
+      }
+    } catch (err) {
+      console.error('Eroare la încărcarea istoricului:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Deschide modalul și încarcă istoricul
+  const handleOpenProgress = () => {
+    setProgressErrors({});
+    setProgressSubmitError(null);
+    setProgressStep(1);
+    setShowProgress(true);
+    loadWeightHistory();
+    if (onProgressToggle) onProgressToggle(true);
+  };
+
+  // Auto-dismiss banner trimis progres după 6 secunde
+  useEffect(() => {
+    if (!progressSentBanner) return;
+    const t = setTimeout(() => setProgressSentBanner(null), 6000);
+    return () => clearTimeout(t);
+  }, [progressSentBanner]);
+
+  const validateStep1 = () => {
+    const errors = {};
+    const w = progressData.currentWeight;
+    if (!w && w !== 0) {
+      errors.currentWeight = 'Greutatea este obligatorie.';
+    } else {
+      const num = parseFloat(w);
+      if (isNaN(num)) errors.currentWeight = 'Introdu o valoare numerică validă (ex: 73.5).';
+      else if (num < 30) errors.currentWeight = 'Greutatea nu poate fi mai mică de 30 kg.';
+      else if (num > 300) errors.currentWeight = 'Greutatea nu poate depăși 300 kg.';
+    }
+    if (!progressData.adherence) errors.adherence = 'Selectează respectarea planului alimentar.';
+    if (!progressData.energyLevel) errors.energyLevel = 'Selectează nivelul de energie.';
+    if (!progressData.hungerLevel) errors.hungerLevel = 'Selectează nivelul de foame.';
+    setProgressErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const validateStep2 = () => {
+    const errors = {};
+    if (!progressData.workoutAdherence) errors.workoutAdherence = 'Selectează respectarea planului de antrenament.';
+    if (!progressData.workoutDifficulty) errors.workoutDifficulty = 'Selectează nivelul de dificultate.';
+    setProgressErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleProgressSubmit = async () => {
+    if (!validateStep2()) return;
+
+    if (onSubmitProgress) {
+      // Modul client: trimite progresul antrenorului
+      setProgressSubmitting(true);
+      setProgressSuccess(false);
+      setProgressSubmitError(null);
+      try {
+        const result = await onSubmitProgress({
+          ...progressData,
+          weeksNoChange: String(stagnationWeeks),
+        });
+        if (result?.success) {
+          setShowProgress(false);
+          setProgressStep(1);
+          if (onProgressToggle) onProgressToggle(false);
+          setProgressSentBanner('Progresul a fost trimis către antrenor. Vei putea trimite din nou peste 7 zile.');
+        }
+      } catch (err) {
+        setProgressSubmitError(err.message || 'Eroare la trimitere. Încearcă din nou.');
+      } finally {
+        setProgressSubmitting(false);
+      }
+    } else if (onRegenerate) {
+      // Modul antrenor: regenerează planul
+      onRegenerate({
+        ...progressData,
+        weeksNoChange: String(stagnationWeeks),
+      });
+      setShowProgress(false);
+    }
+  };
+
+  if (!workoutOnlyMode && (!plan || !plan.days || plan.days.length === 0)) {
     return <div className={styles.container}>Nu s-a putut genera planul.</div>;
   }
 
-  const currentDay = plan.days[activeDay];
+  const cooldownDateWO = progressCooldownUntil ? new Date(progressCooldownUntil) : null;
+  const progressInCooldownWO = !!(cooldownDateWO && cooldownDateWO > new Date());
+  const progressDaysLeftWO = progressInCooldownWO
+    ? Math.ceil((cooldownDateWO - new Date()) / (1000 * 60 * 60 * 24))
+    : 0;
+
+  /* ── Workout-only mode: show just the progress button (identical to meal plan button) ── */
+  if (workoutOnlyMode && !showProgress && onSubmitProgress) {
+    return (
+      <div style={{ padding: '0 0 16px' }}>
+        <button
+          className={`${styles.updateProgressBtn} ${progressInCooldownWO ? styles.updateProgressBtnLocked : ''}`}
+          onClick={() => { if (!progressInCooldownWO) handleOpenProgress(); }}
+          disabled={progressInCooldownWO}
+          title={progressInCooldownWO ? `Disponibil în ${progressDaysLeftWO} ${progressDaysLeftWO === 1 ? 'zi' : 'zile'}` : undefined}
+        >
+          {progressInCooldownWO ? (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/>
+                <polyline points="12 6 12 12 16 14"/>
+              </svg>
+              {`Disponibil în ${progressDaysLeftWO} ${progressDaysLeftWO === 1 ? 'zi' : 'zile'}`}
+            </>
+          ) : (
+            <>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                <path d="M16 16h5v5"/>
+              </svg>
+              Trimite progres
+            </>
+          )}
+        </button>
+      </div>
+    );
+  }
+
+  const currentDay = plan && plan.days ? plan.days[activeDay] : null;
 
   const activityLabels = {
-    sedentary: 'Sedentar',
-    lightly_active: 'Ușor activ',
-    moderately_active: 'Moderat activ',
-    very_active: 'Foarte activ',
-    extra_active: 'Extrem de activ',
+    sedentary: 'Sedentară',
+    lightly_active: 'Ușor activă',
+    light: 'Ușor activă',
+    moderately_active: 'Moderată',
+    moderate: 'Moderată',
+    very_active: 'Foarte activă',
+    extra_active: 'Extrem de activă',
   };
+
+  const cooldownDate = progressCooldownUntil ? new Date(progressCooldownUntil) : null;
+  const progressInCooldown = !!(cooldownDate && cooldownDate > new Date());
+  const progressDaysLeft = progressInCooldown
+    ? Math.ceil((cooldownDate - new Date()) / (1000 * 60 * 60 * 24))
+    : 0;
+
+  /* ── Inline Progress Page (client mode) ── */
+  if (showProgress && onSubmitProgress) {
+    const closeProgress = () => { setShowProgress(false); setProgressStep(1); if (onProgressToggle) onProgressToggle(false); };
+    return (
+      <div className={cStyles.addPage} style={{ paddingTop: 0 }}>
+        <div className={cStyles.addPageShell}>
+
+          {/* Nav */}
+          <div className={cStyles.addPageNav}>
+            <button type="button" className={cStyles.addFormBackBtn} onClick={() => {
+              if (progressStep === 2) { setProgressStep(1); setProgressErrors({}); }
+              else closeProgress();
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+            <span className={cStyles.addPageTitle}>Actualizare progres</span>
+          </div>
+
+          {/* Wizard header */}
+          <div className={cStyles.addWizardHeader}>
+            <div className={cStyles.addWizardMeta}>
+              <span className={cStyles.addWizardStep}>Pasul {progressStep} din 2</span>
+              <span className={cStyles.addWizardHint}>{progressStep === 1 ? 'Nutriție' : 'Antrenament'}</span>
+            </div>
+            <div className={cStyles.addWizardProgress}>
+              <span style={{ width: progressStep === 1 ? '50%' : '100%' }} />
+            </div>
+          </div>
+
+          {/* Form */}
+          <form className={cStyles.addPageForm} onSubmit={e => e.preventDefault()}>
+
+            {/* ── Pasul 1: Nutriție ── */}
+            {progressStep === 1 && (
+              <>
+                <div className={cStyles.addStepTriple}>
+
+                  {/* Secțiunea 01 — Greutate */}
+                  <div className={cStyles.addSection}>
+                    <div className={cStyles.addSectionHeader}>
+                      <span className={cStyles.addSectionNum}>01</span>
+                      <span className={cStyles.addSectionTitle}>Greutate curentă</span>
+                    </div>
+                    <div className={cStyles.addField}>
+                      <label>Greutate (kg) *</label>
+                      <div className={cStyles.inputUnit}>
+                        <input
+                          type="number"
+                          name="currentWeight"
+                          value={progressData.currentWeight}
+                          onChange={handleProgressChange}
+                          step="0.1" min="30" max="300"
+                          placeholder="ex: 73.5"
+                          className={progressErrors.currentWeight ? cStyles.addFieldErrorInput : ''}
+                        />
+                        <span>kg</span>
+                      </div>
+                      {progressErrors.currentWeight && <span className={cStyles.addFieldError}>{progressErrors.currentWeight}</span>}
+                      {!progressErrors.currentWeight && clientData?.weight && progressData.currentWeight && (
+                        <span style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>
+                          {(() => {
+                            const diff = (parseFloat(progressData.currentWeight) - parseFloat(clientData.weight)).toFixed(1);
+                            return `${diff > 0 ? '+' : ''}${diff} kg față de ultima înregistrare`;
+                          })()}
+                        </span>
+                      )}
+                    </div>
+                    {loadingHistory && <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>Se încarcă istoricul...</p>}
+                    {weightHistory.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Istoric recent</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          {weightHistory.slice(0, 3).map((entry, idx) => (
+                            <div key={entry.id || idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#374151' }}>
+                              <span>{new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}</span>
+                              <span style={{ fontWeight: 600 }}>{entry.weight} kg</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Secțiunea 02 — Cum te-ai simțit */}
+                  <div className={cStyles.addSection}>
+                    <div className={cStyles.addSectionHeader}>
+                      <span className={cStyles.addSectionNum}>02</span>
+                      <span className={cStyles.addSectionTitle}>Cum te-ai simțit</span>
+                    </div>
+                    <div className={cStyles.addField}>
+                      <label>Respectare plan alimentar *</label>
+                      <div className={cStyles.seg}>
+                        {[{ v: 'complet', l: 'Complet' }, { v: 'partial', l: 'Parțial' }, { v: 'deloc', l: 'Deloc' }].map(({ v, l }) => (
+                          <button key={v} type="button"
+                            className={`${cStyles.segBtn} ${progressData.adherence === v ? cStyles.segOn : ''}`}
+                            onClick={() => { setProgressData(p => ({ ...p, adherence: v })); setProgressErrors(e => ({ ...e, adherence: undefined })); }}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                      {progressErrors.adherence && <span className={cStyles.addFieldError}>{progressErrors.adherence}</span>}
+                    </div>
+                    <div className={cStyles.addField}>
+                      <label>Nivel energie *</label>
+                      <div className={cStyles.seg}>
+                        {[{ v: 'scazut', l: 'Scăzut' }, { v: 'normal', l: 'Normal' }, { v: 'ridicat', l: 'Ridicat' }].map(({ v, l }) => (
+                          <button key={v} type="button"
+                            className={`${cStyles.segBtn} ${progressData.energyLevel === v ? cStyles.segOn : ''}`}
+                            onClick={() => { setProgressData(p => ({ ...p, energyLevel: v })); setProgressErrors(e => ({ ...e, energyLevel: undefined })); }}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                      {progressErrors.energyLevel && <span className={cStyles.addFieldError}>{progressErrors.energyLevel}</span>}
+                    </div>
+                    <div className={cStyles.addField}>
+                      <label>Nivel foame *</label>
+                      <div className={cStyles.seg}>
+                        {[{ v: 'normal', l: 'Normal' }, { v: 'crescut', l: 'Crescut' }, { v: 'extrem', l: 'Extrem' }].map(({ v, l }) => (
+                          <button key={v} type="button"
+                            className={`${cStyles.segBtn} ${progressData.hungerLevel === v ? cStyles.segOn : ''}`}
+                            onClick={() => { setProgressData(p => ({ ...p, hungerLevel: v })); setProgressErrors(e => ({ ...e, hungerLevel: undefined })); }}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                      {progressErrors.hungerLevel && <span className={cStyles.addFieldError}>{progressErrors.hungerLevel}</span>}
+                    </div>
+                  </div>
+
+                  {/* Secțiunea 03 — Mesaj nutriție */}
+                  <div className={cStyles.addSection}>
+                    <div className={cStyles.addSectionHeader}>
+                      <span className={cStyles.addSectionNum}>03</span>
+                      <span className={cStyles.addSectionTitle}>Mesaj nutriție</span>
+                    </div>
+                    <div className={`${cStyles.addField} ${cStyles.addFieldGrow}`}>
+                      <label>Observații <span className={cStyles.opt}>(opțional)</span></label>
+                      <textarea
+                        name="notes"
+                        value={progressData.notes}
+                        onChange={handleProgressChange}
+                        placeholder="Cum a decurs săptămâna cu mâncarea? Ce a mers bine sau ce a fost dificil..."
+                      />
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Footer pas 1 */}
+                <div className={cStyles.addFooter}>
+                  <button type="button" className={cStyles.cancelBtn} onClick={closeProgress}>Anulează</button>
+                  <button type="button" className={cStyles.saveBtn} onClick={() => {
+                    if (validateStep1()) { setProgressErrors({}); setProgressStep(2); }
+                  }}>
+                    Continuă
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 6 }}>
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── Pasul 2: Antrenament ── */}
+            {progressStep === 2 && (
+              <>
+                <div className={cStyles.addStepTriple}>
+
+                  {/* Secțiunea 01 — Respectare & Efort */}
+                  <div className={cStyles.addSection}>
+                    <div className={cStyles.addSectionHeader}>
+                      <span className={cStyles.addSectionNum}>01</span>
+                      <span className={cStyles.addSectionTitle}>Respectare & Efort</span>
+                    </div>
+                    <div className={cStyles.addField}>
+                      <label>Ai respectat planul de antrenament? *</label>
+                      <div className={cStyles.seg}>
+                        {[{ v: 'complet', l: 'Complet' }, { v: 'partial', l: 'Parțial' }, { v: 'deloc', l: 'Deloc' }].map(({ v, l }) => (
+                          <button key={v} type="button"
+                            className={`${cStyles.segBtn} ${progressData.workoutAdherence === v ? cStyles.segOn : ''}`}
+                            onClick={() => { setProgressData(p => ({ ...p, workoutAdherence: v })); setProgressErrors(e => ({ ...e, workoutAdherence: undefined })); }}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                      {progressErrors.workoutAdherence && <span className={cStyles.addFieldError}>{progressErrors.workoutAdherence}</span>}
+                    </div>
+                    <div className={cStyles.addField}>
+                      <label>Nivel dificultate perceput *</label>
+                      <div className={cStyles.seg}>
+                        {[{ v: 'usor', l: 'Uşor' }, { v: 'moderat', l: 'Moderat' }, { v: 'greu', l: 'Greu' }].map(({ v, l }) => (
+                          <button key={v} type="button"
+                            className={`${cStyles.segBtn} ${progressData.workoutDifficulty === v ? cStyles.segOn : ''}`}
+                            onClick={() => { setProgressData(p => ({ ...p, workoutDifficulty: v })); setProgressErrors(e => ({ ...e, workoutDifficulty: undefined })); }}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                      {progressErrors.workoutDifficulty && <span className={cStyles.addFieldError}>{progressErrors.workoutDifficulty}</span>}
+                    </div>
+                  </div>
+
+                  {/* Secțiunea 02 — Senzații în antrenament */}
+                  <div className={cStyles.addSection}>
+                    <div className={cStyles.addSectionHeader}>
+                      <span className={cStyles.addSectionNum}>02</span>
+                      <span className={cStyles.addSectionTitle}>Senzații în antrenament</span>
+                    </div>
+                    <div className={cStyles.addField}>
+                      <label>Pompare (pump) <span className={cStyles.opt}>(opțional)</span></label>
+                      <div className={cStyles.seg}>
+                        {[{ v: 'slaba', l: 'Slabă' }, { v: 'buna', l: 'Bună' }, { v: 'maxima', l: 'Maximă' }].map(({ v, l }) => (
+                          <button key={v} type="button"
+                            className={`${cStyles.segBtn} ${progressData.pump === v ? cStyles.segOn : ''}`}
+                            onClick={() => setProgressData(p => ({ ...p, pump: v }))}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className={cStyles.addField}>
+                      <label>Oboseală generală <span className={cStyles.opt}>(opțional)</span></label>
+                      <div className={cStyles.seg}>
+                        {[{ v: 'scazuta', l: 'Scăzută' }, { v: 'moderata', l: 'Moderată' }, { v: 'ridicata', l: 'Ridicată' }].map(({ v, l }) => (
+                          <button key={v} type="button"
+                            className={`${cStyles.segBtn} ${progressData.generalFatigue === v ? cStyles.segOn : ''}`}
+                            onClick={() => setProgressData(p => ({ ...p, generalFatigue: v }))}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className={cStyles.addField}>
+                      <label>Febră musculară (DOMS) <span className={cStyles.opt}>(opțional)</span></label>
+                      <div className={cStyles.seg}>
+                        {[{ v: 'absenta', l: 'Absentă' }, { v: 'moderata', l: 'Moderată' }, { v: 'intensa', l: 'Intensă' }].map(({ v, l }) => (
+                          <button key={v} type="button"
+                            className={`${cStyles.segBtn} ${progressData.muscleSoreness === v ? cStyles.segOn : ''}`}
+                            onClick={() => setProgressData(p => ({ ...p, muscleSoreness: v }))}>
+                            {l}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Secțiunea 03 — Note */}
+                  <div className={cStyles.addSection}>
+                    <div className={cStyles.addSectionHeader}>
+                      <span className={cStyles.addSectionNum}>03</span>
+                      <span className={cStyles.addSectionTitle}>Note</span>
+                    </div>
+                    <div className={`${cStyles.addField} ${cStyles.addFieldGrow}`}>
+                      <label>Observații antrenament <span className={cStyles.opt}>(opțional)</span></label>
+                      <textarea
+                        name="workoutNotes"
+                        value={progressData.workoutNotes}
+                        onChange={handleProgressChange}
+                        placeholder="Ce exerciții au mers bine? Unde ai simțit progres sau dificultăți?"
+                      />
+                    </div>
+                  </div>
+
+                </div>
+
+                {/* Footer pas 2 */}
+                <div className={cStyles.addFooter}>
+                  {progressSubmitError && (
+                    <span style={{ fontSize: 12, color: '#e05252' }}>{progressSubmitError}</span>
+                  )}
+                  <button type="button" className={cStyles.cancelBtn} onClick={() => { setProgressStep(1); setProgressErrors({}); }} disabled={progressSubmitting}>
+                    Înapoi
+                  </button>
+                  <button type="button" className={cStyles.saveBtn} onClick={handleProgressSubmit} disabled={progressSubmitting}>
+                    {progressSubmitting ? 'Se trimite...' : 'Trimite progresul'}
+                  </button>
+                </div>
+              </>
+            )}
+
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
@@ -81,15 +572,15 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
           <div className={styles.clientStats}>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.age}</span>
-              <span className={styles.clientStatLabel}>ani</span>
+              <span className={styles.clientStatLabel}>Vârstă</span>
             </div>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.weight}</span>
-              <span className={styles.clientStatLabel}>kg</span>
+              <span className={styles.clientStatLabel}>Greutate</span>
             </div>
             <div className={styles.clientStat}>
               <span className={styles.clientStatValue}>{clientData.height}</span>
-              <span className={styles.clientStatLabel}>cm</span>
+              <span className={styles.clientStatLabel}>Înălțime</span>
             </div>
             {clientData.activityLevel && (
               <div className={styles.clientStat}>
@@ -97,7 +588,27 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
                 <span className={styles.clientStatLabel}>activitate</span>
               </div>
             )}
+            {clientData.planCreatedAt && (() => {
+              const d = new Date(clientData.planCreatedAt);
+              const months = ['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'];
+              const dateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+              return (
+                <div className={styles.clientStat}>
+                  <span className={styles.clientStatValue}>{dateStr}</span>
+                  <span className={styles.clientStatLabel}>ultima actualizare</span>
+                </div>
+              );
+            })()}
           </div>
+        </div>
+      )}
+
+      {/* Banner progres trimis */}
+      {progressSentBanner && (
+        <div className={styles.progressSentBanner}>
+          <span className={styles.progressSentIcon}>✓</span>
+          <span>{progressSentBanner}</span>
+          <button className={styles.progressSentClose} onClick={() => setProgressSentBanner(null)}>✕</button>
         </div>
       )}
 
@@ -190,28 +701,66 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
               </button>
             ))}
           </div>
-          <button
-            className={`${styles.downloadBtn} ${pdfLoading ? styles.downloadBtnLoading : ''}`}
-            onClick={handleDownload}
-            disabled={pdfLoading}
-            title="Descarcă plan PDF"
-          >
-            {pdfLoading ? (
-              <>
-                <span className={styles.pdfSpinner} />
-                <span className={styles.downloadBtnLabel}>Se generează...</span>
-              </>
-            ) : (
-              <>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                  <polyline points="7 10 12 15 17 10"/>
-                  <line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-                <span className={styles.downloadBtnLabel}>Export PDF</span>
-              </>
+          <div className={styles.tabsActions}>
+            {/* Pentru antrenor: onViewProgress deschide pagina de progres client */}
+            {/* Pentru client: onSubmitProgress deschide formularul de trimitere progres */}
+            {(onViewProgress || onRegenerate || onSubmitProgress) && (
+              <button
+                className={`${styles.updateProgressBtn} ${progressInCooldown && onSubmitProgress ? styles.updateProgressBtnLocked : ''}`}
+                onClick={() => {
+                  if (onViewProgress) {
+                    // Antrenor: deschide pagina de progres a clientului
+                    onViewProgress();
+                  } else if (!progressInCooldown) {
+                    // Client sau regenerare: deschide formularul
+                    handleOpenProgress();
+                  }
+                }}
+                disabled={!!(progressInCooldown && onSubmitProgress)}
+                title={progressInCooldown && onSubmitProgress ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}` : undefined}
+              >
+                {progressInCooldown && onSubmitProgress ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                    <path d="M3 3v5h5"/>
+                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                    <path d="M16 16h5v5"/>
+                  </svg>
+                )}
+                {progressInCooldown && onSubmitProgress
+                  ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}`
+                  : onSubmitProgress ? 'Trimite progres' : onViewProgress ? 'PROGRES CLIENT' : 'Actualizează progres'
+                }
+              </button>
             )}
-          </button>
+            <button
+              className={`${styles.downloadBtn} ${pdfLoading ? styles.downloadBtnLoading : ''}`}
+              onClick={handleDownload}
+              disabled={pdfLoading}
+              title="Descarcă plan PDF"
+            >
+              {pdfLoading ? (
+                <>
+                  <span className={styles.pdfSpinner} />
+                  <span className={styles.downloadBtnLabel}>Se generează...</span>
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                    <polyline points="7 10 12 15 17 10"/>
+                    <line x1="12" y1="15" x2="12" y2="3"/>
+                  </svg>
+                  <span className={styles.downloadBtnLabel}>PDF</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* Day Totals */}
@@ -233,12 +782,11 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
         {/* Meals Grid for Active Day */}
         <div className={styles.mealsGrid}>
           {currentDay.meals.map((meal, mealIndex) => {
-            const { name, emoji } = getMealLabel(meal.mealType);
+            const { name } = getMealLabel(meal.mealType);
             return (
               <div key={mealIndex} className={styles.mealCard}>
                 <div className={styles.mealCardHeader}>
-                  <span className={styles.mealEmoji}>{emoji}</span>
-                  <h4>{name}</h4>
+                  <h4>{meal.name || name}</h4>
                   {meal.mealTotals && (
                     <span className={styles.mealCalories}>{meal.mealTotals.calories} kcal</span>
                   )}
@@ -248,10 +796,10 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
                   {meal.foods.map((food, foodIndex) => (
                     <li key={foodIndex} className={styles.mealItem}>
                       <span className={styles.foodName}>
-                        {food.name} ({food.amount}{food.unit})
+                        {food.name} ({food.displayAmount || `${food.amount}${food.unit}`})
                       </span>
                       <span className={styles.foodMacros}>
-                        {food.calories}kcal · P:{food.protein}g · C:{food.carbs}g · G:{food.fat}g
+                        {food.nutritionNote ? '≈ ' : ''}{food.calories}kcal · P:{food.protein}g · C:{food.carbs}g · G:{food.fat}g
                       </span>
                     </li>
                   ))}
@@ -259,7 +807,7 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
 
                 {meal.preparation && (
                   <div className={styles.preparation}>
-                    <span className={styles.prepIcon}>👨‍🍳</span> {meal.preparation}
+                    {meal.preparation}
                   </div>
                 )}
 
@@ -275,6 +823,155 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset }
           })}
         </div>
       </div>
+
+      {/* Modal Progres */}
+      {showProgress && (
+        <div className={styles.modalOverlay} onClick={() => setShowProgress(false)}>
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h3>{onSubmitProgress ? 'Trimite actualizare progres' : 'Actualizare progres client'}</h3>
+              <button className={styles.modalClose} onClick={() => setShowProgress(false)} disabled={progressSubmitting}>✕</button>
+            </div>
+
+            <div className={styles.modalBody}>
+              {/* Afișează obiectivul curent */}
+              {clientData?.goal && (
+                <div className={styles.modalGoalInfo}>
+                  <span className={styles.modalGoalLabel}>Obiectiv curent:</span>
+                  <span className={styles.modalGoalValue}>{goalLabels[clientData.goal] || clientData.goal}</span>
+                </div>
+              )}
+
+              <div className={styles.modalField}>
+                <label>Greutate curentă (kg) *</label>
+                <input
+                  type="number"
+                  name="currentWeight"
+                  value={progressData.currentWeight}
+                  onChange={handleProgressChange}
+                  step="0.1" min="30" max="300"
+                  placeholder="ex: 73.5"
+                  className={progressErrors.currentWeight ? styles.inputError : ''}
+                />
+                {progressErrors.currentWeight && (
+                  <span className={styles.fieldError}>{progressErrors.currentWeight}</span>
+                )}
+                {!progressErrors.currentWeight && clientData?.weight && progressData.currentWeight && (
+                  <span className={styles.weightDiff}>
+                    Diferență: {(parseFloat(progressData.currentWeight) - parseFloat(clientData.weight)).toFixed(1)} kg
+                  </span>
+                )}
+              </div>
+
+              <div className={styles.modalRow}>
+                <div className={styles.modalField}>
+                  <label>Respectare plan *</label>
+                  <select name="adherence" value={progressData.adherence} onChange={handleProgressChange}
+                    className={progressErrors.adherence ? styles.inputError : ''}>
+                    <option value="">Selectează</option>
+                    <option value="complet">Complet</option>
+                    <option value="partial">Parțial</option>
+                    <option value="deloc">Deloc</option>
+                  </select>
+                  {progressErrors.adherence && (
+                    <span className={styles.fieldError}>{progressErrors.adherence}</span>
+                  )}
+                </div>
+
+                <div className={styles.modalField}>
+                  <label>Nivel energie *</label>
+                  <select name="energyLevel" value={progressData.energyLevel} onChange={handleProgressChange}
+                    className={progressErrors.energyLevel ? styles.inputError : ''}>
+                    <option value="">Selectează</option>
+                    <option value="scazut">Scăzut</option>
+                    <option value="normal">Normal</option>
+                    <option value="ridicat">Ridicat</option>
+                  </select>
+                  {progressErrors.energyLevel && (
+                    <span className={styles.fieldError}>{progressErrors.energyLevel}</span>
+                  )}
+                </div>
+              </div>
+
+              <div className={styles.modalRow}>
+                <div className={styles.modalField}>
+                  <label>Nivel foame *</label>
+                  <select name="hungerLevel" value={progressData.hungerLevel} onChange={handleProgressChange}
+                    className={progressErrors.hungerLevel ? styles.inputError : ''}>
+                    <option value="">Selectează</option>
+                    <option value="normal">Normal</option>
+                    <option value="crescut">Crescut (foame constantă)</option>
+                    <option value="extrem">Extrem (foame + oboseală)</option>
+                  </select>
+                  {progressErrors.hungerLevel && (
+                    <span className={styles.fieldError}>{progressErrors.hungerLevel}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Afișare istoric greutate (ultimele înregistrări) */}
+              {weightHistory.length > 0 && (
+                <div className={styles.weightHistoryPreview}>
+                  <label>Istoric greutate (ultimele {Math.min(weightHistory.length, 5)} înregistrări)</label>
+                  <div className={styles.weightHistoryList}>
+                    {weightHistory.slice(0, 5).map((entry, idx) => (
+                      <div key={entry.id || idx} className={styles.weightHistoryItem}>
+                        <span className={styles.weightHistoryDate}>
+                          {new Date(entry.recorded_at).toLocaleDateString('ro-RO', { day: '2-digit', month: 'short' })}
+                        </span>
+                        <span className={styles.weightHistoryValue}>{entry.weight} kg</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className={styles.modalField}>
+                <label>{onSubmitProgress ? 'Mesaj pentru antrenor (opțional)' : 'Observații antrenor (opțional)'}</label>
+                <textarea
+                  name="notes"
+                  value={progressData.notes}
+                  onChange={handleProgressChange}
+                  placeholder="Notează observații relevante pentru noul plan..."
+                  rows="3"
+                />
+              </div>
+            </div>
+
+            {progressSubmitError && (
+              <div className={styles.fieldError} style={{ padding: '0 20px 8px' }}>
+                {progressSubmitError}
+              </div>
+            )}
+            <div className={styles.modalFooter}>
+              <button className={styles.modalCancelBtn} onClick={() => setShowProgress(false)} disabled={progressSubmitting}>
+                Anulează
+              </button>
+              <button
+                className={styles.modalSubmitBtn}
+                onClick={handleProgressSubmit}
+                disabled={progressSubmitting}
+              >
+                {progressSubmitting ? (
+                  'Se trimite...'
+                ) : onSubmitProgress ? (
+                  'Trimite progresul'
+                ) : (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                      <path d="M3 3v5h5"/>
+                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                      <path d="M16 16h5v5"/>
+                    </svg>
+                    Regenerează plan
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

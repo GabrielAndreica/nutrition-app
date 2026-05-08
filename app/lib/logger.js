@@ -1,9 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
-);
+import { getSupabase, supabaseQuery } from '@/app/lib/supabase';
 
 /**
  * Înregistrează un eveniment de activitate în baza de date.
@@ -28,8 +23,9 @@ export async function logActivity({
   userAgent = null,
   details = null,
 }) {
+  const supabase = getSupabase();
   try {
-    const { error } = await supabase.from('activity_logs').insert([{
+    const { error } = await supabaseQuery(() => supabase.from('activity_logs').insert([{
       action,
       status,
       user_id: userId,
@@ -37,13 +33,13 @@ export async function logActivity({
       ip_address: ipAddress,
       user_agent: userAgent,
       details,
-    }]);
+    }]));
 
     if (error) {
-      console.error('[Logger] Eroare la inserare:', error.message);
+      console.error('[Logger] Eroare la inserare:', error.message, error);
     }
   } catch (err) {
-    console.error('[Logger] Eroare neașteptată:', err.message);
+    console.error('[Logger] Eroare neașteptată:', err.message, err);
   }
 }
 

@@ -13,7 +13,18 @@
   top: 0;
   z-index: 50;
   /* Push content below notch / Dynamic Island */
-  padding-top: env(safe-area-inset-top);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-lg);
+  height: 54px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-lg);
 }
 
 .inner {
@@ -69,27 +80,11 @@
   flex-shrink: 0;
 }
 
-.logoMark {
-  width: 26px;
-  height: 26px;
-  background: #b7ff00;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 900;
-  color: #0a0a0a;
-  letter-spacing: -0.5px;
-  flex-shrink: 0;
-  user-select: none;
-}
-
 .logoText {
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 700;
-  color: #0a0a0a;
-  letter-spacing: -0.3px;
+  color: #B7FF00;
+  letter-spacing: -0.5px;
   user-select: none;
 }
 
@@ -120,6 +115,47 @@
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
+}
+
+/* Buton notificări */
+.notificationsBtn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  cursor: pointer;
+  color: #666;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+
+.notificationsBtn:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+  color: #111;
+}
+
+.notificationBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border: 2px solid rgba(255, 255, 255, 0.82);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .userName {
@@ -155,15 +191,30 @@
     padding: 0 max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
   }
 
-  .logoText {
-    display: none;
-  }
-
   .userName {
     display: none;
   }
 
   .pageTitle {
     max-width: 130px;
+    font-size: 15px;
+  }
+
+  .logoutBtn {
+    min-height: 44px;
+    font-size: 15px;
+    touch-action: manipulation;
+  }
+
+  .backBtn {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .notificationsBtn {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
   }
 }

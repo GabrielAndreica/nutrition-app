@@ -96,7 +96,7 @@
 .content {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-xl);
+  padding: 0;
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;
@@ -154,9 +154,42 @@
 /* ── Loading Progress ───────────────────────────────────────── */
 .loadingWrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 80px 20px;
+  gap: 24px;
+  position: relative;
+}
+
+.loadingBackBtn {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #111;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+  z-index: 100;
+}
+
+.loadingBackBtn:hover {
+  background: #f8f8f8;
+  border-color: rgba(0, 0, 0, 0.15);
+  transform: translateX(-2px);
+}
+
+.loadingBackBtn svg {
+  flex-shrink: 0;
 }
 
 .loadingBox {
@@ -179,6 +212,23 @@
   margin: 0 0 28px;
   min-height: 22px;
   font-weight: 500;
+}
+
+.queueStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #f97316;
+  background: rgba(249, 115, 22, 0.1);
+  padding: 6px 12px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.queueIcon {
+  font-size: 16px;
 }
 
 .progressTrack {
@@ -223,6 +273,380 @@
 
 .resetBtn:active {
   opacity: 0.7;
+}
+
+/* ── Macro Adjustment Toast ───────────────────────────────── */
+.macroToast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  z-index: 1100;
+  max-width: 360px;
+  animation: toastSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(40px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.macroToast.toastHiding {
+  animation: toastSlideOut 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toastSlideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(40px) scale(0.95);
+  }
+}
+
+.toastHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.toastTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+}
+
+.toastIcon {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, #b7ff00, #9be000);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.toastClose {
+  width: 26px;
+  height: 26px;
+  background: #f5f5f7;
+  border: none;
+  border-radius: 50%;
+  font-size: 12px;
+  color: #86868b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.toastClose:hover {
+  background: #e8e8ed;
+  color: #1d1d1f;
+}
+
+.toastBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.macroRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #fafafa;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.macroName {
+  font-weight: 600;
+  color: #1d1d1f;
+}
+
+.macroDiff {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.macroOld {
+  color: #86868b;
+  text-decoration: line-through;
+  font-size: 13px;
+}
+
+.macroArrow {
+  color: #c7c7cc;
+  font-size: 12px;
+}
+
+.macroNew {
+  font-weight: 700;
+  color: #1d1d1f;
+}
+
+.macroChange {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.macroUp {
+  background: rgba(34, 197, 94, 0.12);
+  color: #166534;
+}
+
+.macroDown {
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+}
+
+.macroSame {
+  background: #f5f5f7;
+  color: #86868b;
+}
+
+.toastProgress {
+  height: 3px;
+  background: #e8e8ed;
+  border-radius: 3px;
+  margin-top: 14px;
+  overflow: hidden;
+}
+
+.toastProgressBar {
+  height: 100%;
+  background: linear-gradient(90deg, #b7ff00, #9be000);
+  border-radius: 3px;
+  animation: toastCountdown 6s linear forwards;
+}
+
+@keyframes toastCountdown {
+  from { width: 100%; }
+  to { width: 0%; }
+}
+
+@media (max-width: 480px) {
+  .macroToast {
+    top: auto;
+    bottom: 24px;
+    left: 16px;
+    right: 16px;
+    max-width: none;
+  }
+}
+
+/* ─── Optimal Progress Screen ─────────────────────────────────────────────── */
+
+.optimalProgressWrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  padding: var(--spacing-xl);
+}
+
+.optimalProgressBox {
+  background: var(--bg-primary);
+  border: 1px solid #e5e7eb;
+  border-radius: 21px;
+  padding: 48px;
+  text-align: center;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
+}
+
+.optimalIcon {
+  font-size: 64px;
+  margin-bottom: 16px;
+  animation: bounce 0.6s ease-out;
+}
+
+@keyframes bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-12px); }
+}
+
+.optimalTitle {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 12px 0;
+}
+
+.optimalMessage {
+  font-size: 16px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 32px 0;
+}
+
+.optimalStats {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 20px;
+  background: var(--bg-secondary);
+  border-radius: 12px;
+}
+
+.optimalStat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.optimalStatLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.optimalStatValue {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.optimalStatArrow {
+  font-size: 24px;
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.optimalNote {
+  font-size: 14px;
+  color: var(--success);
+  margin: 0 0 24px 0;
+}
+
+.optimalButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 32px;
+  background: var(--primary);
+  color: var(--gray-900);
+  font-size: 15px;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.optimalButton:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 480px) {
+  .optimalProgressBox {
+    padding: 32px 24px;
+  }
+  
+  .optimalIcon {
+    font-size: 48px;
+  }
+  
+  .optimalTitle {
+    font-size: 24px;
+  }
+  
+  .optimalStats {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .optimalStatArrow {
+    transform: rotate(90deg);
+  }
+}
+
+/* ── Success Message ─────────────────────────────────────────────── */
+.success {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, rgba(183, 255, 0, 0.15), rgba(183, 255, 0, 0.08));
+  border: 1px solid rgba(183, 255, 0, 0.4);
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin: 20px 0;
+  color: var(--text-primary, #1d1d1f);
+  font-size: 14px;
+  font-weight: 500;
+  animation: successSlideIn 0.3s ease;
+}
+
+@keyframes successSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.successIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: #b7ff00;
+  border-radius: 50%;
+  color: #0a0a0a;
+  font-weight: 700;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.successClose {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary, #86868b);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+.successClose:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-primary, #1d1d1f);
 }
 
 

@@ -14,7 +14,7 @@ export default function ClientForm({ onSubmit, loading }) {
     goal: 'maintenance',
     dietType: 'omnivore',
     allergies: '',
-    mealsPerDay: '3',
+    mealsPerDay: '5',
   });
 
   const handleInputChange = (e) => {
@@ -175,19 +175,7 @@ export default function ClientForm({ onSubmit, loading }) {
             />
           </div>
 
-          <div className={styles.formGroup}>
-            <label htmlFor="mealsPerDay">Număr Mese/Zi *</label>
-            <select
-              id="mealsPerDay"
-              name="mealsPerDay"
-              value={formData.mealsPerDay}
-              onChange={handleInputChange}
-            >
-              <option value="3">3 mese</option>
-              <option value="4">4 mese</option>
-              <option value="5">5 mese</option>
-            </select>
-          </div>
+
         </div>
       </div>
 

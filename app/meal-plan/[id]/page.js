@@ -2,10 +2,28 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { FEATURES, getDefaultRedirectURL } from '@/app/config/features';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
-import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
 import AppHeader from '@/app/components/AppHeader';
 import styles from '../meal-plan-view.module.css';
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Dynamic imports cu ssr: false pentru componente care folosesc jsPDF
+const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPlan'), {
+  ssr: false,
+  loading: () => <SkeletonMealPlan />
+});
+
+const InlineProgressView = dynamic(() => import('@/app/components/InlineProgressView'), {
+  ssr: false,
+  loading: () => (
+    <div className={styles.loadingOverlay}>
+      <div className={styles.loadingSpinner} />
+    </div>
+  )
+});
 
 function SkeletonMealPlan() {
   return (
@@ -52,14 +70,88 @@ function SkeletonMealPlan() {
 function MealPlanViewContent() {
   const router = useRouter();
   const { id } = useParams();
+  const legacyRoutesAllowed = FEATURES.ALLOW_LEGACY_ROUTES;
+
   const [mealPlan, setMealPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [regenerating, setRegenerating] = useState(false);
+  const [regenProgress, setRegenProgress] = useState(0);
+  const [regenStep, setRegenStep] = useState(0);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+  const [planTab, setPlanTab] = useState('alimentar');
+  const [workoutPlanId, setWorkoutPlanId] = useState(null);
+  const [viewingProgressClientId, setViewingProgressClientId] = useState(null);
   const fetchedRef = useRef(false);
+  const abortControllerRef = useRef(null);
 
   useEffect(() => {
+    if (!legacyRoutesAllowed) {
+      router.replace(getDefaultRedirectURL());
+    }
+  }, [legacyRoutesAllowed, router]);
+
+  const resolveWorkoutPlanId = async (clientId, token, maxAttempts = 4) => {
+    if (!clientId || !token) return null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const res = await fetch(`/api/workout-plans?clientId=${encodeURIComponent(clientId)}`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+          cache: 'no-store',
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        const foundPlanId = data.plans?.[clientId]?.planId || null;
+        if (foundPlanId) return foundPlanId;
+      } catch {
+        // Retry below
+      }
+      if (attempt < maxAttempts) {
+        await delay(350);
+      }
+    }
+    return null;
+  };
+
+  // Funcție pentru a reîncărca datele clientului
+  const refreshClientData = async () => {
+    if (!legacyRoutesAllowed) return;
+    if (!id) return;
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch(`/api/meal-plans/${id}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.mealPlan) {
+        const { client_id } = data.mealPlan;
+        const c = data.client || {};
+        setClientData({
+          clientId: client_id,
+          name: c.name || clientData?.name,
+          age: c.age ? String(c.age) : clientData?.age,
+          weight: c.weight ? String(c.weight) : clientData?.weight,
+          height: c.height ? String(c.height) : clientData?.height,
+          gender: c.gender || clientData?.gender,
+          goal: c.goal || clientData?.goal,
+          activityLevel: c.activity_level || clientData?.activityLevel,
+          dietType: c.diet_type || clientData?.dietType,
+          allergies: c.allergies || clientData?.allergies,
+          mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : clientData?.mealsPerDay,
+          foodPreferences: c.food_preferences || clientData?.foodPreferences || '',
+        });
+      }
+    } catch (err) {
+      console.error('Eroare la reîncărcarea datelor clientului:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (!legacyRoutesAllowed) return;
     if (!id) return;
     if (fetchedRef.current) return; // previne dubla execuție din React Strict Mode
     fetchedRef.current = true;
@@ -70,17 +162,27 @@ function MealPlanViewContent() {
       return;
     }
 
+    // ─── Optimizare: Timeout pentru fetch + abort controller ───────
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 10000); // 10s timeout
+
     fetch(`/api/meal-plans/${id}`, {
       headers: { 'Authorization': `Bearer ${token}` },
+      signal: abortController.signal,
     })
-      .then(res => res.json())
+      .then(res => {
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error('Eroare la încărcarea planului.');
+        return res.json();
+      })
       .then(data => {
         if (!data.mealPlan) throw new Error(data.error || 'Planul nu a fost găsit.');
-        const { plan_data, daily_targets } = data.mealPlan;
+        const { plan_data, daily_targets, client_id, created_at } = data.mealPlan;
         setMealPlan(plan_data);
         setNutritionalNeeds(daily_targets);
         const c = data.client || {};
         setClientData({
+          clientId: client_id,
           name: c.name || plan_data.clientName,
           age: c.age ? String(c.age) : undefined,
           weight: c.weight ? String(c.weight) : undefined,
@@ -91,35 +193,292 @@ function MealPlanViewContent() {
           dietType: c.diet_type,
           allergies: c.allergies,
           mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
+          foodPreferences: c.food_preferences || '',
+          planCreatedAt: created_at || null,
         });
       })
-      .catch(err => setError(err.message))
+      .catch(err => {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          setError('Timeout la încărcarea planului. Încearcă din nou.');
+        } else {
+          setError(err.message);
+        }
+      })
       .finally(() => setLoading(false));
-  }, [id]);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      abortController.abort();
+    };
+  }, [id, legacyRoutesAllowed]);
+
+  // Oprește regenerarea dacă utilizatorul navighează
+  useEffect(() => {
+    return () => { abortControllerRef.current?.abort(); };
+  }, []);
+
+  useEffect(() => {
+    const fetchWorkoutPlanId = async () => {
+      if (!legacyRoutesAllowed) return;
+      if (!clientData?.clientId) return;
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      try {
+        const foundPlanId = await resolveWorkoutPlanId(clientData.clientId, token);
+        setWorkoutPlanId(foundPlanId);
+      } catch {
+        setWorkoutPlanId(null);
+      }
+    };
+
+    fetchWorkoutPlanId();
+  }, [clientData?.clientId, legacyRoutesAllowed]);
+
+  const handleOpenWorkoutPlan = async () => {
+    let targetWorkoutPlanId = workoutPlanId;
+    if (!targetWorkoutPlanId && clientData?.clientId) {
+      const token = localStorage.getItem('token');
+      targetWorkoutPlanId = await resolveWorkoutPlanId(clientData.clientId, token, 6);
+      if (targetWorkoutPlanId) {
+        setWorkoutPlanId(targetWorkoutPlanId);
+      }
+    }
+
+    if (!targetWorkoutPlanId) {
+      setError('Planul de antrenament nu este încă disponibil pentru acest client.');
+      return;
+    }
+    setPlanTab('antrenament');
+    router.push(`/workout-plan/${targetWorkoutPlanId}`);
+  };
+
+  const handleRegenerate = async (progressData) => {
+    if (!legacyRoutesAllowed) return;
+    if (!clientData) return;
+    abortControllerRef.current?.abort();
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
+
+    setRegenerating(true);
+    setRegenStep(0);
+    setRegenProgress(0);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Token de autentificare lipsă.');
+
+      const body = {
+        ...clientData,
+        progress: progressData,
+        currentPlanCalories: nutritionalNeeds?.calories ?? null,
+      };
+
+      console.log('Regenerare plan - date trimise:', { clientId: body.clientId, progress: body.progress });
+
+      const response = await fetch('/api/generate-meal-plan', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        signal: abortController.signal,
+      });
+
+      // Verifică dacă e răspuns JSON normal (progres optim, rate limit, eroare) sau streaming
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const data = await response.json();
+        if (data.type === 'optimal_progress') {
+          // Progres optim - doar actualizăm greutatea, nu regenerăm
+          setClientData(prev => ({ ...prev, weight: String(data.newWeight) }));
+          setSuccessMessage(data.message);
+          setRegenerating(false);
+          return;
+        }
+        if (data.error) {
+          // Rate limit sau alte erori
+          if (response.status === 429) {
+            const retryAfter = response.headers.get('Retry-After');
+            throw new Error(`${data.error}${retryAfter ? ` (${retryAfter}s)` : ''}`);
+          }
+          throw new Error(data.error);
+        }
+      }
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 429) {
+          throw new Error('Prea multe cereri. Te rog așteaptă câteva secunde și încearcă din nou.');
+        }
+        if (response.status === 503) {
+          throw new Error('Serverul este ocupat. Te rog încearcă din nou în câteva minute.');
+        }
+        throw new Error(errorData.error || 'Eroare la regenerarea planului alimentar');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop();
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line);
+          if (event.type === 'progress') {
+            setRegenStep(event.day);
+            setRegenProgress(Math.round((event.day / event.total) * 90));
+          } else if (event.type === 'complete') {
+            setRegenProgress(100);
+            setMealPlan(event.plan);
+            setNutritionalNeeds(event.nutritionalNeeds);
+            // Actualizează greutatea afișată dacă a fost trimisă ca progres
+            if (progressData?.currentWeight) {
+              setClientData(prev => ({ ...prev, weight: String(parseFloat(progressData.currentWeight)) }));
+            }
+            // Navighează la noul plan dacă ID-ul s-a schimbat
+            if (event.planId && event.planId !== id) {
+              router.replace(`/meal-plan/${event.planId}`);
+            }
+          } else if (event.type === 'error') {
+            throw new Error(event.message);
+          }
+        }
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      setError(err.message);
+    } finally {
+      setRegenerating(false);
+    }
+  };
+
+  if (!legacyRoutesAllowed) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', color: '#666' }}>Redirecționare...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
       <AppHeader
         title={mealPlan?.clientName || 'Plan alimentar'}
-        backHref="/clients"
       />
 
       <div className={styles.content}>
-        {loading && <SkeletonMealPlan />}
+        {/* Nav row: back button + plan tabs */}
+        <div className={styles.navRow}>
+          <button
+            className={styles.navBackBtn}
+            onClick={() => router.back()}
+            aria-label="Înapoi"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
+          </button>
+          <div className={styles.planTabsToggle}>
+            <button
+              className={`${styles.planTab} ${planTab === 'alimentar' ? styles.planTabActive : ''}`}
+              onClick={() => setPlanTab('alimentar')}
+            >
+              Plan alimentar
+            </button>
+            <button
+              className={`${styles.planTab} ${planTab === 'antrenament' ? styles.planTabActive : ''}`}
+              title={workoutPlanId ? 'Deschide planul de antrenament' : 'Caută planul de antrenament'}
+              onClick={handleOpenWorkoutPlan}
+            >
+              Plan de antrenament
+            </button>
+          </div>
+        </div>
 
-        {!loading && error && (
+        {loading && !regenerating && <SkeletonMealPlan />}
+
+        {regenerating && (
+          <div className={styles.loadingWrapper}>
+            <div className={styles.loadingBox}>
+              <p className={styles.loadingTitle}>Se regenerează planul alimentar</p>
+              <p className={styles.loadingStep}>
+                {regenStep > 0 ? `Ziua ${regenStep} din 7...` : 'Se pregătește...'}
+              </p>
+              <div className={styles.progressTrack}>
+                <div
+                  className={styles.progressFill}
+                  style={{ width: `${regenProgress}%` }}
+                />
+              </div>
+              <div className={styles.progressDots}>
+                {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                  <div
+                    key={d}
+                    className={`${styles.progressDot} ${
+                      d < regenStep ? styles.progressDotDone :
+                      d === regenStep ? styles.progressDotActive : ''
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!loading && !regenerating && error && (
           <div className={styles.error}>
-            <span className={styles.errorIcon}>⚠️</span>
+            <span className={styles.errorIcon}>!</span>
             <span>{error}</span>
           </div>
         )}
 
-        {!loading && mealPlan && (
+        {!loading && !regenerating && successMessage && (
+          <div className={styles.success}>
+            <span className={styles.successIcon}>✓</span>
+            <span>{successMessage}</span>
+            <button className={styles.successClose} onClick={() => setSuccessMessage(null)}>✕</button>
+          </div>
+        )}
+
+        {!loading && !regenerating && mealPlan && !viewingProgressClientId && (
           <MealPlan
             plan={mealPlan}
             clientData={clientData}
             nutritionalNeeds={nutritionalNeeds}
-            onReset={() => router.push('/clients')}
+            onReset={() => router.back()}
+            onRegenerate={handleRegenerate}
+            onViewProgress={() => {
+              if (clientData?.clientId) {
+                setViewingProgressClientId(clientData.clientId);
+              }
+            }}
+          />
+        )}
+
+        {viewingProgressClientId && (
+          <InlineProgressView
+            clientId={viewingProgressClientId}
+            onBack={() => {
+              setViewingProgressClientId(null);
+              // Reîncarcă datele clientului când se revine de la progres
+              refreshClientData();
+            }}
+            onGeneratePlan={(clientId) => {
+              setViewingProgressClientId(null);
+              router.push(`/generator-plan?clientId=${clientId}&fromProgress=true`);
+            }}
           />
         )}
       </div>
@@ -129,7 +488,7 @@ function MealPlanViewContent() {
 
 export default function MealPlanViewPage() {
   return (
-    <ProtectedRoute>
+    <ProtectedRoute requiredRole="trainer">
       <MealPlanViewContent />
     </ProtectedRoute>
   );

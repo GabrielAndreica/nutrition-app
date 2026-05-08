@@ -1,4 +1,4 @@
-﻿/* ─── Container ──────────────────────────────────────────── */
+/* ─── Container ──────────────────────────────────────────── */
 .container {
   min-height: 100vh;
   background:
@@ -11,18 +11,45 @@
 /* ─── Content ─────────────────────────────────────────────── */
 .content {
   flex: 1;
-  max-width: 1200px;
-  margin: 0 auto;
   width: 100%;
-  padding: 36px 24px 64px;
+  padding: 32px 24px 56px;
+}
+
+.stickyHeader {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #ffffff;
+  padding-top: 20px;
+  padding-bottom: 12px;
+}
+
+.stickyHeader::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background: linear-gradient(to bottom, #ffffff, transparent);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.listTitle {
+  margin: 0 0 18px;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
 }
 
 /* ─── Toolbar ─────────────────────────────────────────────── */
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 28px;
+  gap: 10px;
+  margin-bottom: 16px;
 }
 
 .searchWrap {
@@ -43,10 +70,10 @@
 
 .searchInput {
   width: 100%;
-  padding: 10px 34px 10px 36px;
-  border: 1.5px solid var(--gray-200);
+  padding: 7px 30px 7px 34px;
+  border: 1px solid #e5e5ea;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 13.5px;
   background: #fff;
   color: var(--text-primary);
   outline: none;
@@ -57,7 +84,7 @@
 
 .searchInput:focus {
   border-color: #b7ff00;
-  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.15);
 }
 
 .searchInput::placeholder { color: var(--gray-400); }
@@ -90,27 +117,443 @@
 .addBtn {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 10px 18px;
-  background: #0a0a0a;
-  color: #b7ff00;
+  gap: 6px;
+  padding: 7px 14px;
+  background: #f5f5f7;
+  color: #1d1d1f;
   border: none;
   border-radius: 10px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: background 0.18s, transform 0.15s, box-shadow 0.18s;
+  transition: background 0.15s;
   letter-spacing: -0.1px;
   font-family: inherit;
 }
 .addBtn:hover {
+  background: #e8e8ed;
+}
+.addBtn:active { background: #d1d1d6; }
+
+/* ─── Add client page ─────────────────────────────────────── */
+/*
+   Golden ratio scale (φ = 1.618):
+   spacing: 8 → 13 → 21 → 34px
+   columns: 1 : φ : 1  (middle = 1.618× wider)
+   radius:  8 → 13 → 21px
+*/
+.addPage {
+  width: 100%;
+  padding: 21px 0 55px;   /* 34+21 */
+}
+
+.addPageShell {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.addPageNav {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.addPageTitle {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.4px;
+}
+
+/* 3 coloane în raport 1 : φ : 1 */
+.addWizardHeader {
+  margin: 0 auto 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.addWizardMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 13px;
+}
+
+.addWizardStep {
+  font-size: 13px;
+  font-weight: 700;
+  color: #111827;
+}
+
+.addWizardHint {
+  font-size: 12px;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.addWizardProgress {
+  height: 8px;
+  border-radius: 999px;
+  background: #eceff3;
+  overflow: hidden;
+}
+
+.addWizardProgress span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #b7ff00;
+  transition: width 0.2s ease;
+}
+
+.addPageForm {
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.addStepTriple {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+/* ── Secțiune ── */
+.addSection {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 21px;        /* φ³ ≈ 21 */
+  padding: 17px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
+}
+
+.addSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 13px;
+  border-bottom: 1px solid #f0f0f5;
+}
+
+.addSectionNum {
+  font-size: 10px;
+  font-weight: 800;
+  color: #b7ff00;
+  background: #0a0a0a;
+  border-radius: 6px;
+  padding: 3px 7px;
+  letter-spacing: 0.06em;
+  line-height: 1.4;
+}
+
+.addSectionTitle {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Câmp generic ── */
+.addField {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.addFieldStretch {
+  flex: 1;
+  min-height: 0;
+}
+
+.addField label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #374151;
+  letter-spacing: 0.01em;
+}
+
+.addFieldError {
+  color: #e05252;
+  font-size: 11px;
+  margin-top: 2px;
+  padding: 0 3px;
+  animation: fadeInErr 0.2s ease;
+  line-height: 1.3;
+}
+
+@keyframes fadeInErr {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.addFieldErrorInput {
+  border-color: #e05252 !important;
+}
+
+.addField input,
+.addField textarea {
+  padding: 8px 13px;          /* 8 și 13 — consecutive Fibonacci/φ */
+  border: 1.5px solid #e5e7eb;
+  border-radius: 13px;        /* φ² */
+  font-size: 14px;
+  color: var(--text-primary);
+  background: #fafafa;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s, background 0.18s;
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.addField textarea { resize: none; line-height: 1.618; }   /* φ line-height */
+
+.addFieldGrow {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.addFieldGrow textarea {
+  flex: 1;
+  min-height: 80px;
+  resize: none;
+}
+
+.addField input:focus,
+.addField textarea:focus {
+  border-color: #b7ff00;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
+}
+
+.opt { font-weight: 400; color: #9ca3af; }
+
+/* ── Input cu unitate ── */
+.inputUnit {
+  position: relative;
+}
+
+.inputUnit input {
+  padding-right: 40px !important;
+}
+
+.inputUnit span {
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  font-weight: 600;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+/* ── Segmented ── */
+.seg {
+  display: flex;
+  background: #f3f4f6;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 13px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.segBtn {
+  flex: 1;
+  padding: 9px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  font-family: inherit;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  letter-spacing: -0.1px;
+}
+.segBtn:hover:not(.segOn) { color: #374151; }
+
+.segOn {
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+/* ── Segmented layout helpers ── */
+.segColumn {
+  flex-direction: column;
+}
+
+.segColumn .segBtn {
+  flex: unset;
+}
+
+.segWrapTwo {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.splitSeg {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.splitSeg .segBtn {
+  white-space: normal;
+  min-width: 0;
+}
+
+/* ── Footer ── */
+.addFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 13px;
+  padding-top: 8px;
+}
+
+.saveBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 13px 34px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 13px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.18s, transform 0.15s, box-shadow 0.18s;
+  font-family: inherit;
+  letter-spacing: -0.1px;
+}
+.saveBtn:hover:not(:disabled) {
   background: #1a1a1a;
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 8px 21px rgba(0,0,0,0.18);
 }
-.addBtn:active { transform: translateY(0); box-shadow: none; }
+.saveBtn:active:not(:disabled) {
+  background: #0a0a0a;
+  transform: none;
+}
+.saveBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .addPageShell,
+  .addWizardHeader,
+  .addPageForm {
+    max-width: 100%;
+  }
+
+  .addStepTriple {
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+}
+
+@media (max-width: 580px) {
+  .addStepTriple {
+    grid-template-columns: 1fr;
+  }
+
+  .segWrapTwo {
+    grid-template-columns: 1fr;
+  }
+
+  .splitSeg {
+    grid-template-columns: 1fr;
+  }
+
+  .addWizardMeta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .addFooter {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
+  .addFooter .saveBtn,
+  .addFooter .cancelBtn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ─── Add Form Page — CSS vechi, pastrat pentru modal edit ─── */
+.addFormPageHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 0 12px;
+}
+
+.addFormBackBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  background: transparent;
+  border: 1px solid #e8e8ed;
+  border-radius: 8px;
+  color: #666;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+.addFormBackBtn:hover {
+  background: #f5f5f7;
+  border-color: #d4d4d8;
+  color: #111;
+}
+
+.addFormPageTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+
+.addFormPageCard {
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 16px;
+  padding: 32px;
+  max-width: 620px;
+}
+
+.addFormPageFooter {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f5;
+}
 
 /* ─── Error ───────────────────────────────────────────────── */
 .error {
@@ -162,89 +605,233 @@
 .addBtnEmpty { background: #0a0a0a; color: #b7ff00; border: none; }
 .addBtnEmpty:hover { background: #1a1a1a; transform: translateY(-1px); }
 
-/* ─── Grid ────────────────────────────────────────────────── */
-.clientGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 16px;
-}
-
-/* ─── Card ────────────────────────────────────────────────── */
-.clientCard {
-  position: relative;
-  background: #fff;
-  border: 1.5px solid var(--gray-200);
-  border-radius: 16px;
-  padding: 20px;
+/* ─── Table ───────────────────────────────────────────────── */
+.clientTable {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
-.clientCard:hover {
-  border-color: #b7ff00;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.07), 0 0 0 4px rgba(183, 255, 0, 0.10);
-  transform: translateY(-2px);
+
+/* ─── Row ─────────────────────────────────────────────────── */
+.clientRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 11px 0;
+  border-bottom: 1px solid #f2f2f7;
+  transition: background 0.12s;
+  border-radius: 8px;
+}
+.clientRow:last-child {
+  border-bottom: none;
+}
+.clientRow:hover {
+  background: #f5f5f7;
+}
+
+.clientRowInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.clientAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #1d1d1f;
+  color: #f5f5f7;
+  font-size: 13px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0;
+  user-select: none;
+}
+
+.clientRowMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.clientRowActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
 }
 
 /* ─── Delete icon button ──────────────────────────────────── */
 .deleteIconBtn {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   display: flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
   border-radius: 6px;
-  color: var(--gray-400);
+  color: #c7c7cc;
   cursor: pointer;
-  transition: color 0.15s, background 0.15s;
+  transition: background 0.12s, color 0.12s;
+  flex-shrink: 0;
 }
 .deleteIconBtn:hover {
-  color: #dc2626;
-  background: rgba(220, 38, 38, 0.08);
+  color: #ff3b30;
+  background: rgba(255, 59, 48, 0.07);
+}
+.deleteIconBtn svg {
+  width: 13px;
+  height: 13px;
 }
 
 /* ─── Card header ─────────────────────────────────────────── */
 .clientCardHeader {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-right: 24px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding-right: 34px;
+  margin-bottom: 5px;
 }
-
-.clientAvatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  background: rgba(183, 255, 0, 0.14);
-  border: 1px solid rgba(183, 255, 0, 0.28);
-  color: #2d4a00;
-  font-weight: 800;
-  font-size: 17px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  letter-spacing: -0.5px;
-}
-
-.clientInfo { flex: 1; min-width: 0; }
 
 .clientName {
-  margin: 0 0 3px;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.3px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1d1d1f;
+  letter-spacing: -0.2px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+
+.badgeGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.accountBadge {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 9px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.badgeActive {
+  background: rgba(183, 255, 0, 0.15);
+  border: 1px solid rgba(183, 255, 0, 0.35);
+  color: #5a7000;
+}
+
+.badgePending {
+  background: rgba(255, 149, 0, 0.12);
+  border: 1px solid rgba(255, 149, 0, 0.3);
+  color: #b35000;
+}
+
+.badgeInactive {
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  color: #d62800;
+}
+
+.badgeNoPlan {
+  background: rgba(255, 59, 48, 0.1);
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  color: #d62800;
+}
+
+.badgeDraft {
+  background: rgba(10, 10, 10, 0.06);
+  border: 1px solid rgba(10, 10, 10, 0.12);
+  color: #555;
+}
+
+.badgeGenerating {
+  background: rgba(183, 255, 0, 0.15);
+  border: 1px solid rgba(183, 255, 0, 0.35);
+  color: #5a7000;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.badgeProgress {
+  background: rgba(183, 255, 0, 0.15);
+  border: 1px solid rgba(183, 255, 0, 0.35);
+  color: #5a7000;
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.clientQuickInfo {
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.55);
+  font-weight: 500;
+  line-height: 1.618;
+  padding-bottom: 13px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.clientPlanStatus {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.5);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.clientProgressStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #5a7000;
+  margin-bottom: 14px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  background: rgba(183, 255, 0, 0.12);
+  border: 1px solid rgba(183, 255, 0, 0.25);
+}
+
+.clientProgressStatus svg {
+  flex-shrink: 0;
+}
+
+.clientGoal {
+  display: inline-block;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.goal_weight_loss {
+  color: #ff6b6b;
+}
+
+.goal_muscle_gain {
+  color: #4dabf7;
+}
+
+.goal_maintenance {
+  color: #b7ff00;
+}
+
+.goal_recomposition {
+  color: #ffa94d;
 }
 
 .clientMeta {
@@ -281,67 +868,105 @@
 /* ─── Card actions ────────────────────────────────────────── */
 .clientActions {
   display: flex;
+  flex-direction: column;
   gap: 8px;
   margin-top: auto;
+  padding-top: 5px;
+}
+
+.secondaryActions {
+  display: flex;
+  gap: 8px;
 }
 
 .editBtn {
-  padding: 8px 14px;
+  padding: 5px 11px;
   font-size: 12.5px;
   font-weight: 500;
-  border-radius: 8px;
+  border-radius: 7px;
   cursor: pointer;
-  transition: all 0.15s;
-  background: var(--gray-100);
-  border: 1.5px solid transparent;
-  color: var(--text-secondary);
+  transition: background 0.12s;
+  background: transparent;
+  border: none;
+  color: #6e6e73;
   white-space: nowrap;
   font-family: inherit;
-  letter-spacing: 0.1px;
 }
 .editBtn:hover {
-  background: var(--gray-200);
-  color: var(--text-primary);
+  background: #f5f5f7;
+  color: #1d1d1f;
+}
+
+.inviteBtn {
+  padding: 5px 11px;
+  background: transparent;
+  border: none;
+  color: #6e6e73;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.inviteBtn:hover {
+  background: #f5f5f7;
+  color: #1d1d1f;
+}
+
+.inviteBtnPending {
+  padding: 5px 11px;
+  background: transparent;
+  border: none;
+  color: #bf6a02;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.12s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.inviteBtnPending:hover {
+  background: rgba(255, 159, 28, 0.08);
 }
 
 .generateBtn,
 .viewPlanBtn {
-  flex: 1;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 14px;
-  font-size: 13px;
-  font-weight: 700;
+  gap: 5px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
   border-radius: 8px;
   cursor: pointer;
   white-space: nowrap;
-  letter-spacing: -0.1px;
-  transition: all 0.15s;
+  transition: background 0.12s, box-shadow 0.12s;
   font-family: inherit;
-}
-
-.generateBtn {
-  background: #0a0a0a;
-  color: #b7ff00;
   border: none;
+  letter-spacing: -0.1px;
+}
+.generateBtn {
+  background: #f2f2f7;
+  color: #1d1d1f;
 }
 .generateBtn:hover {
-  background: #1a1a1a;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  background: #e5e5ea;
 }
-
+.generateBtn:active {
+  background: #d8d8dc;
+}
 .viewPlanBtn {
-  background: transparent;
-  border: 1.5px solid #0a0a0a;
-  color: #0a0a0a;
-}
-.viewPlanBtn:hover {
   background: #0a0a0a;
   color: #b7ff00;
-  transform: translateY(-1px);
+}
+.viewPlanBtn:hover {
+  background: #1a1a1a;
+}
+.viewPlanBtn:active {
+  background: #0a0a0a;
 }
 
 /* ─── Skeleton shimmer ────────────────────────────────────── */
@@ -350,33 +975,28 @@
   100% { background-position:  400px 0; }
 }
 
-.skeletonCard {
-  background: #fff;
-  border: 1.5px solid var(--gray-200);
-  border-radius: 16px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.skeletonHeader {
+.skeletonRow {
   display: flex;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
 }
 
-.skeletonAvatar {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
+.skeletonRowInfo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.skeletonRowActions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   flex-shrink: 0;
-  background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
-  background-size: 400px 100%;
-  animation: shimmer 1.4s ease infinite;
 }
-
-.skeletonLines { flex: 1; display: flex; flex-direction: column; gap: 8px; }
 
 .skeletonLine {
   height: 12px;
@@ -385,42 +1005,50 @@
   background-size: 400px 100%;
   animation: shimmer 1.4s ease infinite;
 }
-.skeletonLineLg { width: 55%; }
-.skeletonLineMd { width: 78%; }
-
-.skeletonTags { display: flex; gap: 6px; }
+.skeletonLineLg { width: 120px; }
 
 .skeletonTag {
-  height: 22px;
-  width: 68px;
-  border-radius: 99px;
+  height: 20px;
+  width: 52px;
+  border-radius: 6px;
   background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
   background-size: 400px 100%;
   animation: shimmer 1.4s ease infinite;
 }
-.skeletonTagGoal {
-  width: 104px;
-  background: linear-gradient(90deg, rgba(183,255,0,0.12) 25%, rgba(183,255,0,0.06) 50%, rgba(183,255,0,0.12) 75%);
-  background-size: 400px 100%;
-  animation: shimmer 1.4s ease infinite;
-}
-
-.skeletonFooter { display: flex; gap: 8px; }
 
 .skeletonBtn {
-  height: 34px;
-  width: 84px;
+  height: 31px;
+  width: 78px;
   border-radius: 8px;
   background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-50) 50%, var(--gray-100) 75%);
   background-size: 400px 100%;
   animation: shimmer 1.4s ease infinite;
 }
 .skeletonBtnPrimary {
-  flex: 1;
+  width: 120px;
   opacity: 0.65;
   background: linear-gradient(90deg, #1c1c1c 25%, #2a2a2a 50%, #1c1c1c 75%);
   background-size: 400px 100%;
   animation: shimmer 1.4s ease infinite;
+}
+
+/* ─── Loading More (infinite scroll) ─────────────────────── */
+.loadingMore {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 28px 0 16px;
+}
+.loadingMoreSpinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--gray-200);
+  border-top-color: #0a0a0a;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ─── Pagination ──────────────────────────────────────────── */
@@ -532,33 +1160,46 @@
   gap: 16px;
 }
 
+/* Form inside addFormPageCard — no extra padding */
+.addFormPageCard .form {
+  padding: 0;
+  gap: 18px;
+}
+
 .formRow { display: flex; gap: 14px; }
 .formRow .formGroup { flex: 1; }
 
 .formGroup { display: flex; flex-direction: column; gap: 6px; }
 
 .formGroup label {
-  font-size: 11.5px;
-  font-weight: 700;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: 12px;
+  font-weight: 600;
+  color: #3c3c43;
+  letter-spacing: -0.01em;
 }
 
 .formGroup input,
-.formGroup select {
+.formGroup select,
+.formGroup textarea {
   padding: 10px 13px;
-  border: 1.5px solid var(--gray-200);
+  border: 1px solid #e8e8ed;
   border-radius: 9px;
   font-size: 14px;
   color: var(--text-primary);
-  background: var(--gray-50);
+  background: #fff;
   outline: none;
-  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  transition: border-color 0.18s, box-shadow 0.18s;
   font-family: inherit;
 }
+
+.formGroup textarea {
+  resize: vertical;
+  min-height: 70px;
+}
+
 .formGroup input:focus,
-.formGroup select:focus {
+.formGroup select:focus,
+.formGroup textarea:focus {
   border-color: #b7ff00;
   box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.18);
   background: #fff;
@@ -615,7 +1256,10 @@
 }
 .saveBtn:hover:not(:disabled) {
   background: #1a1a1a;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+.saveBtn:active:not(:disabled) {
+  background: #0a0a0a;
 }
 .saveBtn:disabled { opacity: 0.55; cursor: not-allowed; }
 
@@ -687,17 +1331,1032 @@
 .deleteBtnConfirm:hover:not(:disabled) { background: #b91c1c; }
 .deleteBtnConfirm:disabled { opacity: 0.6; cursor: not-allowed; }
 
+/* ─── Invite modal ────────────────────────────────────────── */
+.inviteModal {
+  background: #fff;
+  border-radius: 20px;
+  padding: 0;
+  max-width: 560px;
+  width: 100%;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.inviteForm {
+  padding: 20px 28px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.helperText {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.successBox {
+  padding: 32px 28px;
+  text-align: center;
+}
+
+.successIcon {
+  width: 64px;
+  height: 64px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  margin: 0 auto 20px;
+  font-weight: bold;
+  border: 0px solid #b7ff00;
+}
+
+.successText {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 8px;
+  letter-spacing: -0.3px;
+}
+
+.successSubtext {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+.successBtn {
+  padding: 10px 24px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+}
+.successBtn:hover {
+  background: #1a1a1a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* ─── Progress fisă inline page ────────────────────────── */
+.progressInlinePage {
+  flex: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 0;
+}
+
+/* Back button — matches AppHeader .backBtn style */
+.progressInlineBack {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: transparent;
+  border: 1px solid var(--gray-200);
+  border-radius: 8px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 20px;
+  flex-shrink: 0;
+  transition: background 0.14s, border-color 0.14s, color 0.14s;
+}
+.progressInlineBack:hover {
+  background: var(--gray-100);
+  border-color: var(--gray-300);
+  color: #111;
+}
+
+/* Client heading card — matches .clientHeader from meal-plan */
+.progressInlineHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 14px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.progressInlineHeadingLeft {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.progressInlineAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(183, 255, 0, 0.15);
+  color: #4a7000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(183, 255, 0, 0.35);
+}
+
+/* Name/sub — matches .clientName / .clientSub from meal-plan */
+.progressInlineName {
+  margin: 0 0 3px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+
+.progressInlineSub {
+  margin: 0;
+  font-size: 13px;
+  color: #86868b;
+  font-weight: 400;
+}
+
+/* Main content card — matches day cards from meal-plan */
+.progressInlineCard {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  margin-top: 0;
+}
+
+/* ─── Chip-grid metrici ──────────────────────────────────── */
+.progressMetricsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  padding: 0 0 14px;
+}
+
+.progressMetricChip {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 10px 12px;
+  background: #f5f5f7;
+  border: 1px solid #e5e5ea;
+  border-radius: 10px;
+}
+
+.progressMetricChipGood {
+  background: rgba(183, 255, 0, 0.1);
+  border-color: rgba(183, 255, 0, 0.35);
+}
+
+.progressMetricChipWarning {
+  background: rgba(255, 190, 50, 0.08);
+  border-color: rgba(255, 190, 50, 0.3);
+}
+
+.progressMetricChipBad {
+  background: rgba(220, 38, 38, 0.07);
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+.progressMetricChipNeutral {
+  background: #f5f5f7;
+  border-color: #e5e5ea;
+}
+
+.progressMetricChipGood .progressMetricKey,
+.progressMetricChipGood .progressMetricVal {
+  color: #4a7000;
+}
+
+.progressMetricChipWarning .progressMetricKey,
+.progressMetricChipWarning .progressMetricVal {
+  color: #8a5c00;
+}
+
+.progressMetricChipBad .progressMetricKey,
+.progressMetricChipBad .progressMetricVal {
+  color: #a42626;
+}
+
+.progressMetricKey {
+  font-size: 9px;
+  font-weight: 700;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.progressMetricVal {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d1d1f;
+  text-transform: capitalize;
+  letter-spacing: -0.1px;
+}
+
+.progressDetailsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 10px;
+  padding: 0 0 18px;
+  align-items: stretch;
+}
+
+/* ─── Note ────────────────────────────────────────────────── */
+.progressNotesRow {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
+
+.progressNote {
+  flex: 1;
+  background: #f9f9fb;
+  border: 1px solid #e8e8ed;
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressNoteLabel {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.progressNoteText {
+  margin: 0;
+  font-size: 12px;
+  color: #3c3c43;
+  line-height: 1.45;
+}
+
+.progressNoteEmpty {
+  color: #9a9aa0;
+  font-style: italic;
+}
+
+/* ─── Istoric greutăți ───────────────────────────────────── */
+.progressWeightBand {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #f9f9fb;
+  border: 1px solid #e8e8ed;
+  border-radius: 10px;
+}
+
+/* Before / After săptămână */
+.progressBeforeAfter {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 10px;
+  background: #f0f0f5;
+  border: 1px solid #e5e5ea;
+  border-radius: 8px;
+}
+
+.progressBeforeAfterItem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.progressBeforeAfterLabel {
+  font-size: 9px;
+  font-weight: 700;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.progressBeforeAfterVal {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1c1c1e;
+  letter-spacing: -1px;
+}
+
+.progressBeforeAfterDate {
+  font-size: 10px;
+  color: #aeaeb2;
+}
+
+.progressBeforeAfterArrow {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.progressWeightBandLabel {
+  font-size: 9px;
+  font-weight: 700;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.progressWeightBandEntries {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.progressWeightEntry {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  background: #f0f0f5;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.progressWeightDate {
+  font-size: 11px;
+  color: #86868b;
+}
+
+.progressWeightVal {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #1d1d1f;
+}
+
+/* ─── Recomandare AI ──────────────────────────────────────── */
+.progressAiRow {
+  display: block;
+  border-top: 1px solid #1a1a1a;
+}
+
+.progressAiBlock {
+  padding: 18px 22px;
+  background: #0a0a0a;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.progressAiTag {
+  margin: 0;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #4a4a4a;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.progressAiAction {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #b7ff00;
+  letter-spacing: -0.2px;
+}
+
+.progressAiReason {
+  margin: 0;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.45;
+}
+
+.progressAiCalRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.progressAiCalOld {
+  font-size: 12px;
+  color: #666;
+  text-decoration: line-through;
+}
+
+.progressAiCalNew {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #b7ff00;
+}
+
+.progressAiReasonList {
+  margin: 2px 0 0;
+  padding: 0 0 0 14px;
+  font-size: 12px;
+  color: #888;
+  line-height: 1.6;
+}
+
+/* ─── Progress fisă modal (kept for reference) ──────────── */
+.progressSheetModal {
+  background: #fff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.progressSheetBody {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.progressSheetLoading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+  color: #86868b;
+  font-size: 13px;
+  justify-content: center;
+}
+
+.progressSheetEmpty {
+  margin: 0;
+  padding: 32px 24px;
+  color: #86868b;
+  font-size: 13px;
+  text-align: center;
+}
+
+.progressSheetMainGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0;
+  border-bottom: 1px solid #f5f5f7;
+}
+
+.progressSheetSection {
+  padding: 14px 16px;
+  border-bottom: 1px solid #f5f5f7;
+}
+.progressSheetSection:last-child { border-bottom: none; }
+
+.progressSheetMainGrid .progressSheetSection {
+  border-bottom: none;
+  border-right: 1px solid #f5f5f7;
+}
+
+.progressSheetMainGrid .progressSheetSection:last-child {
+  border-right: none;
+}
+
+.progressSheetSectionTitle {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.progressSheetRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 8px;
+}
+
+.progressSheetColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progressSheetKv {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e8e8ed;
+  transition: all 0.15s ease;
+}
+
+.progressSheetKv:hover {
+  background: #fafafa;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.progressSheetKey {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.progressSheetVal {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.2px;
+}
+
+.progressSheetCapitalize { text-transform: capitalize; }
+
+.progressSheetMessage {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #e8e8ed;
+}
+
+.progressSheetMessageText {
+  margin: 0;
+  font-size: 12px;
+  color: #3c3c43;
+  line-height: 1.4;
+  font-style: normal;
+}
+
+/* History table */
+.progressSheetHistoryTable {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e8e8ed;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.progressSheetHistoryRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-bottom: 1px solid #f5f5f7;
+  transition: background 0.15s ease;
+}
+.progressSheetHistoryRow:last-child { border-bottom: none; }
+.progressSheetHistoryRow:hover { background: #fafafa; }
+
+.progressSheetHistoryRowLatest {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.progressSheetHistoryRowLatest:hover {
+  background: #f5f5f7;
+}
+
+.progressSheetHistoryDate {
+  flex: 1;
+  font-size: 11px;
+  color: #86868b;
+  font-weight: 500;
+}
+
+.progressSheetHistoryRowLatest .progressSheetHistoryDate {
+  color: #1d1d1f;
+  font-weight: 600;
+}
+
+.latestLabel {
+  color: #b7ff00;
+  background: #0a0a0a;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-left: 6px;
+}
+
+.progressSheetHistoryWeight {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.2px;
+}
+
+.progressSheetDiffDown {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #4a7000;
+  background: rgba(183, 255, 0, 0.18);
+  padding: 3px 8px;
+  border-radius: 6px;
+  min-width: 54px;
+  text-align: center;
+}
+
+.progressSheetDiffUp {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+  padding: 3px 8px;
+  border-radius: 6px;
+  min-width: 54px;
+  text-align: center;
+}
+
+.progressSheetDiffNeutral {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #86868b;
+  background: #f0f0f5;
+  padding: 3px 8px;
+  border-radius: 6px;
+  min-width: 54px;
+  text-align: center;
+}
+
+.weightHistoryClientBadge {
+  font-size: 9px;
+  font-weight: 700;
+  background: rgba(183, 255, 0, 0.15);
+  border: 1px solid rgba(183, 255, 0, 0.3);
+  color: #5a8000;
+  border-radius: 5px;
+  padding: 2px 6px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+/* AI recommendation grid: two columns */
+.progressSheetAiGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-top: 1px solid #1a1a1a;
+}
+
+/* AI recommendation box */
+.progressSheetAiContinue {
+  margin: 0;
+  padding: 20px 22px;
+  background: #0a0a0a;
+  border-right: 1px solid #1a1a1a;
+}
+
+.progressSheetAiRegen {
+  margin: 0;
+  padding: 20px 22px;
+  background: #0a0a0a;
+  border-right: 1px solid #1a1a1a;
+}
+
+.progressSheetAiGrid > *:last-child {
+  border-right: none;
+}
+
+.progressSheetAiTop {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.progressSheetAiIcon { 
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #b7ff00;
+  border: 1.5px solid #d4ff4d;
+  border-radius: 10px;
+  color: #0a0a0a;
+}
+
+.progressSheetAiLabel {
+  margin: 0 0 4px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #b7ff00;
+  letter-spacing: -0.15px;
+}
+
+.progressSheetAiReason {
+  margin: 0;
+  font-size: 12.5px;
+  color: #a0a0a0;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.progressSheetAiSectionTag {
+  margin: 0 0 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #4a4a4a;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.progressSheetAiReasonList {
+  margin: 4px 0 0;
+  padding: 0 0 0 14px;
+  font-size: 11.5px;
+  color: #a0a0a0;
+  font-weight: 500;
+  line-height: 1.6;
+}
+
+.progressSheetAiCalRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+}
+
+.progressSheetAiCalOld {
+  font-size: 12.5px;
+  color: #86868b;
+  text-decoration: line-through;
+  font-weight: 500;
+}
+
+.progressSheetAiArrow {
+  font-size: 13px;
+  color: #86868b;
+  font-weight: 600;
+}
+
+.progressSheetAiCalNew {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #b7ff00;
+  letter-spacing: -0.2px;
+}
+
+.progressSheetAiCalDiffDown {
+  font-size: 12px;
+  font-weight: 600;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+  padding: 3px 10px;
+  border-radius: 6px;
+  margin-left: 6px;
+}
+
+.progressSheetAiCalDiffUp {
+  font-size: 12px;
+  font-weight: 600;
+  color: #ea580c;
+  background: rgba(234, 88, 12, 0.1);
+  padding: 3px 10px;
+  border-radius: 6px;
+  margin-left: 6px;
+}
+
+/* Banner plan continuat */
+.progressOptimalBanner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 0 0 20px;
+  padding: 16px 20px;
+  background: #0f0f0f;
+  border: 1px solid #2a2a2a;
+  border-radius: 14px;
+}
+
+.progressOptimalIcon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #b7ff00;
+  border-radius: 50%;
+  color: #0a0a0a;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.progressOptimalText {
+  flex: 1;
+}
+
+.progressOptimalText strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: #b7ff00;
+  margin-bottom: 4px;
+  letter-spacing: -0.2px;
+}
+
+.progressOptimalText p {
+  margin: 0;
+  font-size: 13px;
+  color: #888;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.progressSheetFooter {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 20px 28px;
+  border-top: 1px solid #e8e8ed;
+  background: #fff;
+  flex-shrink: 0;
+}
+
+.cancelBtn {
+  padding: 10px 20px;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+}
+
+.cancelBtn:hover {
+  background: #e8e8ed;
+}
+
+.cancelBtn:active {
+  transform: scale(0.98);
+}
+
+.backBtnAlt {
+  padding: 10px 20px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+}
+
+.backBtnAlt:hover {
+  background: #1a1a1a;
+  transform: translateY(-1px);
+}
+
+.backBtnAlt:active {
+  transform: scale(0.98);
+}
+
+.saveBtn {
+  padding: 10px 20px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saveBtn:hover {
+  background: #1a1a1a;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.saveBtn:active {
+  transform: scale(0.98);
+  box-shadow: none;
+  background: #0a0a0a;
+}
+
+.saveBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.disabledProgressBtn {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+  color: #b7ff00;
+  border: 1px solid rgba(183, 255, 0, 0.2);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: not-allowed;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+  opacity: 0.7;
+}
+
+/* ─── Client row mobile ──────────────────────────────────── */
+@media (max-width: 600px) {
+  .clientRow {
+    gap: 10px;
+    padding: 14px 0;
+    align-items: center;
+  }
+  .clientAvatar {
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
+    flex-shrink: 0;
+    margin-top: 0;
+  }
+  .clientName {
+    font-size: 14px;
+  }
+  .clientRowInfo {
+    flex: 1;
+    min-width: 0;
+  }
+  .clientRowActions {
+    flex-shrink: 0;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    min-width: 110px;
+  }
+  .inviteBtn,
+  .inviteBtnPending,
+  .viewPlanBtn,
+  .generateBtn {
+    text-align: center;
+    justify-content: center;
+    font-size: 13px;
+    padding: 9px 12px;
+  }
+}
+
 /* ─── Responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
-  .content { padding: 24px 16px 48px; }
+  .content {
+    padding: 24px max(24px, env(safe-area-inset-right)) calc(48px + env(safe-area-inset-bottom, 0px)) max(24px, env(safe-area-inset-left));
+  }
+  .progressInlinePage { padding: 0; }
+  .progressInlineName { font-size: 22px; }
 
   .toolbar { flex-wrap: wrap; gap: 10px; }
 
   .searchWrap { max-width: none; flex: 1 1 100%; order: -1; }
 
   .count { flex: 1; }
-
-  .clientGrid { grid-template-columns: 1fr; }
 
   .formRow { flex-direction: column; }
 
@@ -706,9 +2365,733 @@
   .modalHeader { padding: 20px 20px 14px; }
 
   .pagination { gap: 12px; }
+
+  /* Progress View Mobile */
+  .progressInlineCard {
+    margin-top: 12px;
+    border-radius: 12px;
+  }
+
+  .progressMetricsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    padding: 0 0 12px;
+    gap: 8px;
+  }
+
+  .progressMetricChip {
+    flex-basis: unset;
+    padding: 10px 12px;
+  }
+
+  .progressMetricKey {
+    font-size: 9px;
+  }
+
+  .progressMetricVal {
+    font-size: 13px;
+  }
+
+  .progressDetailsGrid {
+    grid-template-columns: 1fr;
+    padding: 0 0 14px;
+    gap: 8px;
+  }
+
+  .progressNotesRow {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .progressBeforeAfterVal {
+    font-size: 18px;
+  }
+
+  .progressWeightEntry {
+    grid-template-columns: 74px 76px minmax(58px, auto);
+  }
+
+  .progressAiBlock {
+    padding: 16px 18px;
+  }
+
+  .progressAiTag {
+    font-size: 9px;
+  }
+
+  .progressAiAction {
+    font-size: 13px;
+  }
+
+  .progressAiReason {
+    font-size: 12px;
+  }
+
+  .progressSheetFooter {
+    padding: 14px 16px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .cancelBtn,
+  .saveBtn {
+    padding: 10px 16px;
+    font-size: 13px;
+    flex: 1;
+    min-width: 120px;
+    justify-content: center;
+  }
+
+  .progressSheetMainGrid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .progressSheetMainGrid .progressSheetSection {
+    border-right: none;
+    border-bottom: 1px solid #f5f5f7;
+  }
+
+  .progressSheetMainGrid .progressSheetSection:last-child {
+    border-bottom: none;
+  }
+
+  .progressSheetSection {
+    padding: 16px 18px;
+  }
+
+  .progressSheetSectionTitle {
+    font-size: 9.5px;
+    margin-bottom: 10px;
+  }
+
+  .progressSheetColumn {
+    gap: 8px;
+  }
+
+  .progressSheetKv {
+    padding: 10px 12px;
+    border-radius: 8px;
+  }
+
+  .progressSheetKey {
+    font-size: 9.5px;
+  }
+
+  .progressSheetVal {
+    font-size: 14px;
+  }
+
+  .progressSheetMessage {
+    padding: 12px;
+    margin-top: 10px;
+    border-radius: 8px;
+  }
+
+  .progressSheetMessageText {
+    font-size: 12.5px;
+  }
+
+  .progressSheetHistoryTable {
+    border-radius: 8px;
+  }
+
+  .progressSheetHistoryRow {
+    padding: 9px 12px;
+    gap: 8px;
+  }
+
+  .progressSheetHistoryDate {
+    font-size: 11.5px;
+  }
+
+  .progressSheetHistoryWeight {
+    font-size: 13px;
+  }
+
+  .latestLabel {
+    font-size: 9px;
+    padding: 2px 5px;
+    margin-left: 4px;
+  }
+
+  .progressSheetDiffDown,
+  .progressSheetDiffUp,
+  .progressSheetDiffNeutral {
+    font-size: 11px;
+    padding: 3px 7px;
+    min-width: 48px;
+  }
+
+  .progressSheetAiGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .progressSheetAiContinue,
+  .progressSheetAiRegen {
+    padding: 18px 20px;
+    border-right: none;
+    border-bottom: 1px solid #1a1a1a;
+  }
+
+  .progressSheetAiGrid > *:last-child {
+    border-bottom: none;
+  }
+
+  .progressOptimalBanner {
+    margin: 0 0 16px;
+    padding: 14px 16px;
+  }
+
+  .progressSheetAiTop {
+    gap: 12px;
+  }
+
+  .progressSheetAiIcon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .progressSheetAiLabel {
+    font-size: 12.5px;
+  }
+
+  .progressSheetAiReason {
+    font-size: 12px;
+  }
+
+  .progressSheetAiCalRow {
+    margin-top: 12px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .progressSheetFooter {
+    padding: 16px 18px;
+    gap: 8px;
+  }
+
+  .cancelBtn,
+  .saveBtn {
+    padding: 9px 16px;
+    font-size: 12.5px;
+    flex: 1;
+  }
 }
 
 @media (max-width: 480px) {
-  .content { padding: 20px 14px 40px; }
+  .content {
+    padding: 20px max(20px, env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left));
+  }
   .addBtn span { display: none; }
+
+  .progressSheetSection {
+    padding: 14px 16px;
+  }
+
+  .progressSheetKv {
+    padding: 9px 11px;
+  }
+
+  .progressSheetHistoryRow {
+    padding: 8px 11px;
+  }
+
+  .progressSheetAiContinue,
+  .progressSheetAiRegen {
+    padding: 16px 18px;
+  }
+
+  .progressOptimalBanner {
+    margin: 0 0 14px;
+    padding: 12px 14px;
+  }
+
+  .progressSheetFooter {
+    padding: 14px 16px;
+    flex-direction: column;
+  }
+
+  .cancelBtn,
+  .saveBtn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Plan Ready Toast ─────────────────────────────────────── */
+.planReadyToast {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px 24px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  z-index: 1100;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: planToastIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.planReadyToast.hiding {
+  animation: planToastOut 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes planToastIn {
+  from { opacity: 0; transform: translateX(40px) scale(0.95); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes planToastOut {
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(40px) scale(0.95); }
+}
+
+.planToastHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.planToastTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+}
+
+.planToastIcon {
+  width: 28px;
+  height: 28px;
+  background: linear-gradient(135deg, #b7ff00, #9be000);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.planToastClose {
+  width: 26px;
+  height: 26px;
+  background: #f5f5f7;
+  border: none;
+  border-radius: 50%;
+  font-size: 12px;
+  color: #86868b;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.planToastClose:hover {
+  background: #e8e8ed;
+  color: #1d1d1f;
+}
+
+
+/* Zone 1 — Client header */
+.progressZone1 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.progressZ1Left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.progressAvatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: #0a0a0a;
+  color: #b7ff00;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: -0.5px;
+}
+
+.progressZ1Info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.progressZ1Name {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.3px;
+}
+
+.progressZ1Sub {
+  margin: 0;
+  font-size: 12.5px;
+  color: #86868b;
+  font-weight: 400;
+}
+
+.progressZ1Stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.progressWeightLine {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.progressWeightLabel {
+  font-size: 9.5px;
+  font-weight: 600;
+  color: #86868b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.progressWeightValues {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.progressWeightInit {
+  font-size: 13px;
+  color: #86868b;
+  font-weight: 500;
+}
+
+.progressWeightArrow {
+  font-size: 13px;
+  color: #86868b;
+}
+
+.progressWeightCurrent {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1d1d1f;
+  letter-spacing: -0.2px;
+}
+
+.progressDeltaGood {
+  font-size: 12px;
+  font-weight: 700;
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.progressDeltaBad {
+  font-size: 12px;
+  font-weight: 700;
+  color: #dc2626;
+  background: rgba(220, 38, 38, 0.08);
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.progressDeltaNeutral {
+  font-size: 12px;
+  font-weight: 700;
+  color: #86868b;
+  background: #f5f5f7;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.progressWeekDelta {
+  font-size: 11px;
+  color: #86868b;
+  font-weight: 500;
+}
+
+.progressZ1Meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.progressMetaItem {
+  font-size: 11.5px;
+  color: #86868b;
+  font-weight: 500;
+}
+
+.progressStatusBadge {
+  background: rgba(22, 163, 74, 0.1);
+  color: #16a34a;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* Body layout — 2 cols: zone2 (feedback) left, zone3 (recs) right */
+.progressBodyLayout {
+  display: grid;
+  grid-template-columns: 1fr 1.45fr;
+  gap: 14px;
+  align-items: start;
+}
+
+/* Zone 2 — feedback cards stacked */
+.progressZone2 {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.progressFeedbackCard {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.progressCardTitle {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d1d1f;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: -0.1px;
+}
+
+.progressCardIcon {
+  font-size: 14px;
+}
+
+.progressKvGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+/* Zone 3 — recommendation cards stacked */
+.progressZone3 {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.progressRecCard {
+  background: #0a0a0a;
+  border: 1px solid #1e1e1e;
+  border-radius: 14px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.progressRecTag {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #5a5a5a;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+
+.progressRecStatus {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.progressRecStatusOk {
+  background: rgba(183, 255, 0, 0.1);
+  color: #b7ff00;
+}
+
+.progressRecStatusRegen {
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
+}
+
+.progressRecReason {
+  margin: 0;
+  font-size: 12.5px;
+  color: #a0a0a0;
+  line-height: 1.55;
+  font-weight: 500;
+}
+
+.progressRecActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.progressPrimaryBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 18px;
+  background: #b7ff00;
+  color: #0a0a0a;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.1px;
+}
+
+.progressPrimaryBtn:hover {
+  background: #c8ff2d;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(183, 255, 0, 0.3);
+}
+
+.progressPrimaryBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.progressSecondaryBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 9px 18px;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  border: 1px solid #2a2a2a;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.progressSecondaryBtn:hover {
+  background: #222;
+  border-color: #3a3a3a;
+}
+
+.progressSecondaryBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.progressOutlineBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 18px;
+  background: transparent;
+  color: #555;
+  border: 1px solid #222;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.progressOutlineBtn:hover {
+  border-color: #444;
+  color: #a0a0a0;
+}
+
+.progressOutlineBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .progressBodyLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .progressZone1 {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .progressZ1Stats {
+    align-items: flex-start;
+    width: 100%;
+  }
+
+  .progressWeightLine {
+    align-items: flex-start;
+  }
+
+  .progressZ1Meta {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .progressZone1 {
+    padding: 12px 14px;
+  }
+
+  .progressKvGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+
+  .progressFeedbackCard,
+  .progressRecCard {
+    border-radius: 12px;
+    padding: 12px 14px;
+  }
+}
+
+.planToastBody {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+}
+
+.planToastBody strong {
+  color: #1d1d1f;
 }
