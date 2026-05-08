@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { reserveMonthlyClientUsage } from '@/app/lib/clientUsage';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,14 @@ export async function POST(request) {
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'client-usage-record',
+    maxRequests: 60,
+    windowMinutes: 10,
+  });
+  if (rateLimit) return rateLimit;
 
   if (auth.role !== 'trainer') {
     return NextResponse.json({ error: 'Doar antrenorii pot consuma locuri de client.' }, { status: 403 });

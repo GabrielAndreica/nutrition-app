@@ -1,7 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+import { getJwtSecret } from '@/app/lib/jwtSecret';
 
 /**
  * Verifică token-ul JWT din header-ul Authorization.
@@ -21,13 +20,19 @@ export function verifyToken(request) {
   const rawToken = authHeader.substring(7);
 
   try {
-    const decoded = jwt.verify(rawToken, JWT_SECRET);
+    const decoded = jwt.verify(rawToken, getJwtSecret());
     return {
       userId: String(decoded.userId || decoded.id || decoded.sub),
       email: decoded.email || null,
       role: decoded.role || null,
     };
-  } catch (err) {
+  } catch (configError) {
+    if (configError.message?.includes('JWT_SECRET')) {
+      console.error('[Auth] JWT configuration error:', configError.message);
+      return { error: 'Configurarea autentificării este invalidă.', status: 500 };
+    }
+
+    const err = configError;
     if (err.name === 'TokenExpiredError') {
       // Extrage datele din token fără verificare pentru log
       const decoded = jwt.decode(rawToken);

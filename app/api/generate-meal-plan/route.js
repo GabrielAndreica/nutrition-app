@@ -5,6 +5,8 @@ import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { checkSubscription } from '@/app/lib/checkSubscription';
 import { reserveMonthlyClientUsage } from '@/app/lib/clientUsage';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
+import { requestQueue, generateRequestId } from '@/app/lib/rateLimiter';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -1710,6 +1712,15 @@ export async function POST(request) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
 
+    const rateLimit = await enforceRateLimit(request, {
+      userId: auth.userId,
+      endpoint: 'generate-meal-plan',
+      maxRequests: 20,
+      windowMinutes: 60,
+      failClosed: true,
+    });
+    if (rateLimit) return rateLimit;
+
     // ── Subscription check (live from DB — JWT can be stale) ─────────────
     let subscription = null;
     if (auth.role === 'trainer') {
@@ -1983,32 +1994,38 @@ export async function POST(request) {
 
     let weeklySelection;
 
-    if (isProgressRegeneration) {
-      // Regenerare bazată pe progres — folosim promptul specializat
-      let previousPlanDays = [];
-      if (clientData.clientId) {
-        try {
-          const supabasePrev = getSupabase();
-          const { data: prevPlan } = await supabasePrev
-            .from('meal_plans')
-            .select('plan_data')
-            .eq('client_id', clientData.clientId)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .single();
-          if (prevPlan?.plan_data?.days) {
-            previousPlanDays = prevPlan.plan_data.days;
-          }
-        } catch { /* non-critical */ }
+    const aiSelectionRequestId = generateRequestId();
+    await requestQueue.waitForSlot(aiSelectionRequestId);
+    try {
+      if (isProgressRegeneration) {
+        // Regenerare bazată pe progres — folosim promptul specializat
+        let previousPlanDays = [];
+        if (clientData.clientId) {
+          try {
+            const supabasePrev = getSupabase();
+            const { data: prevPlan } = await supabasePrev
+              .from('meal_plans')
+              .select('plan_data')
+              .eq('client_id', clientData.clientId)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single();
+            if (prevPlan?.plan_data?.days) {
+              previousPlanDays = prevPlan.plan_data.days;
+            }
+          } catch { /* non-critical */ }
+        }
+        weeklySelection = await selectRecipesWithAIFromProgress(
+          eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs,
+          clientData.progress, previousPlanDays
+        );
+        console.log(`[generate] Selecție AI (progres) completă: ${weeklySelection.length} zile`);
+      } else {
+        weeklySelection = await selectRecipesWithAI(eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs);
+        console.log(`[generate] Selecție AI completă: ${weeklySelection.length} zile`);
       }
-      weeklySelection = await selectRecipesWithAIFromProgress(
-        eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs,
-        clientData.progress, previousPlanDays
-      );
-      console.log(`[generate] Selecție AI (progres) completă: ${weeklySelection.length} zile`);
-    } else {
-      weeklySelection = await selectRecipesWithAI(eligibleRecipes, clientData, targets, mealDistForPlan, parsedPrefs);
-      console.log(`[generate] Selecție AI completă: ${weeklySelection.length} zile`);
+    } finally {
+      requestQueue.releaseSlot();
     }
     sendEvent({ type: 'progress', phase: 'meal', day: 0, total: 7, progress: 32, message: 'Rețetele au fost selectate. Construim zilele...' });
 

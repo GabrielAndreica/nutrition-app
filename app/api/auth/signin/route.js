@@ -3,13 +3,8 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeEmail } from '@/app/lib/sanitize';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-
-// Rate limiting bazat pe DB (funcționează cu orice număr de instanțe serverless)
-// loginAttempts Map in-memory NU este folosit în producție — e înlocuit cu check_rate_limit RPC
-const MAX_ATTEMPTS = 10;
-const LOCKOUT_TIME = 15 * 60 * 1000; // 15 minutes in milliseconds
+import { getJwtSecret } from '@/app/lib/jwtSecret';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 const validateEmail = (email) => {
   if (!email) return 'Adresa de email este obligatorie';
@@ -71,24 +66,23 @@ export async function POST(request) {
       );
     }
 
-    // Rate limiting bazat pe DB — funcționează cross-instance (scalabil)
-    try {
-      const { data: rl } = await supabase.rpc('check_rate_limit', {
-        p_user_id: email.toLowerCase(),
-        p_endpoint: 'auth-signin',
-        p_max_requests: 10,
-        p_window_minutes: 15,
-      });
-      if (rl?.[0]?.allowed === false) {
-        const mins = Math.ceil((new Date(rl[0].reset_at) - new Date()) / 60000);
-        await logActivity({ action: 'auth.signin', status: 'blocked', email, ipAddress: ip, userAgent, details: { reason: 'rate_limited' } });
-        return new Response(
-          JSON.stringify({ error: `Prea multe încercări eșuate. Încearcă din nou în ${mins} minute.`, code: 'RATE_LIMITED' }),
-          { status: 429, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-    } catch (rlErr) {
-      console.error('[signin] rate-limit error:', rlErr);
+    const ipLimit = await enforceRateLimit(request, {
+      identifier: `ip:${ip}`,
+      endpoint: 'auth-signin-ip',
+      maxRequests: 30,
+      windowMinutes: 15,
+    });
+    if (ipLimit) return ipLimit;
+
+    const emailLimit = await enforceRateLimit(request, {
+      identifier: `email:${email.toLowerCase()}`,
+      endpoint: 'auth-signin-email',
+      maxRequests: 10,
+      windowMinutes: 15,
+    });
+    if (emailLimit) {
+      await logActivity({ action: 'auth.signin', status: 'blocked', email, ipAddress: ip, userAgent, details: { reason: 'rate_limited' } });
+      return emailLimit;
     }
 
     // Get user from database
@@ -157,7 +151,7 @@ export async function POST(request) {
         subscription_plan: user.subscription_plan || null,
         trial_ends_at: user.trial_ends_at || null,
       },
-      JWT_SECRET,
+      getJwtSecret(),
       { expiresIn: '7d' }
     );
 

@@ -8,6 +8,7 @@ import { NextRequest } from 'next/server';
 
 const mockUpdate = jest.fn();
 const mockEq     = jest.fn();
+const mockIs     = jest.fn();
 const mockSelect = jest.fn();
 
 jest.mock('@/app/lib/supabase', () => ({
@@ -26,9 +27,10 @@ const PARAMS = { params: Promise.resolve({ id: 'uuid-client-1' }) };
 
 beforeEach(() => {
   jest.clearAllMocks();
-  // chain: .update().eq().select() → { data: [{id, has_new_progress}], error: null }
+  // chain: .update().eq().is().select() → { data: [{id, has_new_progress}], error: null }
   mockSelect.mockResolvedValue({ data: [{ id: 'uuid-client-1', has_new_progress: false }], error: null });
-  mockEq.mockReturnValue({ select: mockSelect });
+  mockIs.mockReturnValue({ select: mockSelect });
+  mockEq.mockReturnValue({ is: mockIs });
   mockUpdate.mockReturnValue({ eq: mockEq });
 });
 

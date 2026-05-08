@@ -4,8 +4,7 @@ import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeName, sanitizeText } from '@/app/lib/sanitize';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+import { getJwtSecret } from '@/app/lib/jwtSecret';
 
 // POST /api/activate — activează contul clientului
 export async function POST(request) {
@@ -234,7 +233,7 @@ export async function POST(request) {
       name: newUser.name,
       role: 'client'
     },
-    JWT_SECRET,
+    getJwtSecret(),
     { expiresIn: '7d' }
   );
 

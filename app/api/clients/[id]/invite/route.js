@@ -29,7 +29,7 @@ params }) {
     if (rateLimitError) {
       console.error('Rate limit check error:', rateLimitError);
     } else if (rateLimitResult && rateLimitResult.length > 0) {
-      const { allowed, remaining, reset_at } = rateLimitResult[0];
+      const { allowed, reset_at } = rateLimitResult[0];
       
       if (!allowed) {
         const resetDate = new Date(reset_at);
@@ -204,13 +204,58 @@ params }) {
     if (sendError) {
       console.error('[Resend] Eroare la trimitere:', JSON.stringify(sendError));
       emailError = sendError.message || JSON.stringify(sendError);
+      await logActivity({
+        action: 'email.client_invite_send',
+        status: 'error',
+        userId: auth.userId,
+        email: auth.email,
+        ipAddress: ip,
+        userAgent,
+        details: {
+          provider: 'resend',
+          clientId: id,
+          clientEmail: email,
+          invitationId: invitation.id,
+          error: emailError,
+        },
+      });
     } else {
       emailSent = true;
       console.log('[Resend] Email trimis cu succes, ID:', emailData?.id);
+      await logActivity({
+        action: 'email.client_invite_send',
+        status: 'success',
+        userId: auth.userId,
+        email: auth.email,
+        ipAddress: ip,
+        userAgent,
+        details: {
+          provider: 'resend',
+          clientId: id,
+          clientEmail: email,
+          invitationId: invitation.id,
+          messageId: emailData?.id || null,
+        },
+      });
     }
   } catch (emailErr) {
     console.error('[Resend] Excepție:', emailErr?.message || emailErr);
     emailError = emailErr?.message || 'Eroare necunoscută';
+    await logActivity({
+      action: 'email.client_invite_send',
+      status: 'error',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: {
+        provider: 'resend',
+        clientId: id,
+        clientEmail: email,
+        invitationId: invitation.id,
+        error: emailError,
+      },
+    });
   }
 
   logActivity({
@@ -224,7 +269,8 @@ params }) {
       clientId: id, 
       clientName: client.name,
       clientEmail: email,
-      invitationId: invitation.id 
+      invitationId: invitation.id,
+      emailSent,
     },
   });
 

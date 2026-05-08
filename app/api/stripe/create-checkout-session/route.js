@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { getStripe, getStripePriceId } from '@/app/lib/stripe';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -17,6 +19,15 @@ export async function POST(request) {
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
+  const { ip, userAgent } = getRequestMeta(request);
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'stripe-create-checkout-session',
+    maxRequests: 10,
+    windowMinutes: 10,
+  });
+  if (rateLimit) return rateLimit;
 
   let body;
   try {
@@ -27,11 +38,29 @@ export async function POST(request) {
 
   const planType = String(body?.planType || '').toLowerCase();
   if (!VALID_PLANS.has(planType)) {
+    await logActivity({
+      action: 'billing.checkout_create',
+      status: 'failure',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: { reason: 'invalid_plan', planType },
+    });
     return NextResponse.json({ error: 'Plan invalid.' }, { status: 400 });
   }
 
   const priceId = getStripePriceId(planType);
   if (!priceId) {
+    await logActivity({
+      action: 'billing.checkout_create',
+      status: 'error',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: { reason: 'missing_price_id', planType, envVar: PRICE_ENV_BY_PLAN[planType] },
+    });
     return NextResponse.json({
       error: `Lipsește variabila ${PRICE_ENV_BY_PLAN[planType]} din .env.local.`,
     }, { status: 500 });
@@ -45,10 +74,28 @@ export async function POST(request) {
     .single();
 
   if (userError || !user) {
+    await logActivity({
+      action: 'billing.checkout_create',
+      status: 'failure',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: { reason: 'user_not_found', planType },
+    });
     return NextResponse.json({ error: 'Utilizatorul nu a fost găsit.' }, { status: 404 });
   }
 
   if (user.role !== 'trainer') {
+    await logActivity({
+      action: 'billing.checkout_create',
+      status: 'blocked',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: { reason: 'non_trainer_role', planType, role: user.role },
+    });
     return NextResponse.json({ error: 'Doar antrenorii pot activa abonamente.' }, { status: 403 });
   }
 
@@ -73,8 +120,27 @@ export async function POST(request) {
         .eq('id', user.id);
 
       if (updateError) {
+        await logActivity({
+          action: 'billing.customer_create',
+          status: 'error',
+          userId: user.id,
+          email: user.email,
+          ipAddress: ip,
+          userAgent,
+          details: { customerId, error: updateError.message },
+        });
         return NextResponse.json({ error: 'Nu am putut salva clientul Stripe.' }, { status: 500 });
       }
+
+      await logActivity({
+        action: 'billing.customer_create',
+        status: 'success',
+        userId: user.id,
+        email: user.email,
+        ipAddress: ip,
+        userAgent,
+        details: { customerId },
+      });
     }
 
     const session = await stripe.checkout.sessions.create({
@@ -102,9 +168,28 @@ export async function POST(request) {
       },
     });
 
+    await logActivity({
+      action: 'billing.checkout_create',
+      status: 'success',
+      userId: user.id,
+      email: user.email,
+      ipAddress: ip,
+      userAgent,
+      details: { planType, sessionId: session.id, customerId },
+    });
+
     return NextResponse.json({ url: session.url });
   } catch (error) {
     console.error('[stripe:create-checkout-session]', error);
+    await logActivity({
+      action: 'billing.checkout_create',
+      status: 'error',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: { planType, error: error.message },
+    });
     return NextResponse.json({ error: 'Nu am putut crea sesiunea de plată.' }, { status: 500 });
   }
 }

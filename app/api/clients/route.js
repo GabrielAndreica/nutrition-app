@@ -79,7 +79,7 @@ export async function GET(request) {
     if (rateLimitError) {
       console.error('Rate limit check error:', rateLimitError);
     } else if (rateLimitResult && rateLimitResult.length > 0) {
-      const { allowed, remaining } = rateLimitResult[0];
+      const { allowed } = rateLimitResult[0];
       
       if (!allowed) {
         return NextResponse.json(
@@ -225,7 +225,7 @@ export async function POST(request) {
     if (rateLimitError) {
       console.error('Rate limit check error:', rateLimitError);
     } else if (rateLimitResult && rateLimitResult.length > 0) {
-      const { allowed, remaining, reset_at } = rateLimitResult[0];
+      const { allowed, reset_at } = rateLimitResult[0];
       
       if (!allowed) {
         const resetDate = new Date(reset_at);

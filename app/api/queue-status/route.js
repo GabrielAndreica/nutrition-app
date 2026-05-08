@@ -1,11 +1,26 @@
 import { NextResponse } from 'next/server';
 import { requestQueue } from '@/app/lib/rateLimiter';
+import { verifyToken } from '@/app/lib/verifyToken';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 /**
  * GET /api/queue-status
  * Returnează statisticile curente ale queue-ului
  */
 export async function GET(request) {
+  const auth = verifyToken(request);
+  if (auth.error) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
+  }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'queue-status',
+    maxRequests: 120,
+    windowMinutes: 1,
+  });
+  if (rateLimit) return rateLimit;
+
   try {
     const stats = requestQueue.getStats();
     

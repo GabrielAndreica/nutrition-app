@@ -70,20 +70,7 @@ function SkeletonMealPlan() {
 function MealPlanViewContent() {
   const router = useRouter();
   const { id } = useParams();
-
-  // Dacă legacy routes nu sunt permise, redirecționează imediat
-  if (!FEATURES.ALLOW_LEGACY_ROUTES) {
-    useEffect(() => {
-      router.replace(getDefaultRedirectURL());
-    }, [router]);
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '18px', color: '#666' }}>Redirecționare...</div>
-        </div>
-      </div>
-    );
-  }
+  const legacyRoutesAllowed = FEATURES.ALLOW_LEGACY_ROUTES;
 
   const [mealPlan, setMealPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
@@ -99,6 +86,13 @@ function MealPlanViewContent() {
   const [viewingProgressClientId, setViewingProgressClientId] = useState(null);
   const fetchedRef = useRef(false);
   const abortControllerRef = useRef(null);
+
+  useEffect(() => {
+    if (!legacyRoutesAllowed) {
+      router.replace(getDefaultRedirectURL());
+    }
+  }, [legacyRoutesAllowed, router]);
+
   const resolveWorkoutPlanId = async (clientId, token, maxAttempts = 4) => {
     if (!clientId || !token) return null;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -123,6 +117,7 @@ function MealPlanViewContent() {
 
   // Funcție pentru a reîncărca datele clientului
   const refreshClientData = async () => {
+    if (!legacyRoutesAllowed) return;
     if (!id) return;
     const token = localStorage.getItem('token');
     if (!token) return;
@@ -156,6 +151,7 @@ function MealPlanViewContent() {
   };
 
   useEffect(() => {
+    if (!legacyRoutesAllowed) return;
     if (!id) return;
     if (fetchedRef.current) return; // previne dubla execuție din React Strict Mode
     fetchedRef.current = true;
@@ -215,7 +211,7 @@ function MealPlanViewContent() {
       clearTimeout(timeoutId);
       abortController.abort();
     };
-  }, [id]);
+  }, [id, legacyRoutesAllowed]);
 
   // Oprește regenerarea dacă utilizatorul navighează
   useEffect(() => {
@@ -224,6 +220,7 @@ function MealPlanViewContent() {
 
   useEffect(() => {
     const fetchWorkoutPlanId = async () => {
+      if (!legacyRoutesAllowed) return;
       if (!clientData?.clientId) return;
       const token = localStorage.getItem('token');
       if (!token) return;
@@ -237,7 +234,7 @@ function MealPlanViewContent() {
     };
 
     fetchWorkoutPlanId();
-  }, [clientData?.clientId]);
+  }, [clientData?.clientId, legacyRoutesAllowed]);
 
   const handleOpenWorkoutPlan = async () => {
     let targetWorkoutPlanId = workoutPlanId;
@@ -258,6 +255,7 @@ function MealPlanViewContent() {
   };
 
   const handleRegenerate = async (progressData) => {
+    if (!legacyRoutesAllowed) return;
     if (!clientData) return;
     abortControllerRef.current?.abort();
     const abortController = new AbortController();
@@ -363,6 +361,16 @@ function MealPlanViewContent() {
       setRegenerating(false);
     }
   };
+
+  if (!legacyRoutesAllowed) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', color: '#666' }}>Redirecționare...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>

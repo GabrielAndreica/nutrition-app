@@ -91,7 +91,6 @@ export default function LandingPage() {
               <li><span className={styles.bullet}>✓</span> Plan alimentar de 7 zile cu rețete reale</li>
               <li><span className={styles.bullet}>✓</span> Macro-uri și calorii calculate automat</li>
               <li><span className={styles.bullet}>✓</span> Plan de antrenament adaptat nivelului</li>
-              <li><span className={styles.bullet}>✓</span> Export PDF cu branding propriu</li>
             </ul>
           </div>
         </div>
@@ -147,7 +146,6 @@ export default function LandingPage() {
         <div className={styles.pricingInner}>
           <p className={styles.sectionLabel} style={{ textAlign: 'center' }}>Prețuri</p>
           <h2 className={styles.sectionTitle} style={{ textAlign: 'center' }}>Simplu. Transparent. Fără surprize.</h2>
-          <div className={styles.launchBanner}><div><strong>Launch Offer</strong> — Primii 10 antrenori primesc Starter la <span className={styles.accent}>99 RON/lună</span> pentru primele 3 luni.</div></div>
           <div className={styles.pricingGrid}>
             <div className={styles.pricingCard}>
               <h3 className={styles.planName}>Starter</h3>
@@ -168,7 +166,6 @@ export default function LandingPage() {
               <ul className={styles.planFeatures}>
                 <li><span className={styles.checkAccent}>✓</span> Până la 30 clienți activi</li>
                 <li><span className={styles.checkAccent}>✓</span> Tot ce e în Starter</li>
-                <li><span className={styles.checkAccent}>✓</span> Export PDF cu branding propriu</li>
                 <li><span className={styles.checkAccent}>✓</span> Suport prioritar</li>
               </ul>
               <Link href="/auth" className={styles.planCtaAccent}>Începe gratuit 14 zile →</Link>
@@ -196,7 +193,6 @@ export default function LandingPage() {
           <Link href="/termeni-si-conditii" className={styles.footerLink}>Termeni și condiții</Link>
           <Link href="/politica-de-confidentialitate" className={styles.footerLink}>Politica de confidențialitate</Link>
           <Link href="/politica-cookies" className={styles.footerLink}>Politica Cookies</Link>
-          <Link href="/copyright" className={styles.footerLink}>Copyright</Link>
           <Link href="/auth" className={styles.footerLink}>Autentificare</Link>
         </div>
       </footer>

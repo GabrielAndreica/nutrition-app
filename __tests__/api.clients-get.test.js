@@ -8,6 +8,7 @@ import { makeRequest, makeClient } from './helpers';
 const mockRange  = jest.fn();
 const mockOrder  = jest.fn();
 const mockIlike  = jest.fn();
+const mockIs     = jest.fn();
 const mockEq     = jest.fn();
 const mockSelect = jest.fn();
 const mockRpc    = jest.fn();
@@ -17,7 +18,7 @@ const mockPlansLimit = jest.fn();
 jest.mock('@/app/lib/supabase', () => ({
   getSupabase: () => ({
     from: (table) => {
-      if (table === 'meal_plans') {
+      if (table === 'meal_plans' || table === 'workout_plans') {
         return {
           select:  jest.fn().mockReturnValue({
             eq:    jest.fn().mockReturnValue({
@@ -57,7 +58,7 @@ beforeEach(() => {
   mockRpc.mockResolvedValue({ data: [{ allowed: true, remaining: 999 }], error: null });
   mockPlansLimit.mockResolvedValue({ data: [], error: null });
 
-  // Chain: select().eq().order().range()
+  // Chain: select().eq().is().order().range()
   mockRange.mockResolvedValue({
     data: [makeClient({ has_new_progress: true })],
     error: null,
@@ -65,7 +66,8 @@ beforeEach(() => {
   });
   mockOrder.mockReturnValue({ range: mockRange, ilike: mockIlike });
   mockIlike.mockReturnValue({ range: mockRange });
-  mockEq.mockReturnValue({ order: mockOrder });
+  mockIs.mockReturnValue({ order: mockOrder });
+  mockEq.mockReturnValue({ is: mockIs });
   mockSelect.mockReturnValue({ eq: mockEq });
 });
 

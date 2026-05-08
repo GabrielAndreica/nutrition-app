@@ -135,7 +135,6 @@ function UpgradeContent() {
             <li className={styles.feature}><span className={styles.check}>✓</span> Până la <strong>30 de clienți</strong></li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Tot ce include Starter</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Statistici avansate</li>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Branding personalizat</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Suport prioritar</li>
           </ul>
           <button className={styles.btnAccent} onClick={() => handlePlanClick('pro')} disabled={loadingPlan !== null}>

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { getStripe, getPlanTypeFromPriceId } from '@/app/lib/stripe';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,10 +32,13 @@ async function updateUserByCustomer(customerId, updates) {
   return getSupabase()
     .from('users')
     .update(updates)
-    .eq('stripe_customer_id', customerId);
+    .eq('stripe_customer_id', customerId)
+    .select('id, email, subscription_status, subscription_plan')
+    .maybeSingle();
 }
 
 export async function POST(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) {
     return NextResponse.json({ error: 'Webhook secret lipsă.' }, { status: 500 });
@@ -53,6 +57,13 @@ export async function POST(request) {
     event = stripe.webhooks.constructEvent(rawBody, signature, webhookSecret);
   } catch (err) {
     console.error('[stripe:webhook] invalid signature', err.message);
+    await logActivity({
+      action: 'stripe.webhook',
+      status: 'blocked',
+      ipAddress: ip,
+      userAgent,
+      details: { reason: 'invalid_signature', error: err.message },
+    });
     return NextResponse.json({ error: 'Semnătură Stripe invalidă.' }, { status: 400 });
   }
 
@@ -87,18 +98,49 @@ export async function POST(request) {
         .eq('id', userId);
 
       if (error) throw error;
+
+      await logActivity({
+        action: 'billing.subscription_activated',
+        status: 'success',
+        userId,
+        ipAddress: ip,
+        userAgent,
+        details: {
+          source: 'stripe_webhook',
+          eventId: event.id,
+          sessionId: session.id,
+          customerId,
+          subscriptionId,
+          planType: verifiedPlanType,
+        },
+      });
     }
 
     if (event.type === 'customer.subscription.deleted') {
       const subscription = event.data.object;
       const customerId = stripeId(subscription.customer);
 
-      const { error } = await updateUserByCustomer(customerId, {
+      const { data: user, error } = await updateUserByCustomer(customerId, {
         subscription_status: 'cancelled',
         subscription_id: null,
       });
 
       if (error) throw error;
+
+      await logActivity({
+        action: 'billing.subscription_cancelled',
+        status: 'success',
+        userId: user?.id || null,
+        email: user?.email || null,
+        ipAddress: ip,
+        userAgent,
+        details: {
+          source: 'stripe_webhook',
+          eventId: event.id,
+          customerId,
+          subscriptionId: subscription.id,
+        },
+      });
     }
 
     if (event.type === 'customer.subscription.updated') {
@@ -121,8 +163,25 @@ export async function POST(request) {
       }
 
       if (Object.keys(updates).length > 0) {
-        const { error } = await updateUserByCustomer(customerId, updates);
+        const { data: user, error } = await updateUserByCustomer(customerId, updates);
         if (error) throw error;
+
+        await logActivity({
+          action: 'billing.subscription_updated',
+          status: 'success',
+          userId: user?.id || null,
+          email: user?.email || null,
+          ipAddress: ip,
+          userAgent,
+          details: {
+            source: 'stripe_webhook',
+            eventId: event.id,
+            customerId,
+            subscriptionId: subscription.id,
+            stripeStatus: subscription.status,
+            updates,
+          },
+        });
       }
     }
 
@@ -130,11 +189,25 @@ export async function POST(request) {
       const invoice = event.data.object;
       const customerId = stripeId(invoice.customer);
 
-      const { error } = await updateUserByCustomer(customerId, {
+      const { data: user, error } = await updateUserByCustomer(customerId, {
         subscription_status: 'expired',
       });
 
       if (error) throw error;
+      await logActivity({
+        action: 'billing.payment_failed',
+        status: 'success',
+        userId: user?.id || null,
+        email: user?.email || null,
+        ipAddress: ip,
+        userAgent,
+        details: {
+          source: 'stripe_webhook',
+          eventId: event.id,
+          invoiceId: invoice.id,
+          customerId,
+        },
+      });
       console.warn('[stripe:webhook] invoice.payment_failed', {
         invoiceId: invoice.id,
         customerId,
@@ -144,6 +217,13 @@ export async function POST(request) {
     return NextResponse.json({ received: true });
   } catch (err) {
     console.error('[stripe:webhook] handler failed', err);
+    await logActivity({
+      action: 'stripe.webhook',
+      status: 'error',
+      ipAddress: ip,
+      userAgent,
+      details: { eventId: event?.id || null, eventType: event?.type || null, error: err.message },
+    });
     return NextResponse.json({ error: 'Webhook processing failed.' }, { status: 500 });
   }
 }

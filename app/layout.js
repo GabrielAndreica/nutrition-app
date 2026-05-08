@@ -1,6 +1,7 @@
 import { Inter, Space_Grotesk } from "next/font/google";
 import { AuthProvider } from "./contexts/AuthContext";
 import ExternalNavigationReloadGuard from "./components/ExternalNavigationReloadGuard";
+import CookieConsentBanner from "./components/CookieConsentBanner";
 import "./globals.css";
 
 const inter = Inter({
@@ -24,9 +25,9 @@ export const metadata = {
   keywords: ['nutriție', 'planuri alimentare', 'antrenori', 'fitness', 'dieta'],
   authors: [{ name: 'trevano' }],
   icons: {
-    icon: '/favicon.svg',
-    apple: '/favicon.svg',
-    shortcut: '/favicon.svg',
+    icon: '/favicon-patrat-verde.svg',
+    apple: '/favicon-patrat-verde.svg',
+    shortcut: '/favicon-patrat-verde.svg',
   },
   robots: {
     index: true,
@@ -57,6 +58,7 @@ export default function RootLayout({ children }) {
         <AuthProvider>
           <ExternalNavigationReloadGuard />
           {children}
+          <CookieConsentBanner />
         </AuthProvider>
       </body>
     </html>

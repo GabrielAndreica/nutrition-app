@@ -2,9 +2,9 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
-import { logActivity } from '@/app/lib/logger';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { getJwtSecret } from '@/app/lib/jwtSecret';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 export async function POST(request) {
   let body;
@@ -15,22 +15,31 @@ export async function POST(request) {
   }
 
   const { token, newPassword } = body;
+  const { ip, userAgent } = getRequestMeta(request);
 
   if (!token) return NextResponse.json({ error: 'Token lipsă.' }, { status: 400 });
   if (!newPassword || newPassword.length < 8) {
     return NextResponse.json({ error: 'Parola trebuie să aibă cel puțin 8 caractere.' }, { status: 400 });
   }
 
+  const rateLimit = await enforceRateLimit(request, {
+    identifier: `ip:${ip}`,
+    endpoint: 'auth-reset-password',
+    maxRequests: 10,
+    windowMinutes: 15,
+  });
+  if (rateLimit) return rateLimit;
+
   let payload;
   try {
-    payload = jwt.verify(token, JWT_SECRET);
+    payload = jwt.verify(token, getJwtSecret());
   } catch {
-    await logActivity({ action: 'auth.password_reset', status: 'failure', details: { reason: 'invalid_or_expired_token' } });
+    await logActivity({ action: 'auth.password_reset', status: 'failure', ipAddress: ip, userAgent, details: { reason: 'invalid_or_expired_token' } });
     return NextResponse.json({ error: 'Link-ul de resetare este invalid sau a expirat.' }, { status: 400 });
   }
 
   if (payload.purpose !== 'password_reset') {
-    await logActivity({ action: 'auth.password_reset', status: 'failure', details: { reason: 'wrong_token_purpose' } });
+    await logActivity({ action: 'auth.password_reset', status: 'failure', ipAddress: ip, userAgent, details: { reason: 'wrong_token_purpose' } });
     return NextResponse.json({ error: 'Token invalid.' }, { status: 400 });
   }
 
@@ -44,10 +53,10 @@ export async function POST(request) {
 
   if (error) {
     console.error('[reset-password] DB error:', error);
-    await logActivity({ action: 'auth.password_reset', status: 'error', userId: payload.userId, email: payload.email, details: { error: error.message } });
+    await logActivity({ action: 'auth.password_reset', status: 'error', userId: payload.userId, email: payload.email, ipAddress: ip, userAgent, details: { error: error.message } });
     return NextResponse.json({ error: 'Eroare la resetarea parolei.' }, { status: 500 });
   }
 
-  await logActivity({ action: 'auth.password_reset', status: 'success', userId: payload.userId, email: payload.email });
+  await logActivity({ action: 'auth.password_reset', status: 'success', userId: payload.userId, email: payload.email, ipAddress: ip, userAgent });
   return NextResponse.json({ success: true });
 }

@@ -37,8 +37,7 @@ export function getPlanTypeFromPriceId(priceId) {
 
 export function loadStripeClient() {
   if (!stripePromise) {
-    const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-      || process.env.STRIPE_PUBLISHABLE_KEY;
+    const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
     if (!publishableKey) {
       throw new Error('[stripe] Missing env var: NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY');

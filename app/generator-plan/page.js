@@ -406,7 +406,10 @@ function GeneratorContent() {
     const pollInterval = setInterval(async () => {
       // Verifică statusul coadei
       try {
-        const queueRes = await fetch('/api/queue-status');
+        const token = localStorage.getItem('token');
+        const queueRes = await fetch('/api/queue-status', {
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        });
         if (queueRes.ok) {
           const queueData = await queueRes.json();
           if (queueData.queued > 0 || queueData.processing >= queueData.maxConcurrent) {

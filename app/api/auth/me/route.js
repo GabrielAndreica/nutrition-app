@@ -45,25 +45,32 @@ export async function GET(request) {
     periodStart.setUTCDate(1);
     periodStart.setUTCHours(0, 0, 0, 0);
 
-    const { count, error: usageError } = await supabase
-      .from('client_usage_ledger')
-      .select('id', { count: 'exact', head: true })
-      .eq('trainer_id', auth.userId)
-      .eq('billing_period_start', periodStart.toISOString());
+    try {
+      const { count, error: usageError } = await supabase
+        .from('client_usage_ledger')
+        .select('id', { count: 'exact', head: true })
+        .eq('trainer_id', auth.userId)
+        .eq('billing_period_start', periodStart.toISOString());
 
-    monthlyClientUsage = {
-      used: usageError ? 0 : (count ?? 0),
-      limit: maxClients,
-      period_start: periodStart.toISOString(),
-    };
+      monthlyClientUsage = {
+        used: usageError ? 0 : (count ?? 0),
+        limit: maxClients,
+        period_start: periodStart.toISOString(),
+      };
+    } catch (usageError) {
+      console.error('[auth/me] monthly usage lookup failed:', usageError);
+    }
   }
 
   const payload = {
     subscription_status: user.subscription_status,
     subscription_plan:   plan,
     trial_ends_at:       user.trial_ends_at ?? null,
-    monthly_client_usage: monthlyClientUsage,
   };
+
+  if (monthlyClientUsage) {
+    payload.monthly_client_usage = monthlyClientUsage;
+  }
 
   const res = NextResponse.json(payload);
   res.headers.set('Cache-Control', 'no-store, max-age=0');

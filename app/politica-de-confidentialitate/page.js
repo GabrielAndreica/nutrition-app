@@ -8,33 +8,126 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       eyebrow="Confidențialitate"
-      title="Politica de confidențialitate"
-      intro="Această politică explică pe scurt ce date sunt folosite în trevano și de ce."
+      title="POLITICĂ DE CONFIDENȚIALITATE"
+      meta={[
+        'Trevano (trevano.app)',
+        'Ultima actualizare: 07.05.2026',
+      ]}
       sections={[
         {
-          title: 'Date colectate',
+          title: '1. Identitatea operatorului de date',
+          body: [
+            'Serviciul Trevano este operat de ANDREICA GABRIEL-Ioan PFA, cu sediul în Șișești, nr. 247, România, CUI 46589606.',
+            'Email de contact: contact@trevano.app',
+            'Website: trevano.app',
+          ],
+        },
+        {
+          title: '2. Ce date colectăm',
+          body: [
+            '2.1. Date furnizate direct de utilizator',
+          ],
           items: [
-            'Date de cont: nume, email, rol și status abonament.',
-            'Date despre clienți: profil, obiective, preferințe alimentare, antrenamente și progres.',
-            'Date tehnice: jurnal de activitate, erori, sesiuni și informații necesare securității.',
+            'Nume și prenume',
+            'Adresă de email',
+            'Număr de telefon (opțional)',
+            'Parolă (stocată criptat cu bcrypt)',
+            'Date de plată (procesate exclusiv de Stripe — nu stocăm carduri)',
+          ],
+          after: [
+            '2.2. Date despre clienții antrenorilor',
+            'Nume client; vârstă, greutate, înălțime; obiective de fitness; alergii și restricții alimentare; date despre progres (greutate săptămânală, aderență la plan).',
+            '2.3. Date tehnice',
+            'Adresă IP; tip browser și sistem de operare; jurnale de activitate (logs) pentru securitate și depanare.',
           ],
         },
         {
-          title: 'Scopul prelucrării',
-          body: [
-            'Folosim datele pentru autentificare, generarea planurilor, monitorizarea progresului, trimiterea emailurilor operaționale și administrarea abonamentelor.',
+          title: '3. Scopul prelucrării datelor',
+          items: [
+            'Furnizarea serviciului Trevano — generare planuri alimentare și de antrenament',
+            'Gestionarea contului și autentificarea utilizatorului',
+            'Procesarea plăților prin Stripe',
+            'Comunicări legate de cont (confirmare email, facturi, notificări)',
+            'Îmbunătățirea serviciului și depanarea erorilor',
+            'Respectarea obligațiilor legale',
           ],
         },
         {
-          title: 'Servicii terțe',
-          body: [
-            'Platforma poate folosi servicii precum Supabase pentru baza de date, Resend pentru emailuri și Stripe pentru plăți și abonamente.',
+          title: '4. Temeiul legal al prelucrării',
+          items: [
+            'Executarea contractului (art. 6 alin. 1 lit. b GDPR) — pentru furnizarea serviciului',
+            'Consimțământul utilizatorului (art. 6 alin. 1 lit. a GDPR) — pentru comunicări de marketing',
+            'Obligație legală (art. 6 alin. 1 lit. c GDPR) — pentru facturare și contabilitate',
+            'Interes legitim (art. 6 alin. 1 lit. f GDPR) — pentru securitate și prevenirea fraudelor',
           ],
         },
         {
-          title: 'Drepturile tale',
+          title: '5. Stocarea datelor',
           body: [
-            'Poți solicita acces, corectare sau ștergere a datelor tale, în limitele permise de lege și de obligațiile tehnice ale platformei.',
+            'Datele sunt stocate pe servere securizate prin intermediul Supabase (UE) și Hetzner (Germania), cu criptare în tranzit (HTTPS/TLS) și în repaus.',
+            'Datele de facturare sunt păstrate 10 ani conform legislației fiscale din România.',
+          ],
+        },
+        {
+          title: '6. Partajarea datelor cu terți',
+          body: [
+            'Nu vindem datele tale personale. Partajăm date strict în scopul furnizării serviciului cu:',
+          ],
+          items: [
+            'Stripe Inc. — procesarea plăților (politica Stripe: stripe.com/privacy)',
+            'Supabase Inc. — stocarea datelor (serverele UE)',
+            'Resend Inc. — trimiterea emailurilor tranzacționale',
+            'OpenAI LLC — generarea planurilor AI (doar datele necesare: obiectiv, vârstă, greutate, preferințe)',
+            'SmartBill — emiterea facturilor fiscale',
+          ],
+          after: [
+            'Toți partenerii sunt obligați contractual să respecte GDPR și să protejeze datele tale.',
+          ],
+        },
+        {
+          title: '7. Drepturile tale',
+          body: ['Conform GDPR, ai dreptul la:'],
+          items: [
+            'Acces — să primești o copie a datelor tale personale',
+            'Rectificare — să corectezi datele incorecte',
+            'Ștergere — să soliciți ștergerea datelor ("dreptul de a fi uitat")',
+            'Restricționare — să limitezi prelucrarea datelor tale',
+            'Portabilitate — să primești datele într-un format structurat',
+            'Opoziție — să te opui prelucrării bazate pe interes legitim',
+            'Retragerea consimțământului — oricând, fără a afecta legalitatea prelucrării anterioare',
+          ],
+          after: [
+            'Pentru a-ți exercita drepturile, contactează-ne la: contact@trevano.app. Răspundem în maxim 30 de zile.',
+            'Ai dreptul să depui plângere la Autoritatea Națională de Supraveghere a Prelucrării Datelor cu Caracter Personal (ANSPDCP), www.dataprotection.ro.',
+          ],
+        },
+        {
+          title: '8. Cookies',
+          body: [
+            'Folosim exclusiv cookies tehnice necesare pentru funcționarea aplicației (sesiune de autentificare). Nu folosim cookies de marketing sau tracking terță parte.',
+            'Pentru detalii, consultați Politica noastră de Cookies.',
+          ],
+        },
+        {
+          title: '9. Securitate',
+          body: [
+            'Implementăm măsuri tehnice și organizatorice adecvate pentru protejarea datelor: criptare HTTPS, parole hash bcrypt, autentificare JWT, rate limiting, și acces restricționat la baza de date.',
+          ],
+        },
+        {
+          title: '10. Modificări ale politicii',
+          body: [
+            'Putem actualiza această politică periodic. Te vom notifica prin email cu cel puțin 14 zile înainte de modificările semnificative. Continuarea utilizării serviciului după data intrării în vigoare constituie acceptul modificărilor.',
+          ],
+        },
+        {
+          title: '11. Contact',
+          body: [
+            'ANDREICA GABRIEL-Ioan PFA',
+            'CUI: 46589606',
+            'Adresa: Șișești, nr. 247, România',
+            'Email: contact@trevano.app',
+            'Website: trevano.app',
           ],
         },
       ]}

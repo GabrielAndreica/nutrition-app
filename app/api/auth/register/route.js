@@ -163,7 +163,7 @@ export async function POST(request) {
   const confirmLink = `${appUrl}/confirm/${confirmationToken}`;
 
   try {
-    await resend.emails.send({
+    const { data: emailData, error: emailError } = await resend.emails.send({
       from: 'trevano <noreply@trevano.app>',
       to: newUser.email,
       subject: 'Confirmă-ți adresa de email — trevano',
@@ -188,8 +188,39 @@ export async function POST(request) {
         </div>
       `,
     });
+
+    if (emailError) {
+      await logActivity({
+        action: 'email.confirmation_send',
+        status: 'error',
+        userId: newUser.id,
+        email: newUser.email,
+        ipAddress: ip,
+        userAgent,
+        details: { provider: 'resend', error: emailError.message || 'resend_error' },
+      });
+    } else {
+      await logActivity({
+        action: 'email.confirmation_send',
+        status: 'success',
+        userId: newUser.id,
+        email: newUser.email,
+        ipAddress: ip,
+        userAgent,
+        details: { provider: 'resend', messageId: emailData?.id || null },
+      });
+    }
   } catch (emailErr) {
     console.error('[register] email send error:', emailErr);
+    await logActivity({
+      action: 'email.confirmation_send',
+      status: 'error',
+      userId: newUser.id,
+      email: newUser.email,
+      ipAddress: ip,
+      userAgent,
+      details: { provider: 'resend', error: emailErr?.message || 'unknown_email_error' },
+    });
     // Don't fail the registration if email fails — user can request resend
   }
 

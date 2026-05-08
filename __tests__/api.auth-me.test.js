@@ -11,10 +11,15 @@ import jwt from 'jsonwebtoken';
 const JWT_SECRET = process.env.JWT_SECRET || 'test-secret';
 
 const mockSingle = jest.fn();
+const mockUsageEq = jest.fn();
 
 jest.mock('@/app/lib/supabase', () => ({
   getSupabase: () => ({
-    from: () => ({
+    from: (table) => table === 'client_usage_ledger' ? ({
+      select: () => ({
+        eq: mockUsageEq,
+      }),
+    }) : ({
       select: () => ({
         eq: () => ({
           single: mockSingle,
@@ -55,6 +60,9 @@ function makeReq(token, extraHeaders = {}) {
 const futureDate = () => new Date(Date.now() + 10 * 86400_000).toISOString();
 
 beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  mockUsageEq.mockReturnValue({ eq: jest.fn().mockResolvedValue({ count: 0, error: null }) });
+});
 
 // ── Teste ────────────────────────────────────────────────────────────────────
 
@@ -73,6 +81,11 @@ describe('GET /api/auth/me', () => {
       subscription_status: 'trial',
       subscription_plan:   null,
       trial_ends_at:       trialEnds,
+      monthly_client_usage: {
+        used: 0,
+        limit: 3,
+        period_start: expect.any(String),
+      },
     });
   });
 
@@ -89,15 +102,15 @@ describe('GET /api/auth/me', () => {
     expect(body).not.toHaveProperty('name');
   });
 
-  test('header Cache-Control prezent cu private, max-age=60', async () => {
+  test('header Cache-Control prezent cu no-store', async () => {
     mockSingle.mockResolvedValue({
       data: { subscription_status: 'trial', subscription_plan: null, trial_ends_at: futureDate() },
       error: null,
     });
     const res = await GET(makeReq(makeToken()));
     const cc = res.headers.get('Cache-Control');
-    expect(cc).toContain('private');
-    expect(cc).toContain('max-age=60');
+    expect(cc).toContain('no-store');
+    expect(cc).toContain('max-age=0');
   });
 
   test('header Vary: Authorization prezent', async () => {
@@ -109,16 +122,16 @@ describe('GET /api/auth/me', () => {
     expect(res.headers.get('Vary')).toBe('Authorization');
   });
 
-  test('ETag prezent în răspuns', async () => {
+  test('ETag nu este setat pentru status live', async () => {
     mockSingle.mockResolvedValue({
       data: { subscription_status: 'active', subscription_plan: 'pro', trial_ends_at: null },
       error: null,
     });
     const res = await GET(makeReq(makeToken()));
-    expect(res.headers.get('ETag')).toBeTruthy();
+    expect(res.headers.get('ETag')).toBeNull();
   });
 
-  test('If-None-Match cu ETag corect → 304 fără body', async () => {
+  test('If-None-Match nu servește cache pentru status live', async () => {
     const trialEnds = futureDate();
     mockSingle.mockResolvedValue({
       data: { subscription_status: 'trial', subscription_plan: null, trial_ends_at: trialEnds },
@@ -134,7 +147,7 @@ describe('GET /api/auth/me', () => {
       error: null,
     });
     const secondRes = await GET(makeReq(makeToken(), { 'if-none-match': etag }));
-    expect(secondRes.status).toBe(304);
+    expect(secondRes.status).toBe(200);
   });
 
   test('token lipsă → 401', async () => {

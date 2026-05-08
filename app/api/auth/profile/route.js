@@ -2,11 +2,22 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import bcrypt from 'bcrypt';
 import { verifyToken } from '@/app/lib/verifyToken';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 export async function PATCH(request) {
   const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  const { ip, userAgent } = getRequestMeta(request);
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'auth-profile-patch',
+    maxRequests: 20,
+    windowMinutes: 10,
+  });
+  if (rateLimit) return rateLimit;
 
   let body;
   try {
@@ -39,6 +50,15 @@ export async function PATCH(request) {
     .single();
 
   if (fetchError || !currentUser) {
+    await logActivity({
+      action: 'auth.profile_update',
+      status: 'failure',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: { reason: 'user_not_found' },
+    });
     return NextResponse.json({ error: 'Utilizatorul nu a fost găsit.' }, { status: 404 });
   }
 
@@ -49,6 +69,15 @@ export async function PATCH(request) {
     }
     const match = await bcrypt.compare(currentPassword, currentUser.password);
     if (!match) {
+      await logActivity({
+        action: 'auth.profile_update',
+        status: 'failure',
+        userId: auth.userId,
+        email: currentUser.email,
+        ipAddress: ip,
+        userAgent,
+        details: { reason: 'wrong_current_password', attemptedFields: ['password'] },
+      });
       return NextResponse.json({ error: 'Parola curentă este incorectă.' }, { status: 400 });
     }
   }
@@ -61,6 +90,15 @@ export async function PATCH(request) {
       .eq('email', email.toLowerCase())
       .single();
     if (existing) {
+      await logActivity({
+        action: 'auth.profile_update',
+        status: 'failure',
+        userId: auth.userId,
+        email: currentUser.email,
+        ipAddress: ip,
+        userAgent,
+        details: { reason: 'email_exists', attemptedFields: ['email'] },
+      });
       return NextResponse.json({ error: 'Acest email este deja folosit.' }, { status: 400 });
     }
   }
@@ -81,6 +119,15 @@ export async function PATCH(request) {
     .eq('id', auth.userId);
 
   if (updateError) {
+    await logActivity({
+      action: 'auth.profile_update',
+      status: 'error',
+      userId: auth.userId,
+      email: currentUser.email,
+      ipAddress: ip,
+      userAgent,
+      details: { reason: 'db_error', error: updateError.message },
+    });
     return NextResponse.json({ error: 'Eroare la salvarea datelor.' }, { status: 500 });
   }
 
@@ -128,6 +175,18 @@ export async function PATCH(request) {
       }
     }
   }
+
+  await logActivity({
+    action: 'auth.profile_update',
+    status: 'success',
+    userId: auth.userId,
+    email: updates.email || currentUser.email,
+    ipAddress: ip,
+    userAgent,
+    details: {
+      changedFields: Object.keys(updates).map((field) => field === 'password' ? 'password' : field),
+    },
+  });
 
   return NextResponse.json({
     success: true,
