@@ -41,6 +41,10 @@ const EQUIPMENT_LABELS = {
   'full gym':      'Sală completă',
 };
 
+const TRAINING_SPLIT_LABELS = {
+  'Push/Pull/Legs': 'PPL',
+};
+
 // ─── Main WorkoutPlan component ───────────────────────────────────────────────
 export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmitProgress, progressCooldownUntil }) {
   const { user } = useAuth();
@@ -67,19 +71,10 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
     || 'Ziua selectată';
   const exerciseCount = (currentDay.exercises || []).length;
   const totalSets = (currentDay.exercises || []).reduce((sum, exercise) => sum + (Number(exercise.sets) || 0), 0);
-  const totalRestSeconds = (currentDay.exercises || []).reduce((sum, exercise) => sum + (Number(exercise.restSeconds) || 0), 0);
-  const averageRestSeconds = exerciseCount > 0 ? Math.round(totalRestSeconds / exerciseCount) : 0;
-  const activityLabels = {
-    sedentary: 'Sedentară',
-    light: 'Ușor activă',
-    lightly_active: 'Ușor activă',
-    moderate: 'Moderată',
-    moderately_active: 'Moderată',
-    active: 'Activă',
-    very_active: 'Foarte activă',
-    extra_active: 'Extrem de activă',
-  };
-
+  const splitLabel = TRAINING_SPLIT_LABELS[clientData?.training_split || plan.split]
+    || clientData?.training_split
+    || plan.split
+    || 'Split personalizat';
   const handleDownload = async () => {
     if (pdfLoading) return;
     setPdfLoading(true);
@@ -116,7 +111,7 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
           <div>
             <h2 className={mealStyles.clientName}>{clientData?.name || plan.clientName}</h2>
             <p className={mealStyles.clientSub}>
-              {FITNESS_GOAL_LABELS[plan.fitnessGoal] || plan.fitnessGoal || 'Plan antrenament'} · {clientData?.training_split || plan.split || 'Split personalizat'}
+              {FITNESS_GOAL_LABELS[plan.fitnessGoal] || plan.fitnessGoal || 'Plan antrenament'} · {splitLabel}
             </p>
           </div>
         </div>
@@ -137,12 +132,6 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
             <div className={mealStyles.clientStat}>
               <span className={mealStyles.clientStatValue}>{clientData.height}</span>
               <span className={mealStyles.clientStatLabel}>Înălțime</span>
-            </div>
-          )}
-          {clientData?.activity_level && (
-            <div className={mealStyles.clientStat}>
-              <span className={mealStyles.clientStatValue}>{activityLabels[clientData.activity_level] || clientData.activity_level}</span>
-              <span className={mealStyles.clientStatLabel}>activitate</span>
             </div>
           )}
         </div>
@@ -244,8 +233,6 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
             <span><strong>{totalSets}</strong> serii totale</span>
             <span className={mealStyles.dotLight}>·</span>
             <span><strong>{currentDay.estimatedDuration || 0}</strong> min</span>
-            <span className={mealStyles.dotLight}>·</span>
-            <span><strong>{averageRestSeconds}</strong> sec pauză medie</span>
           </div>
         </div>
 

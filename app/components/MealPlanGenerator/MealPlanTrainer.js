@@ -86,17 +86,6 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
 
   const currentDay = plan.days[activeDay];
 
-  const activityLabels = {
-    sedentary: 'Sedentară',
-    light: 'Ușor activă',
-    lightly_active: 'Ușor activă',
-    moderate: 'Moderată',
-    moderately_active: 'Moderată',
-    active: 'Activă',
-    very_active: 'Foarte activă',
-    extra_active: 'Extrem de activă',
-  };
-
   return (
     <div className={styles.container}>
       {/* Client Header */}
@@ -121,12 +110,6 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
               <span className={styles.clientStatValue}>{clientData.height}</span>
               <span className={styles.clientStatLabel}>Înălțime</span>
             </div>
-            {clientData.activityLevel && (
-              <div className={styles.clientStat}>
-                <span className={styles.clientStatValue}>{activityLabels[clientData.activityLevel] || clientData.activityLevel}</span>
-                <span className={styles.clientStatLabel}>activitate</span>
-              </div>
-            )}
           </div>
         </div>
       )}

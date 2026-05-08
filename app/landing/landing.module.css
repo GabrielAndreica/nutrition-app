@@ -8,7 +8,9 @@
   background: #0A0A0A;
   color: #FFFFFF;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
 }
 

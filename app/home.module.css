@@ -1,5 +1,6 @@
 .container {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-primary);
   display: flex;
   flex-direction: column;
@@ -80,7 +81,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--spacing-4xl) var(--spacing-lg);
+  padding: var(--spacing-4xl) var(--spacing-lg) calc(var(--spacing-4xl) + env(safe-area-inset-bottom, 0px));
   background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
   position: relative;
   overflow: hidden;

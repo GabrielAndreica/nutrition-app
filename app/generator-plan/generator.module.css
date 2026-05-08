@@ -1,5 +1,6 @@
 .container {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-secondary);
   display: flex;
   flex-direction: column;
@@ -97,6 +98,8 @@
   flex: 1;
   overflow-y: auto;
   padding: 0;
+  padding-bottom: var(--mobile-safe-bottom-space);
+  scroll-padding-bottom: var(--mobile-safe-bottom-space);
   max-width: 1200px;
   margin: 0 auto;
   width: 100%;

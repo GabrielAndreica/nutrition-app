@@ -253,16 +253,6 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
 
   const currentDay = plan && plan.days ? plan.days[activeDay] : null;
 
-  const activityLabels = {
-    sedentary: 'Sedentară',
-    lightly_active: 'Ușor activă',
-    light: 'Ușor activă',
-    moderately_active: 'Moderată',
-    moderate: 'Moderată',
-    very_active: 'Foarte activă',
-    extra_active: 'Extrem de activă',
-  };
-
   const cooldownDate = progressCooldownUntil ? new Date(progressCooldownUntil) : null;
   const progressInCooldown = !!(cooldownDate && cooldownDate > new Date());
   const progressDaysLeft = progressInCooldown
@@ -582,23 +572,6 @@ export default function MealPlan({ plan, clientData, nutritionalNeeds, onReset, 
               <span className={styles.clientStatValue}>{clientData.height}</span>
               <span className={styles.clientStatLabel}>Înălțime</span>
             </div>
-            {clientData.activityLevel && (
-              <div className={styles.clientStat}>
-                <span className={styles.clientStatValue}>{activityLabels[clientData.activityLevel] || clientData.activityLevel}</span>
-                <span className={styles.clientStatLabel}>activitate</span>
-              </div>
-            )}
-            {clientData.planCreatedAt && (() => {
-              const d = new Date(clientData.planCreatedAt);
-              const months = ['ian','feb','mar','apr','mai','iun','iul','aug','sep','oct','nov','dec'];
-              const dateStr = `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
-              return (
-                <div className={styles.clientStat}>
-                  <span className={styles.clientStatValue}>{dateStr}</span>
-                  <span className={styles.clientStatLabel}>ultima actualizare</span>
-                </div>
-              );
-            })()}
           </div>
         </div>
       )}
