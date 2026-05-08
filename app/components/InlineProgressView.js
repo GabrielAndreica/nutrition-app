@@ -20,17 +20,6 @@ const dietLabels = {
   vegan: 'Vegan',
 };
 
-const activityLabels = {
-  sedentary: 'Sedentară',
-  light: 'Ușor activă',
-  lightly_active: 'Ușor activă',
-  moderate: 'Moderată',
-  moderately_active: 'Moderată',
-  active: 'Activă',
-  very_active: 'Foarte activă',
-  extra_active: 'Extrem de activă',
-};
-
 const normalizeMetricValue = (value) => String(value || '')
   .toLowerCase()
   .normalize('NFD')
@@ -668,22 +657,22 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
               </div>
             </div>
             <div className={mealPlanStyles.clientStats}>
-              {client.activity_level && (
+              {client.age && (
                 <div className={mealPlanStyles.clientStat}>
-                  <span className={mealPlanStyles.clientStatValue}>{activityLabels[client.activity_level] || client.activity_level}</span>
-                  <span className={mealPlanStyles.clientStatLabel}>activitate</span>
+                  <span className={mealPlanStyles.clientStatValue}>{client.age}</span>
+                  <span className={mealPlanStyles.clientStatLabel}>vârstă</span>
                 </div>
               )}
-              {client.training_split && (
+              {client.weight && (
                 <div className={mealPlanStyles.clientStat}>
-                  <span className={mealPlanStyles.clientStatValue}>{client.training_split}</span>
-                  <span className={mealPlanStyles.clientStatLabel}>split</span>
+                  <span className={mealPlanStyles.clientStatValue}>{client.weight}</span>
+                  <span className={mealPlanStyles.clientStatLabel}>greutate</span>
                 </div>
               )}
-              {client.workouts_per_week && (
+              {client.height && (
                 <div className={mealPlanStyles.clientStat}>
-                  <span className={mealPlanStyles.clientStatValue}>{client.workouts_per_week}</span>
-                  <span className={mealPlanStyles.clientStatLabel}>zile/săpt</span>
+                  <span className={mealPlanStyles.clientStatValue}>{client.height}</span>
+                  <span className={mealPlanStyles.clientStatLabel}>înălțime</span>
                 </div>
               )}
             </div>

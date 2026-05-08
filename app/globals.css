@@ -62,6 +62,9 @@
   --spacing-xl: 34px;
   --spacing-2xl: 55px;
   --spacing-3xl: 89px;
+  --spacing-4xl: 144px;
+
+  --mobile-safe-bottom-space: calc(72px + env(safe-area-inset-bottom, 0px));
 }
 
 * {
@@ -75,9 +78,12 @@ html {
   /* Prevent iOS text size adjustment */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
+  min-height: 100%;
 }
 
 body {
+  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;

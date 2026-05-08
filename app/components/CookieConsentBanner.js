@@ -63,11 +63,9 @@ export default function CookieConsentBanner() {
   return (
     <section className={styles.banner} aria-label="Preferințe cookie Trevano">
       <div className={styles.content}>
-        <p className={styles.title}>Trevano respectă preferințele tale.</p>
+        <p className={styles.title}>Cookie-uri necesare</p>
         <p className={styles.text}>
-          Folosim cookie-uri strict necesare pentru autentificare și funcționarea platformei.
-          Nu folosim tracking sau marketing; Stripe poate folosi cookie-uri antifraudă la plată.
-          Alegerea ta se salvează local.
+          Folosim cookie-uri pentru autentificare și funcționarea aplicației. Nu folosim tracking sau marketing.
         </p>
         <Link href="/politica-cookies" className={styles.policyLink}>
           Politica Cookies

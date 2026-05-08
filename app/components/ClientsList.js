@@ -41,15 +41,11 @@ const goalLabels = {
   maintenance: 'Mentinere', recomposition: 'Recompozitie',
 };
 const dietLabels = { omnivore: 'Omnivor', vegetarian: 'Vegetarian', vegan: 'Vegan' };
-const activityLabels = {
-  sedentary: 'Sedentară',
-  light: 'Ușor activă',
-  lightly_active: 'Ușor activă',
-  moderate: 'Moderată',
-  moderately_active: 'Moderată',
-  active: 'Activă',
-  very_active: 'Foarte activă',
-  extra_active: 'Extrem de activă',
+const trainingSplitLabels = {
+  'Full Body': 'Full Body',
+  'Push/Pull/Legs': 'PPL',
+  'Upper/Lower': 'Upper/Lower',
+  'Bro Split': 'Bro Split',
 };
 
 // Format plan creation time
@@ -1196,10 +1192,18 @@ const ClientsList = forwardRef(function ClientsList({
                     <button key={v} type="button"
                       className={`${styles.segBtn} ${form.trainingSplit === v ? styles.segOn : ''}`}
                       onClick={() => setForm(p => ({ ...p, trainingSplit: v }))}>
-                      {v}
+                      {trainingSplitLabels[v] || v}
                     </button>
                   ))}
                 </div>
+              </div>
+
+            </div>
+
+            <div className={styles.addSection}>
+              <div className={styles.addSectionHeader}>
+                <span className={styles.addSectionNum}>6</span>
+                <span className={styles.addSectionTitle}>Limitări și preferințe</span>
               </div>
 
               <div className={styles.addField}>
@@ -1213,13 +1217,6 @@ const ClientsList = forwardRef(function ClientsList({
                     </button>
                   ))}
                 </div>
-              </div>
-            </div>
-
-            <div className={styles.addSection}>
-              <div className={styles.addSectionHeader}>
-                <span className={styles.addSectionNum}>6</span>
-                <span className={styles.addSectionTitle}>Limitări și preferințe</span>
               </div>
 
               <div className={styles.addField}>

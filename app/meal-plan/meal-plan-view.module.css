@@ -1,6 +1,7 @@
 /* ── Container ──────────────────────────────────────────────── */
 .container {
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(ellipse 80% 40% at 50% -5%, rgba(183, 255, 0, 0.09) 0%, transparent 65%),
     #ffffff;
@@ -465,7 +466,8 @@
   }
 
   .content {
-    padding: 0 0 calc(12px + env(safe-area-inset-bottom, 0px)) 0;
+    padding: 0 0 var(--mobile-safe-bottom-space) 0;
+    scroll-padding-bottom: var(--mobile-safe-bottom-space);
   }
 
   .navRow {

@@ -1,5 +1,6 @@
 .page {
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(ellipse 70% 28% at 50% 0%, rgba(183, 255, 0, 0.08) 0%, transparent 58%),
     #ffffff;
@@ -32,7 +33,7 @@
 .main {
   width: min(840px, calc(100% - 40px));
   margin: 0 auto;
-  padding: 64px 0 80px;
+  padding: 64px 0 calc(80px + env(safe-area-inset-bottom, 0px));
 }
 
 .eyebrow {

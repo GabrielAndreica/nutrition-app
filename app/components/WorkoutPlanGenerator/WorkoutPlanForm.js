@@ -10,6 +10,13 @@ const SPLIT_OPTIONS = [
   'Bro Split',
 ];
 
+const SPLIT_LABELS = {
+  'Full Body': 'Full Body',
+  'Push/Pull/Legs': 'PPL',
+  'Upper/Lower': 'Upper/Lower',
+  'Bro Split': 'Bro Split',
+};
+
 const WORKOUTS_OPTIONS = ['2', '3', '4', '5'];
 
 const LEVEL_OPTIONS = [
@@ -173,7 +180,7 @@ export default function WorkoutPlanForm({ onSubmit, loading }) {
               onChange={handleInput}
             >
               {SPLIT_OPTIONS.map(s => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>{SPLIT_LABELS[s] || s}</option>
               ))}
             </select>
           </div>
