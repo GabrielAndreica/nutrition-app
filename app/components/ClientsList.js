@@ -807,6 +807,7 @@ const ClientsList = forwardRef(function ClientsList({
       const aiRec = computeAiRecommendation(
         progressModalData, progressModalStagnation, c, progressModalNutritionalNeeds
       );
+      const shouldKeepCurrentTargets = aiRec.action === 'continue' || !aiRec.calChange;
       sessionStorage.setItem('clientProgress', JSON.stringify({
         currentWeight:     String(hasNewWeight ? newWeight : progressModalData.weight),
         adherence:         progressModalData.respectare,
@@ -814,7 +815,9 @@ const ClientsList = forwardRef(function ClientsList({
         hungerLevel:       progressModalData.foame,
         notes:             progressModalData.mesaj || '',
         weeksNoChange:     String(progressModalStagnation),
-        calorieAdjustment: aiRec.calChange || 0,
+        forceRegenerate:   true,
+        keepCurrentTargets: shouldKeepCurrentTargets,
+        calorieAdjustment: shouldKeepCurrentTargets ? 0 : (aiRec.calChange || 0),
       }));
 
       // Stochează necesarul nutrițional curent pentru diff-ul macro după generare
@@ -1382,6 +1385,7 @@ const ClientsList = forwardRef(function ClientsList({
               const hasNewProgress = client.has_new_progress;
               const isGenerating = generatingClients.has(String(client.id));
               const isJustFinished = justFinishedClients.has(String(client.id));
+              const isDraft = (client.status || 'draft') === 'draft' && !plan && !isPending && !hasAccount;
 
               return (
               <div key={client.id} className={styles.clientRow}>
@@ -1397,6 +1401,9 @@ const ClientsList = forwardRef(function ClientsList({
                     )}
                     {hasNewProgress && (
                       <span className={`${styles.accountBadge} ${styles.badgeProgress}`}>Progres nou</span>
+                    )}
+                    {isDraft && (
+                      <span className={`${styles.accountBadge} ${styles.badgeDraft}`}>Draft gratuit</span>
                     )}
                   </div>
                   </div>

@@ -1,15 +1,18 @@
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter, Space_Grotesk } from "next/font/google";
 import { AuthProvider } from "./contexts/AuthContext";
+import ExternalNavigationReloadGuard from "./components/ExternalNavigationReloadGuard";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
+  weight: ["500", "700"],
 });
 
 export const metadata = {
@@ -21,9 +24,9 @@ export const metadata = {
   keywords: ['nutriție', 'planuri alimentare', 'antrenori', 'fitness', 'dieta'],
   authors: [{ name: 'trevano' }],
   icons: {
-    icon: '/favicon-patrat-negru.svg',
-    apple: '/favicon-patrat-negru.svg',
-    shortcut: '/favicon-patrat-negru.svg',
+    icon: '/favicon.svg',
+    apple: '/favicon.svg',
+    shortcut: '/favicon.svg',
   },
   robots: {
     index: true,
@@ -48,10 +51,11 @@ export default function RootLayout({ children }) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <AuthProvider>
+          <ExternalNavigationReloadGuard />
           {children}
         </AuthProvider>
       </body>

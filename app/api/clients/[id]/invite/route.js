@@ -3,6 +3,7 @@ import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeEmail } from '@/app/lib/sanitize';
+import { reserveMonthlyClientUsage } from '@/app/lib/clientUsage';
 import crypto from 'crypto';
 import { Resend } from 'resend';
 
@@ -71,6 +72,7 @@ params }) {
     .select('id, name, user_id')
     .eq('id', id)
     .eq('trainer_id', auth.userId)
+    .is('deleted_at', null)
     .single();
 
   if (clientError || !client) {
@@ -83,6 +85,15 @@ params }) {
       error: 'Clientul are deja un cont activ.' 
     }, { status: 400 });
   }
+
+  const usage = await reserveMonthlyClientUsage({
+    trainerId: auth.userId,
+    clientId: id,
+    clientKey: email,
+    reason: 'client_invite',
+  });
+
+  if (!usage.allowed) return usage.response;
 
   // Verifică dacă există invitații pending și invalidează-le (permite retrimierea în caz de email greșit)
   const { data: existingInvitations } = await supabase
@@ -159,7 +170,7 @@ params }) {
     return NextResponse.json({ error: 'Eroare la crearea invitației.' }, { status: 500 });
   }
 
-  // Trimite email (TODO: integrare cu serviciu de email)
+  // Trimite email de pe domeniul trevano.
   const activationLink = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/activate/${token}`;
 
   let emailSent = false;
@@ -168,14 +179,26 @@ params }) {
   try {
     const resend = new Resend(process.env.RESEND_API_KEY);
     const { data: emailData, error: sendError } = await resend.emails.send({
-      from: 'mail@gabrielandreica.com',
+      from: 'trevano <noreply@trevano.app>',
       to: email.toLowerCase(),
       subject: 'Activează-ți contul trevano',
       html: `
-        <h2>Bine ai venit!</h2>
-        <p>Antrenorul tău te-a invitat să creezi un cont pe trevano.</p>
-        <p><a href="${activationLink}" style="background:#b7ff00;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:700;">Activează contul</a></p>
-        <p style="color:#666;font-size:13px;">Linkul expiră în 7 zile.</p>
+        <div style="font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #fff;">
+          <div style="margin-bottom: 32px;">
+            <span style="display: inline-block; width: 34px; height: 34px; background: #b7ff00; border-radius: 8px; text-align: center; line-height: 34px; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #000;">t</span>
+            <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #0a0a0a; margin-left: 10px; vertical-align: middle;">trevano</span>
+          </div>
+          <h1 style="font-size: 22px; font-weight: 800; color: #0a0a0a; letter-spacing: -0.5px; margin: 0 0 8px;">Bine ai venit pe trevano</h1>
+          <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 28px;">
+            Antrenorul tău te-a invitat să creezi un cont pe trevano pentru a-ți vedea planurile și progresul.
+          </p>
+          <a href="${activationLink}" style="display: inline-block; padding: 13px 28px; background: #0a0a0a; color: #b7ff00; text-decoration: none; border-radius: 12px; font-size: 15px; font-weight: 700;">
+            Activează contul
+          </a>
+          <p style="font-size: 13px; color: #999; margin-top: 28px; line-height: 1.6;">
+            Link-ul este valabil timp de <strong>7 zile</strong>.
+          </p>
+        </div>
       `,
     });
     if (sendError) {

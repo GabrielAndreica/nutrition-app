@@ -26,20 +26,7 @@ function GeneratorContent() {
   const searchParams = useSearchParams();
   const clientId = searchParams.get('clientId');
   const { user } = useAuth();
-
-  // Dacă legacy routes nu sunt permise, redirecționează imediat
-  if (!FEATURES.ALLOW_LEGACY_ROUTES) {
-    useEffect(() => {
-      router.replace(getDefaultRedirectURL());
-    }, [router]);
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-        <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '18px', color: '#666' }}>Redirecționare...</div>
-        </div>
-      </div>
-    );
-  }
+  const legacyDisabled = !FEATURES.ALLOW_LEGACY_ROUTES;
 
   const [mealPlan, setMealPlan] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -63,6 +50,24 @@ function GeneratorContent() {
     isMountedRef.current = true;
     return () => { isMountedRef.current = false; };
   }, []);
+
+  useEffect(() => {
+    if (legacyDisabled) router.replace(getDefaultRedirectURL());
+  }, [legacyDisabled, router]);
+
+  useEffect(() => {
+    if (!loading) return;
+
+    const timer = setInterval(() => {
+      setLoadingProgress(prev => {
+        const cap = loadingPhase === 'workout' ? 96 : loadingStep > 0 ? 84 : 30;
+        if (prev >= cap) return prev;
+        return Math.min(cap, prev + (loadingStep > 0 ? 0.5 : 0.8));
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [loading, loadingPhase, loadingStep]);
 
   const handleGeneratePlan = async (formData, isRegeneration = false) => {
     // Anulează orice generare anterioară în curs
@@ -147,23 +152,37 @@ function GeneratorContent() {
           const event = JSON.parse(line);
           if (event.type === 'progress') {
             const phase = event.phase || 'meal';
-            if (phase === 'workout') {
+            const eventProgress = typeof event.progress === 'number' ? event.progress : null;
+            if (phase === 'setup') {
+              setLoadingPhase('setup');
+              setLoadingStep(0);
+              setLoadingProgress(prev => Math.max(prev, eventProgress ?? 8));
+              setLoadingPhaseMessage(event.message || 'Pregătim datele clientului...');
+            } else if (phase === 'workout') {
               setLoadingPhase('workout');
               setLoadingStep(7);
-              setLoadingProgress(Math.min(99, 90 + Math.round(((event.step || 1) / Math.max(event.total || 1, 1)) * 9)));
+              setLoadingProgress(prev => Math.max(
+                prev,
+                eventProgress ?? Math.min(99, 90 + Math.round(((event.step || 1) / Math.max(event.total || 1, 1)) * 9))
+              ));
               setLoadingPhaseMessage(event.message || 'Se generează planul de antrenament...');
             } else {
               setLoadingPhase('meal');
-              setLoadingStep(event.day);
-              setLoadingProgress(Math.round((event.day / event.total) * 90));
-              setLoadingPhaseMessage(event.message || `Plan alimentar: Ziua ${event.day} din ${event.total}...`);
+              setLoadingStep(event.day || 0);
+              setLoadingProgress(prev => Math.max(
+                prev,
+                eventProgress ?? Math.round(((event.day || 0) / Math.max(event.total || 7, 1)) * 86)
+              ));
+              setLoadingPhaseMessage(event.message || (event.day > 0 ? `Plan alimentar: ziua ${event.day} din ${event.total}...` : 'Selectare rețete potrivite...'));
             }
             // Actualizează sessionStorage cu progresul
-            if (formData.clientId && phase !== 'workout') {
+            if (formData.clientId && phase === 'meal') {
+              const storedProgress = eventProgress ?? Math.round(((event.day || 0) / Math.max(event.total || 7, 1)) * 86);
               sessionStorage.setItem(`generatingPlan_${formData.clientId}`, JSON.stringify({
                 isGenerating: true,
-                currentStep: event.day,
+                currentStep: event.day || 0,
                 totalSteps: event.total,
+                progress: storedProgress,
                 startTime: Date.now()
               }));
             }
@@ -304,7 +323,11 @@ function GeneratorContent() {
         const status = JSON.parse(generatingStatus);
         setLoading(true);
         setLoadingStep(status.currentStep || 0);
-        setLoadingProgress(status.currentStep ? Math.round((status.currentStep / 7) * 90) : 0);
+        setLoadingProgress(
+          typeof status.progress === 'number'
+            ? status.progress
+            : (status.currentStep ? Math.round((status.currentStep / 7) * 86) : 0)
+        );
         // Nu relansa generarea - doar afișează progresul
         return;
       } catch (e) {
@@ -420,7 +443,12 @@ function GeneratorContent() {
         try {
           const status = JSON.parse(generatingStatus);
           setLoadingStep(status.currentStep || 0);
-          setLoadingProgress(status.currentStep ? Math.round((status.currentStep / 7) * 90) : 0);
+          setLoadingProgress(prev => Math.max(
+            prev,
+            typeof status.progress === 'number'
+              ? status.progress
+              : (status.currentStep ? Math.round((status.currentStep / 7) * 86) : 0)
+          ));
         } catch (e) {
           console.error('Error parsing status:', e);
         }
@@ -462,6 +490,16 @@ function GeneratorContent() {
 
   const backTarget = clientId ? '/clients' : '/dashboard';
 
+  if (legacyDisabled) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '18px', color: '#666' }}>Redirecționare...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.container}>
       <AppHeader
@@ -494,9 +532,9 @@ function GeneratorContent() {
                 <div className={styles.loadingBox}>
                   <p className={styles.loadingTitle}>Se generează planurile clientului</p>
                   <p className={styles.loadingStep}>
-                    {loadingPhase === 'meal'
-                      ? (loadingStep > 0 ? `Plan alimentar: Ziua ${loadingStep} din 7...` : 'Se pregătește planul alimentar...')
-                      : (loadingPhaseMessage || 'Se generează planul de antrenament...')}
+                    {loadingPhaseMessage || (loadingPhase === 'workout'
+                      ? 'Se generează planul de antrenament...'
+                      : (loadingStep > 0 ? `Plan alimentar: ziua ${loadingStep} din 7...` : 'Se pregătește planul alimentar...'))}
                   </p>
                   {queueStatus && queueStatus.queued > 0 && (
                     <div className={styles.queueStatus}>

@@ -41,6 +41,16 @@ const nextConfig = {
 
   // Output
   output: 'standalone', // For Docker/serverless optimization
+
+  async redirects() {
+    return [
+      {
+        source: '/landing',
+        destination: '/',
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

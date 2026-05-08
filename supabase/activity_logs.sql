@@ -43,4 +43,4 @@ ALTER TABLE public.activity_logs ENABLE ROW LEVEL SECURITY;
 --   FOR SELECT USING (auth.role() = 'authenticated');
 
 COMMENT ON TABLE public.activity_logs IS
-  'Jurnal de activitate al aplicației NutriAI. Populat exclusiv server-side.';
+  'Jurnal de activitate al aplicației trevano. Populat exclusiv server-side.';

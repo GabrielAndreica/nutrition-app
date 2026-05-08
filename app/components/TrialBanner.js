@@ -26,7 +26,23 @@ export default function TrialBanner() {
         const status = data?.subscription_status ?? user.subscription_status;
         const trialEndsAt = data?.trial_ends_at ?? user.trial_ends_at;
 
-        if (status !== 'trial') return;
+        if (status !== 'trial') {
+          setVisible(false);
+          return;
+        }
+
+        fetch('/api/stripe/sync-subscription', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then(syncData => {
+            if (syncData?.subscription_status && syncData.subscription_status !== 'trial') {
+              setVisible(false);
+            }
+          })
+          .catch(() => {});
 
         if (trialEndsAt) {
           const diff = new Date(trialEndsAt) - new Date();

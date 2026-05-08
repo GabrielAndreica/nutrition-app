@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import { useAuth } from '@/app/contexts/AuthContext';
 import styles from './dashboard.module.css';
+import clientStyles from '@/app/clients/clients.module.css';
 
 // Dynamic import cu ssr: false pentru MealPlan (folosește jsPDF)
 const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPlan'), {
@@ -432,13 +433,53 @@ function ClientDashboardContent() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
   const [profileSuccess, setProfileSuccess] = useState('');
+  const [passwordResetLoading, setPasswordResetLoading] = useState(false);
+  const [passwordResetMessage, setPasswordResetMessage] = useState('');
+  const [passwordResetError, setPasswordResetError] = useState('');
 
   const openProfile = () => {
     setProfileForm({ name: user?.name || '', email: user?.email || '', currentPassword: '', newPassword: '' });
     setProfileError('');
     setProfileSuccess('');
+    setPasswordResetMessage('');
+    setPasswordResetError('');
     setProfileOpen(true);
     setSidebarOpen(false);
+  };
+
+  const closeProfile = () => {
+    setProfileOpen(false);
+    setProfileError('');
+    setProfileSuccess('');
+    setPasswordResetMessage('');
+    setPasswordResetError('');
+  };
+
+  const handleSendPasswordReset = async () => {
+    setPasswordResetLoading(true);
+    setPasswordResetMessage('');
+    setPasswordResetError('');
+
+    try {
+      const resetEmail = user?.email || profileForm.email;
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: resetEmail }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setPasswordResetError(data.error || 'Nu am putut trimite linkul de resetare.');
+        return;
+      }
+
+      setPasswordResetMessage(`Am trimis un link de resetare la ${resetEmail}.`);
+    } catch {
+      setPasswordResetError('Eroare de rețea. Încearcă din nou.');
+    } finally {
+      setPasswordResetLoading(false);
+    }
   };
 
   const handleProfileSave = async () => {
@@ -452,9 +493,6 @@ function ClientDashboardContent() {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           name: profileForm.name !== user?.name ? profileForm.name : undefined,
-          email: profileForm.email !== user?.email ? profileForm.email : undefined,
-          currentPassword: profileForm.currentPassword || undefined,
-          newPassword: profileForm.newPassword || undefined,
         }),
       });
       const data = await res.json();
@@ -463,7 +501,6 @@ function ClientDashboardContent() {
       localStorage.setItem('user', JSON.stringify(updated));
       login(updated, token);
       setProfileSuccess('Datele au fost salvate cu succes!');
-      setProfileForm(f => ({ ...f, currentPassword: '', newPassword: '' }));
     } catch {
       setProfileError('Eroare de rețea. Încearcă din nou.');
     } finally {
@@ -483,14 +520,14 @@ function ClientDashboardContent() {
             </svg>
           </button>
           <div className={styles.mobileLogo}>
-            <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
+            <span style={{fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif',fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
           </div>
         </div>
         {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
         <div className={styles.pageLayout}>
           <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
             <div className={styles.sidebarLogo}>
-              <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
+              <span style={{fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif',fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
               <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Închide meniu">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"/>
@@ -566,7 +603,7 @@ function ClientDashboardContent() {
           </svg>
         </button>
         <div className={styles.mobileLogo}>
-          <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
+          <span style={{fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif',fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
         </div>
         <button 
           className={styles.mobileNotificationBtn}
@@ -586,52 +623,11 @@ function ClientDashboardContent() {
 
       {sidebarOpen && <div className={styles.overlay} onClick={() => setSidebarOpen(false)} />}
 
-      {profileOpen && (
-        <div className={styles.profileModalOverlay} onClick={() => setProfileOpen(false)}>
-          <div className={styles.profileModal} onClick={e => e.stopPropagation()}>
-            <div className={styles.profileModalHeader}>
-              <h3 className={styles.profileModalTitle}>Profilul meu</h3>
-              <button className={styles.profileModalClose} onClick={() => setProfileOpen(false)} aria-label="Închide">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"/>
-                  <line x1="6" y1="6" x2="18" y2="18"/>
-                </svg>
-              </button>
-            </div>
-            <form onSubmit={e => e.preventDefault()} className={styles.profileModalForm}>
-              <div className={styles.profileModalGroup}>
-                <label className={styles.profileModalLabel}>Nume</label>
-                <input className={styles.profileModalInput} type="text" value={profileForm.name} onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))} placeholder="Numele tău" />
-              </div>
-              <div className={styles.profileModalGroup}>
-                <label className={styles.profileModalLabel}>Email</label>
-                <input className={styles.profileModalInput} type="email" value={profileForm.email} onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))} placeholder="email@exemplu.com" />
-              </div>
-              <div className={styles.profileModalDivider} />
-              <p className={styles.profileModalSectionLabel}>Schimbă parola (opțional)</p>
-              <div className={styles.profileModalGroup}>
-                <label className={styles.profileModalLabel}>Parola curentă</label>
-                <input className={styles.profileModalInput} type="password" value={profileForm.currentPassword} onChange={e => setProfileForm(f => ({ ...f, currentPassword: e.target.value }))} placeholder="••••••••" autoComplete="current-password" />
-              </div>
-              <div className={styles.profileModalGroup}>
-                <label className={styles.profileModalLabel}>Parola nouă</label>
-                <input className={styles.profileModalInput} type="password" value={profileForm.newPassword} onChange={e => setProfileForm(f => ({ ...f, newPassword: e.target.value }))} placeholder="Minim 8 caractere" autoComplete="new-password" />
-              </div>
-              {profileError && <p className={styles.profileModalError}>{profileError}</p>}
-              {profileSuccess && <p className={styles.profileModalSuccess}>{profileSuccess}</p>}
-              <button type="button" className={styles.profileModalSave} onClick={handleProfileSave} disabled={profileLoading}>
-                {profileLoading ? 'Se salvează...' : 'Salvează modificările'}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
       <div className={styles.pageLayout}>
         {/* Sidebar */}
         <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : ''}`}>
           <div className={styles.sidebarLogo}>
-            <span style={{fontFamily:"'Space Grotesk', sans-serif",fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
+            <span style={{fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif',fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
             <button className={styles.sidebarCloseBtn} onClick={() => setSidebarOpen(false)} aria-label="Închide meniu">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="18" y1="6" x2="6" y2="18"/>
@@ -772,6 +768,117 @@ function ClientDashboardContent() {
 
         {/* Main Content */}
         <main className={styles.main}>
+          {profileOpen ? (
+            <div className={clientStyles.addPage}>
+              <div className={clientStyles.addPageShell}>
+                <div className={clientStyles.addPageNav}>
+                  <button className={clientStyles.addFormBackBtn} onClick={closeProfile} aria-label="Înapoi">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                      strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                  </button>
+                  <span className={clientStyles.addPageTitle}>Editează profilul</span>
+                </div>
+
+                <div className={clientStyles.addWizardHeader}>
+                  <div className={clientStyles.addWizardMeta}>
+                    <span className={clientStyles.addWizardStep}>Profilul meu</span>
+                    <span className={clientStyles.addWizardHint}>Date de cont, parolă și tip cont</span>
+                  </div>
+                  <div className={clientStyles.addWizardProgress}>
+                    <span style={{ width: '100%' }} />
+                  </div>
+                </div>
+
+                <form onSubmit={(e) => { e.preventDefault(); handleProfileSave(); }} className={clientStyles.addPageForm} noValidate>
+                  <div className={clientStyles.addStepTriple}>
+                    <div className={clientStyles.addSection}>
+                      <div className={clientStyles.addSectionHeader}>
+                        <span className={clientStyles.addSectionNum}>1</span>
+                        <span className={clientStyles.addSectionTitle}>Date cont</span>
+                      </div>
+
+                      <div className={clientStyles.addField}>
+                        <label>Nume</label>
+                        <input
+                          type="text"
+                          value={profileForm.name}
+                          onChange={e => setProfileForm(f => ({ ...f, name: e.target.value }))}
+                          placeholder="Numele tău"
+                        />
+                      </div>
+
+                      <div className={clientStyles.addField}>
+                        <label>Email</label>
+                        <input
+                          type="email"
+                          value={profileForm.email}
+                          placeholder="email@exemplu.com"
+                          readOnly
+                          className={styles.accountReadonlyInput}
+                        />
+                      </div>
+                    </div>
+
+                    <div className={clientStyles.addSection}>
+                      <div className={clientStyles.addSectionHeader}>
+                        <span className={clientStyles.addSectionNum}>2</span>
+                        <span className={clientStyles.addSectionTitle}>Modificare parolă</span>
+                      </div>
+
+                      <p className={styles.profileHelpText}>
+                        Pentru schimbarea parolei îți trimitem un link securizat pe adresa de email a contului.
+                        Linkul expiră în 1 oră.
+                      </p>
+
+                      <button
+                        type="button"
+                        className={styles.accountFormBtn}
+                        onClick={handleSendPasswordReset}
+                        disabled={passwordResetLoading}
+                      >
+                        {passwordResetLoading ? 'Se trimite...' : 'Trimite link de resetare'}
+                      </button>
+
+                      {passwordResetMessage && <p className={styles.profileModalSuccess}>{passwordResetMessage}</p>}
+                      {passwordResetError && <p className={styles.profileModalError}>{passwordResetError}</p>}
+                    </div>
+
+                    <div className={clientStyles.addSection}>
+                      <div className={clientStyles.addSectionHeader}>
+                        <span className={clientStyles.addSectionNum}>3</span>
+                        <span className={clientStyles.addSectionTitle}>Tipul contului</span>
+                      </div>
+
+                      <div className={clientStyles.addField}>
+                        <label>Tip cont</label>
+                        <input
+                          type="text"
+                          value="Client"
+                          readOnly
+                          className={styles.accountReadonlyInput}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {profileError && <p className={styles.profileModalError}>{profileError}</p>}
+                  {profileSuccess && <p className={styles.profileModalSuccess}>{profileSuccess}</p>}
+
+                  <div className={clientStyles.addFooter}>
+                    <button type="button" className={clientStyles.cancelBtn} onClick={closeProfile}>
+                      Anulează
+                    </button>
+                    <button type="submit" className={clientStyles.saveBtn} disabled={profileLoading}>
+                      {profileLoading ? 'Se salvează...' : 'Salvează modificările'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          ) : (
+          <>
           {/* Tab navigation */}
           {!progressFormOpen && (
           <div className={styles.planTabs}>
@@ -846,6 +953,8 @@ function ClientDashboardContent() {
                 <p>Antrenorul tău nu a făcut un plan de antrenament pentru tine.</p>
               </div>
             )
+          )}
+          </>
           )}
         </main>
       </div>

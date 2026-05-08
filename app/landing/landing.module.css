@@ -9,7 +9,7 @@
   color: #FFFFFF;
   min-height: 100vh;
   overflow-x: hidden;
-  font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 /* ── NAV ── */
@@ -36,6 +36,7 @@
   font-weight: 700;
   letter-spacing: -0.5px;
   color: #B7FF00;
+  font-family: var(--font-space-grotesk), var(--font-inter), sans-serif;
 }
 
 @media (min-width: 768px) {
@@ -926,6 +927,7 @@
 }
 
 .footerLinks { display: flex; gap: 20px; }
+.footerLinks { flex-wrap: wrap; }
 
 .footerLink {
   font-size: 13px;
@@ -1001,7 +1003,7 @@
   border-radius: 10px;
   box-shadow: 0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.07);
   overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 @media (min-width: 768px) {

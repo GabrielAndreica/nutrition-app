@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
+    "@stripe/stripe-js": "^9.4.0",
     "@supabase/supabase-js": "^2.99.3",
     "bcrypt": "^6.0.0",
     "jsonwebtoken": "^9.0.3",
@@ -22,7 +23,8 @@
     "openai": "^6.32.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "resend": "^6.10.0"
+    "resend": "^6.10.0",
+    "stripe": "^22.1.1"
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",

@@ -135,7 +135,7 @@ export default function ActivatePage({ params }) {
       <div className={styles.container}>
         <div className={styles.leftPanel}>
           <div className={styles.brand}>
-            <span className={styles.logoMark}>N</span>
+            <span className={styles.logoMark}>t</span>
             <span className={styles.logoText}>trevano</span>
           </div>
           <div className={styles.tagline}>
@@ -148,7 +148,7 @@ export default function ActivatePage({ params }) {
           </div>
           <div className={styles.aiBadge}>
             <span className={styles.dot} />
-            Nutriție inteligentă
+            Planuri inteligente
           </div>
         </div>
         <div className={styles.rightPanel}>
@@ -166,7 +166,7 @@ export default function ActivatePage({ params }) {
       <div className={styles.container}>
         <div className={styles.leftPanel}>
           <div className={styles.brand}>
-            <span className={styles.logoMark}>N</span>
+            <span className={styles.logoMark}>t</span>
             <span className={styles.logoText}>trevano</span>
           </div>
           <div className={styles.tagline}>
@@ -179,7 +179,7 @@ export default function ActivatePage({ params }) {
           </div>
           <div className={styles.aiBadge}>
             <span className={styles.dot} />
-            Nutriție inteligentă
+            Planuri inteligente
           </div>
         </div>
         <div className={styles.rightPanel}>
@@ -202,7 +202,7 @@ export default function ActivatePage({ params }) {
     <div className={styles.container}>
       <div className={styles.leftPanel}>
         <div className={styles.brand}>
-          <span className={styles.logoMark}>N</span>
+          <span className={styles.logoMark}>t</span>
           <span className={styles.logoText}>trevano</span>
         </div>
         <div className={styles.tagline}>
@@ -215,7 +215,7 @@ export default function ActivatePage({ params }) {
         </div>
         <div className={styles.aiBadge}>
           <span className={styles.dot} />
-          Nutriție inteligentă
+          Planuri inteligente
         </div>
       </div>
       <div className={styles.rightPanel}>

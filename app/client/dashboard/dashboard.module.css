@@ -615,6 +615,48 @@
   cursor: not-allowed;
 }
 
+.accountReadonlyInput {
+  color: #6b7280 !important;
+  background: #f3f4f6 !important;
+  cursor: default;
+}
+
+.accountFormBtn {
+  width: fit-content;
+  padding: 10px 20px;
+  background: #f5f5f7;
+  color: #1d1d1f;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  letter-spacing: -0.1px;
+  font-family: inherit;
+}
+
+.accountFormBtn:hover:not(:disabled) {
+  background: #e8e8ed;
+}
+
+.accountFormBtn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.accountFormBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.profileHelpText {
+  margin: 0;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
 /* ─── Main ─────────────────────────────────────────────── */
 .main {
   flex: 1;

@@ -192,7 +192,13 @@ export default function LandingPage() {
       <footer className={styles.footer}>
         <span className={styles.logo}>trevano.app</span>
         <p className={styles.footerText}>© 2026 Trevano. Toate drepturile rezervate.</p>
-        <div className={styles.footerLinks}><Link href="/auth" className={styles.footerLink}>Autentificare</Link></div>
+        <div className={styles.footerLinks}>
+          <Link href="/termeni-si-conditii" className={styles.footerLink}>Termeni și condiții</Link>
+          <Link href="/politica-de-confidentialitate" className={styles.footerLink}>Politica de confidențialitate</Link>
+          <Link href="/politica-cookies" className={styles.footerLink}>Politica Cookies</Link>
+          <Link href="/copyright" className={styles.footerLink}>Copyright</Link>
+          <Link href="/auth" className={styles.footerLink}>Autentificare</Link>
+        </div>
       </footer>
 
     </div>

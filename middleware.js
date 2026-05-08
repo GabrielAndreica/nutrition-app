@@ -18,27 +18,8 @@ const PUBLIC_ROUTES = ['/', '/landing', '/auth', '/register', '/confirm', '/upgr
 // (rutele de auth sunt publice; /api/auth/me este apelat DE subscription check)
 const PUBLIC_API_PREFIXES = [
   '/api/auth/',      // login, register, confirm, me, signout
+  '/api/stripe/webhook',
 ];
-
-/**
- * Decode JWT payload fără verificarea semnăturii.
- * Sigur în Edge middleware — citim doar claims, nu validăm.
- */
-function decodeJwtPayload(token) {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const base64url = parts[1];
-    const base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
-    const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=');
-    const json = typeof atob !== 'undefined'
-      ? atob(padded)
-      : Buffer.from(padded, 'base64').toString('utf-8');
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
-}
 
 export function middleware(request) {
   const { pathname } = request.nextUrl;
@@ -60,23 +41,9 @@ export function middleware(request) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Verifică subscription status din JWT (prima linie de apărare — fără DB)
-  // AuthContext face verificarea live din DB la fiecare mount (a doua linie)
-  if (isProtected && token) {
-    const payload = decodeJwtPayload(token);
-    if (payload) {
-      const status      = payload.subscription_status;
-      const trialEndsAt = payload.trial_ends_at ? new Date(payload.trial_ends_at) : null;
-
-      if (status === 'trial' && trialEndsAt && trialEndsAt < new Date()) {
-        return NextResponse.redirect(new URL('/upgrade?reason=trial_expired', request.url));
-      }
-
-      if (status === 'cancelled' || status === 'inactive') {
-        return NextResponse.redirect(new URL('/upgrade?reason=subscription_inactive', request.url));
-      }
-    }
-  }
+  // Nu blocăm rutele protejate pe baza subscription status din JWT.
+  // Statusul se schimbă prin Stripe webhook, iar JWT-ul/cookie-ul poate rămâne stale.
+  // AuthContext și API-urile fac verificarea live din DB.
 
   return NextResponse.next();
 }

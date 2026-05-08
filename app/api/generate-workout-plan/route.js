@@ -6,6 +6,7 @@ import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeName, sanitizeText, sanitizeNumber } from '@/app/lib/sanitize';
 import { checkRateLimit, requestQueue, generateRequestId } from '@/app/lib/rateLimiter';
 import { checkSubscription } from '@/app/lib/checkSubscription';
+import { reserveMonthlyClientUsage } from '@/app/lib/clientUsage';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -1388,6 +1389,7 @@ export async function POST(request) {
         .select('id, name, gender, training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, goal, injuries_limitations, workout_preferences, user_id')
         .eq('id', rawClientId)
         .eq('trainer_id', trainerId)
+        .is('deleted_at', null)
         .single());
 
       if (error || !data) {
@@ -1395,6 +1397,15 @@ export async function POST(request) {
       }
       ownedClient = data;
       clientIdForLogs = data.id;
+
+      const usage = await reserveMonthlyClientUsage({
+        trainerId,
+        clientId: rawClientId,
+        reason: 'workout_plan_generate',
+        subscription: sub,
+      });
+
+      if (!usage.allowed) return usage.response;
     }
 
     const resolvedSplit = rawClientId
