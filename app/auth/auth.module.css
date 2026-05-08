@@ -351,6 +351,7 @@
   .page {
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr;
+    min-height: 100dvh;
   }
 
   .leftPanel {
@@ -368,8 +369,11 @@
   .tagline { display: none; }
 
   .rightPanel {
-    padding: 40px 24px;
+    padding: 32px 24px calc(56px + env(safe-area-inset-bottom, 0px));
     align-items: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -380,12 +384,26 @@
   }
 
   .rightPanel {
-    padding: 32px 20px env(safe-area-inset-bottom, 32px);
+    padding-top: 22px;
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
     padding-left: max(20px, env(safe-area-inset-left));
     padding-right: max(20px, env(safe-area-inset-right));
+    min-height: 0;
   }
 
   .cardTitle { font-size: 24px; }
+
+  .cardSub {
+    margin-bottom: 16px;
+  }
+
+  .formGroup {
+    margin-bottom: 11px;
+  }
+
+  .formGroup input {
+    padding: 11px 13px;
+  }
 
   .submitBtn {
     min-height: 48px;
