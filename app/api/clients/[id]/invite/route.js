@@ -185,14 +185,14 @@ params }) {
       html: `
         <div style="font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #fff;">
           <div style="margin-bottom: 32px;">
-            <span style="display: inline-block; width: 34px; height: 34px; background: #b7ff00; border-radius: 8px; text-align: center; line-height: 34px; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #000;">t</span>
-            <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #0a0a0a; margin-left: 10px; vertical-align: middle;">trevano</span>
+            <span style="display: inline-block; width: 34px; height: 34px; background: #B7FF00; border-radius: 8px; text-align: center; line-height: 34px; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #0A0A0A;">t</span>
+            <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #0A0A0A; margin-left: 10px; vertical-align: middle;">trevano</span>
           </div>
-          <h1 style="font-size: 22px; font-weight: 800; color: #0a0a0a; letter-spacing: -0.5px; margin: 0 0 8px;">Bine ai venit pe trevano</h1>
+          <h1 style="font-size: 22px; font-weight: 800; color: #0A0A0A; letter-spacing: -0.5px; margin: 0 0 8px;">Bine ai venit pe trevano</h1>
           <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 28px;">
             Antrenorul tău te-a invitat să creezi un cont pe trevano pentru a-ți vedea planurile și progresul.
           </p>
-          <a href="${activationLink}" style="display: inline-block; padding: 13px 28px; background: #0a0a0a; color: #b7ff00; text-decoration: none; border-radius: 12px; font-size: 15px; font-weight: 700;">
+          <a href="${activationLink}" style="display: inline-block; padding: 13px 28px; background: #0A0A0A; color: #B7FF00; text-decoration: none; border-radius: 12px; font-size: 15px; font-weight: 700;">
             Activează contul
           </a>
           <p style="font-size: 13px; color: #999; margin-top: 28px; line-height: 1.6;">
