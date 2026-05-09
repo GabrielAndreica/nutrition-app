@@ -4,6 +4,8 @@ import { verifyToken } from '@/app/lib/verifyToken';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeText, sanitizeNumber } from '@/app/lib/sanitize';
 
+const CLIENT_PROGRESS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
 /**
  * GET /api/clients/[id]/weight-history
  * Returnează istoricul greutății pentru un client + calcul automat stagnare
@@ -179,6 +181,39 @@ params }) {
 
   if (clientError || !client) {
     return NextResponse.json({ error: 'Clientul nu a fost găsit sau nu ai acces.' }, { status: 404 });
+  }
+
+  if (auth.role === 'client') {
+    const { data: recentProgressEntries, error: cooldownError } = await supabase
+      .from('weight_history')
+      .select('recorded_at, notes')
+      .eq('client_id', clientId)
+      .order('recorded_at', { ascending: false })
+      .limit(20);
+
+    if (cooldownError) {
+      console.error('Eroare la verificarea cooldown-ului progresului:', cooldownError);
+      return NextResponse.json({ error: 'Eroare la verificarea ultimei actualizări.' }, { status: 500 });
+    }
+
+    const lastClientProgress = (recentProgressEntries || [])
+      .find(entry => String(entry.notes || '').startsWith('[CLIENT]'));
+
+    if (lastClientProgress?.recorded_at) {
+      const cooldownUntil = new Date(new Date(lastClientProgress.recorded_at).getTime() + CLIENT_PROGRESS_COOLDOWN_MS);
+      if (cooldownUntil > new Date()) {
+        const retryAfterSeconds = Math.max(1, Math.ceil((cooldownUntil - new Date()) / 1000));
+        return NextResponse.json(
+          {
+            error: 'Poți trimite progresul o dată la 7 zile.',
+            cooldownUntil: cooldownUntil.toISOString(),
+          },
+          { status: 429, headers: { 'Retry-After': String(retryAfterSeconds) } }
+        );
+      }
+    }
+
+    recordedAt = new Date().toISOString();
   }
 
   // Inserează în istoricul greutății

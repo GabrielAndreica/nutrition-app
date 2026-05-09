@@ -124,12 +124,36 @@ function withTimeout(promise, ms, message) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timeoutId));
 }
 
-function clampWorkoutDays(v) {
+function readWorkoutDays(v) {
   try {
     return sanitizeNumber(v, { min: 2, max: 5, allowFloat: false });
   } catch {
-    return 3;
+    return null;
   }
+}
+
+const mapActivityToWorkoutDays = (activityLevel) => ({
+  sedentary: 2,
+  light: 2,
+  lightly_active: 2,
+  moderate: 4,
+  moderately_active: 4,
+  active: 5,
+  very_active: 5,
+  extra_active: 5,
+}[activityLevel] || 4);
+
+function resolveWorkoutDays(ownedClient, body) {
+  if (ownedClient) {
+    return (
+      readWorkoutDays(ownedClient.workouts_per_week) ||
+      readWorkoutDays(body?.workoutsPerWeek) ||
+      mapActivityToWorkoutDays(ownedClient.activity_level) ||
+      3
+    );
+  }
+
+  return readWorkoutDays(body?.workoutsPerWeek) || 3;
 }
 
 function normalizeGoal(goal) {
@@ -658,6 +682,30 @@ function normalizeGeneratedPlan(rawPlan, input, exerciseCatalogMap = null) {
     fitnessGoal: input.fitnessGoal,
     workoutsPerWeek: input.workoutsPerWeek,
     days: normalizedDays,
+  };
+}
+
+function ensureWorkoutDayCount(plan, input) {
+  const targetWorkoutDays = input.workoutsPerWeek;
+  const fallbackPlan = buildFallbackWorkoutPlan(input);
+  const existingDays = Array.isArray(plan?.days) ? plan.days.slice(0, targetWorkoutDays) : [];
+  const days = existingDays.length > 0 ? existingDays : [];
+
+  while (days.length < targetWorkoutDays) {
+    const fallbackDay = fallbackPlan.days[days.length];
+    if (!fallbackDay) break;
+    days.push(fallbackDay);
+  }
+
+  return {
+    ...fallbackPlan,
+    ...(plan || {}),
+    workoutsPerWeek: targetWorkoutDays,
+    days: days.map((day, idx) => ({
+      ...day,
+      day: idx + 1,
+      dayName: day.dayName || fallbackPlan.days[idx]?.dayName || `Ziua ${idx + 1}`,
+    })),
   };
 }
 
@@ -1386,7 +1434,7 @@ export async function POST(request) {
     if (rawClientId) {
       const { data, error } = await supabaseQuery(() => supabase
         .from('clients')
-        .select('id, name, gender, training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, goal, injuries_limitations, workout_preferences, user_id')
+        .select('id, name, gender, activity_level, training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, goal, injuries_limitations, workout_preferences, user_id')
         .eq('id', rawClientId)
         .eq('trainer_id', trainerId)
         .is('deleted_at', null)
@@ -1426,7 +1474,7 @@ export async function POST(request) {
       name: sanitizeName(String(ownedClient?.name || body?.name || '')),
       gender: String(ownedClient?.gender || body?.gender || 'M').toUpperCase().trim() === 'F' ? 'F' : 'M',
       trainingSplit: resolvedSplit,
-      workoutsPerWeek: clampWorkoutDays(ownedClient?.workouts_per_week ?? body?.workoutsPerWeek ?? 3),
+      workoutsPerWeek: resolveWorkoutDays(ownedClient, body),
       fitnessLevel: safeEnum(String(ownedClient?.fitness_level || body?.fitnessLevel || 'beginner').toLowerCase().trim(), ALLOWED_LEVELS, 'beginner'),
       availableEquipment: safeEnum(String(ownedClient?.available_equipment || body?.availableEquipment || 'full gym').toLowerCase().trim(), ALLOWED_EQUIPMENT, 'full gym'),
       fitnessGoal: safeEnum(
@@ -1547,8 +1595,8 @@ export async function POST(request) {
                 'Generarea AI pentru planul de antrenament a durat prea mult.'
               );
             } catch (aiErr) {
-              if (attempt === MAX_ATTEMPTS) throw aiErr;
               lastValidationError = aiErr;
+              if (attempt === MAX_ATTEMPTS) break;
               continue;
             }
             const finishReason = aiResponse?.choices?.[0]?.finish_reason || null;
@@ -1557,30 +1605,41 @@ export async function POST(request) {
             try {
               parsed = parseWorkoutJson(raw);
             } catch (parseErr) {
-              if (finishReason === 'length') throw new Error('Răspuns AI trunchiat (max_tokens atins).');
-              if (attempt === MAX_ATTEMPTS) throw parseErr;
-              lastValidationError = parseErr;
+              lastValidationError = finishReason === 'length'
+                ? new Error('Răspuns AI trunchiat (max_tokens atins).')
+                : parseErr;
+              if (attempt === MAX_ATTEMPTS) break;
               continue;
             }
             let candidatePlan;
             try {
-              candidatePlan = normalizeGeneratedPlan(parsed, input, exerciseCatalogMap);
+              candidatePlan = ensureWorkoutDayCount(
+                normalizeGeneratedPlan(parsed, input, exerciseCatalogMap),
+                input
+              );
               validatePlan(candidatePlan, input, exerciseCatalogMap, null, null);
             } catch (validErr) {
+              lastValidationError = validErr;
               if (attempt === MAX_ATTEMPTS) {
                 // La ultima încercare: folosim planul normalizat chiar dacă nu trece validarea strictă,
-                // sau aruncăm eroarea dacă planul nici măcar nu are structura de bază
+                // iar dacă nu avem structură utilizabilă cădem pe planul local fallback.
                 if (candidatePlan && Array.isArray(candidatePlan.days) && candidatePlan.days.length > 0) {
                   plan = candidatePlan;
                   break;
                 }
-                throw validErr;
+                break;
               }
-              lastValidationError = validErr;
               continue;
             }
             plan = candidatePlan;
             break;
+          }
+
+          if (!plan) {
+            console.warn(
+              `[workout_plan.generate] Fallback local pentru ${input.workoutsPerWeek} sesiuni după eșec AI/validare: ${lastValidationError?.message || 'motiv necunoscut'}`
+            );
+            plan = buildFallbackWorkoutPlan(input);
           }
 
           let savedPlanId = null;

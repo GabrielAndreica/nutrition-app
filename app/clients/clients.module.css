@@ -235,6 +235,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.addRow2 > .addField:only-child {
+  grid-column: 1 / -1;
+}
+
 .addRow3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
@@ -387,6 +391,7 @@
 
 .segBtn {
   flex: 1;
+  min-width: 0;
   padding: 9px 10px;
   border: none;
   border-radius: 8px;
@@ -408,6 +413,11 @@
   background: #fff;
   color: #111827;
   box-shadow: 0 1px 4px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
+}
+
+.dietSeg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 /* ── Segmented layout helpers ── */
