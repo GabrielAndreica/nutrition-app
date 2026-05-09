@@ -48,6 +48,17 @@ const trainingSplitLabels = {
   'Bro Split': 'Bro Split',
 };
 
+const applyActivityLevel = (prev, activityLevel) => {
+  const previousDefault = mapActivityToWorkouts(prev.activityLevel);
+  const hasManualWorkouts = prev.workoutsPerWeek && String(prev.workoutsPerWeek) !== String(previousDefault);
+
+  return {
+    ...prev,
+    activityLevel,
+    workoutsPerWeek: hasManualWorkouts ? prev.workoutsPerWeek : mapActivityToWorkouts(activityLevel),
+  };
+};
+
 // Format plan creation time
 const formatPlanTime = (createdAt) => {
   const now = new Date();
@@ -1109,7 +1120,7 @@ const ClientsList = forwardRef(function ClientsList({
                   ].map(({ v, l }) => (
                     <button key={v} type="button"
                       className={`${styles.segBtn} ${form.activityLevel === v ? styles.segOn : ''}`}
-                      onClick={() => setForm(p => ({ ...p, activityLevel: v, workoutsPerWeek: mapActivityToWorkouts(v) }))}>
+                      onClick={() => setForm(p => applyActivityLevel(p, v))}>
                       {l}
                     </button>
                   ))}
@@ -1148,7 +1159,7 @@ const ClientsList = forwardRef(function ClientsList({
               <div className={styles.addRow2}>
                 <div className={styles.addField}>
                   <label>Tip dietă</label>
-                  <div className={styles.seg}>
+                  <div className={`${styles.seg} ${styles.dietSeg}`}>
                     {[
                       { v: 'omnivore',   l: 'Omnivor' },
                       { v: 'vegetarian', l: 'Vegetarian' },

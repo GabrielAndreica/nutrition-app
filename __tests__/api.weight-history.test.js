@@ -15,13 +15,14 @@ const mockUpdate  = jest.fn();
 const mockEqChain = jest.fn();
 const mockInsert  = jest.fn();
 const mockRpc     = jest.fn();
+const mockWeightHistorySelect = jest.fn();
 
 jest.mock('@/app/lib/supabase', () => ({
   getSupabase: () => ({
     from: (table) => {
       lastUpdateTable = table;
       return {
-        select:  mockSelect,
+        select:  table === 'weight_history' ? mockWeightHistorySelect : mockSelect,
         insert:  mockInsert,
         update:  (payload) => {
           lastUpdatePayload = { table, payload };
@@ -74,6 +75,15 @@ beforeEach(() => {
   // select client → găsit
   mockSelect.mockReturnValue({ eq: jest.fn().mockReturnValue({ eq: jest.fn().mockReturnValue({ single: mockSingle }), single: mockSingle }) });
   mockSingle.mockResolvedValue({ data: { id: 'uuid-client-1', trainer_id: 379, name: 'Ion' }, error: null });
+
+  // cooldown progress client → nicio înregistrare recentă implicit
+  mockWeightHistorySelect.mockReturnValue({
+    eq: jest.fn().mockReturnValue({
+      order: jest.fn().mockReturnValue({
+        limit: jest.fn().mockResolvedValue({ data: [], error: null }),
+      }),
+    }),
+  });
 
   // insert weight_history → succes
   mockInsert.mockReturnValue({

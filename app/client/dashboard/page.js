@@ -29,7 +29,7 @@ const WorkoutPlan = dynamic(() => import('@/app/components/WorkoutPlanGenerator/
   )
 });
 
-const COOLDOWN_MS = 1 * 60 * 1000;
+const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 function ClientDashboardContent() {
   const router = useRouter();
