@@ -95,10 +95,10 @@ export default function RegisterPage() {
         </div>
         <div className={styles.tagline}>
           <h1 className={styles.taglineHeading}>
-            Începe să-ți<br />scalezi business-ul.
+            Pentru antrenori<br />de fitness.
           </h1>
           <p className={styles.taglineSub}>
-            Generează planuri alimentare și de antrenament pentru clienții tăi în câteva secunde.
+            Gestionează clienții, planurile alimentare, antrenamentele și progresul într-un singur loc.
           </p>
         </div>
         <div className={styles.aiBadge}>

@@ -1,8 +1,11 @@
 import LandingPage from '@/app/landing/page';
 
 export const metadata = {
-  title: 'trevano — Planuri alimentare și antrenament generate instant',
-  description: 'Generează planuri alimentare și de antrenament personalizate pentru clienții tăi în 2 minute. Portal client inclus.',
+  title: 'Trevano — Aplicație pentru antrenori de fitness',
+  description: 'Trevano este aplicația pentru antrenori de fitness unde ții clienții, planurile alimentare, antrenamentele și progresul într-un singur loc.',
+  alternates: {
+    canonical: '/',
+  },
 };
 
 export default async function Home() {

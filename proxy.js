@@ -11,12 +11,31 @@ const PROTECTED_ROUTES = [
   '/workout-plan',
 ];
 
+const NOINDEX_ROUTES = [
+  '/api',
+  '/auth',
+  '/register',
+  '/upgrade',
+  '/external-redirect',
+  '/confirm',
+  '/activate',
+  ...PROTECTED_ROUTES,
+];
+
 // ── API-uri care nu trebuie blocate de subscription check ─────────────────
 // (rutele de auth sunt publice; /api/auth/me este apelat DE subscription check)
 const PUBLIC_API_PREFIXES = [
   '/api/auth/',      // login, register, confirm, me, signout
   '/api/stripe/webhook',
 ];
+
+function isRouteOrChild(pathname, route) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
+function shouldNoIndex(pathname) {
+  return NOINDEX_ROUTES.some(route => isRouteOrChild(pathname, route));
+}
 
 function withSecurityHeaders(response, request) {
   response.headers.set('X-Content-Type-Options', 'nosniff');
@@ -38,6 +57,10 @@ function withSecurityHeaders(response, request) {
     response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   }
 
+  if (shouldNoIndex(request.nextUrl.pathname)) {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  }
+
   return response;
 }
 
@@ -51,7 +74,7 @@ export function proxy(request) {
 
   const token = request.cookies.get('token')?.value;
 
-  const isProtected = PROTECTED_ROUTES.some(route => pathname.startsWith(route));
+  const isProtected = PROTECTED_ROUTES.some(route => isRouteOrChild(pathname, route));
 
   // Redirect unauthenticated users → login
   if (isProtected && !token) {
