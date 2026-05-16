@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import AppHeader from '@/app/components/AppHeader';
+import PlanReviewControls from '@/app/components/PlanReviewControls';
 import styles from './workout-plan-view.module.css';
 import shellStyles from '@/app/meal-plan/meal-plan-view.module.css';
 
@@ -43,6 +44,8 @@ function WorkoutPlanViewContent() {
 
   const [workoutPlan, setWorkoutPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
+  const [planStatus, setPlanStatus] = useState('approved');
+  const [workoutPlanDirty, setWorkoutPlanDirty] = useState(false);
   const [mealPlanId, setMealPlanId] = useState(null);
   const [planTab, setPlanTab] = useState('antrenament');
   const [loading, setLoading] = useState(true);
@@ -60,6 +63,8 @@ function WorkoutPlanViewContent() {
       .then(async data => {
         if (data.error) throw new Error(data.error);
         setWorkoutPlan(data.workoutPlan?.plan_data || data.workoutPlan);
+        setWorkoutPlanDirty(false);
+        setPlanStatus(data.workoutPlan?.approval_status || 'approved');
         setClientData(data.client);
 
         const clientId = data.workoutPlan?.client_id;
@@ -136,7 +141,24 @@ function WorkoutPlanViewContent() {
             <button className={`${shellStyles.planTab} ${shellStyles.planTabActive}`}>Plan de antrenament</button>
           </div>
         </div>
-        <WorkoutPlan plan={workoutPlan} clientData={clientData} />
+        <PlanReviewControls
+          type="workout"
+          planId={id}
+          status={planStatus}
+          plan={workoutPlan}
+          onPlanChange={setWorkoutPlan}
+          onStatusChange={setPlanStatus}
+          externalDirty={workoutPlanDirty}
+          onExternalDirtyChange={setWorkoutPlanDirty}
+        />
+        <WorkoutPlan
+          plan={workoutPlan}
+          clientData={clientData}
+          editableSets={planStatus !== 'approved'}
+          onPlanChange={setWorkoutPlan}
+          onPlanDirtyChange={setWorkoutPlanDirty}
+          hideReviewActions={planStatus === 'pending_review'}
+        />
       </div>
     </div>
   );

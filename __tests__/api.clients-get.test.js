@@ -13,7 +13,7 @@ const mockEq     = jest.fn();
 const mockSelect = jest.fn();
 const mockRpc    = jest.fn();
 // meal_plans mock
-const mockPlansLimit = jest.fn();
+const mockPlansOrder = jest.fn();
 
 jest.mock('@/app/lib/supabase', () => ({
   getSupabase: () => ({
@@ -22,7 +22,9 @@ jest.mock('@/app/lib/supabase', () => ({
         return {
           select:  jest.fn().mockReturnValue({
             eq:    jest.fn().mockReturnValue({
-              order: jest.fn().mockReturnValue({ limit: mockPlansLimit }),
+              in: jest.fn().mockReturnValue({
+                order: mockPlansOrder,
+              }),
             }),
           }),
         };
@@ -56,7 +58,7 @@ beforeEach(() => {
   jest.clearAllMocks();
 
   mockRpc.mockResolvedValue({ data: [{ allowed: true, remaining: 999 }], error: null });
-  mockPlansLimit.mockResolvedValue({ data: [], error: null });
+  mockPlansOrder.mockResolvedValue({ data: [], error: null });
 
   // Chain: select().eq().is().order().range()
   mockRange.mockResolvedValue({
@@ -136,6 +138,7 @@ describe('GET /api/clients', () => {
 
     expect(body).toHaveProperty('clients');
     expect(body).toHaveProperty('plans');
+    expect(body).toHaveProperty('workoutPlans');
     expect(body).toHaveProperty('total');
     expect(body).toHaveProperty('page');
     expect(body).toHaveProperty('limit');

@@ -29,7 +29,7 @@ const CONFIG = {
 };
 
 // Cleanup periodic pentru memory leaks
-setInterval(() => {
+const cleanupInterval = setInterval(() => {
   const now = Date.now();
   for (const [userId, data] of userRequests.entries()) {
     // Elimină timestamps vechi
@@ -42,6 +42,7 @@ setInterval(() => {
     }
   }
 }, CONFIG.CLEANUP_INTERVAL_MS);
+cleanupInterval.unref?.();
 
 /**
  * Verifică și actualizează rate limit pentru un user
@@ -148,7 +149,7 @@ export class RequestQueue {
    * Eliberează un slot și procesează următoarea cerere din queue
    */
   releaseSlot() {
-    this.processing--;
+    this.processing = Math.max(0, this.processing - 1);
     
     // Procesează următoarea cerere din queue
     if (this.queue.length > 0 && this.processing < CONFIG.MAX_CONCURRENT_REQUESTS) {

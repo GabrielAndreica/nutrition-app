@@ -1,4 +1,10 @@
 import { getSupabase, supabaseQuery } from '@/app/lib/supabase';
+import { sanitizeForLog } from '@/app/lib/sanitize';
+
+function truncateMeta(value, maxLength) {
+  if (!value) return null;
+  return String(value).slice(0, maxLength);
+}
 
 /**
  * Înregistrează un eveniment de activitate în baza de date.
@@ -30,9 +36,9 @@ export async function logActivity({
       status,
       user_id: userId,
       email: email ? email.toLowerCase() : null,
-      ip_address: ipAddress,
-      user_agent: userAgent,
-      details,
+      ip_address: truncateMeta(ipAddress, 80),
+      user_agent: truncateMeta(userAgent, 500),
+      details: details ? sanitizeForLog(details) : null,
     }]));
 
     if (error) {
@@ -53,5 +59,8 @@ export function getRequestMeta(request) {
     request.headers.get('x-real-ip') ||
     'unknown';
   const userAgent = request.headers.get('user-agent') || 'unknown';
-  return { ip, userAgent };
+  return {
+    ip: truncateMeta(ip, 80) || 'unknown',
+    userAgent: truncateMeta(userAgent, 500) || 'unknown',
+  };
 }

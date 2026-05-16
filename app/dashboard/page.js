@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, Suspense } from 'react';
+import { useCallback, useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/app/contexts/AuthContext';
@@ -42,6 +42,24 @@ function getStatusTextClass(status) {
   if (status === 'active' || status === 'trial') return styles.statusTextActive;
   if (status === 'expired' || status === 'cancelled' || status === 'inactive') return styles.statusTextProblem;
   return styles.statusTextNeutral;
+}
+
+function formatNotificationTime(createdAt) {
+  const now = new Date();
+  const created = new Date(createdAt);
+  const diffMs = now - created;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+  const diffWeeks = Math.floor(diffMs / 604800000);
+
+  if (diffMins < 1) return 'acum';
+  if (diffMins < 60) return `acum ${diffMins} ${diffMins === 1 ? 'minut' : 'minute'}`;
+  if (diffHours < 24) return `acum ${diffHours} ${diffHours === 1 ? 'oră' : 'ore'}`;
+  if (diffDays === 1) return 'ieri';
+  if (diffDays < 7) return `acum ${diffDays} zile`;
+  if (diffWeeks < 4) return `acum ${diffWeeks} ${diffWeeks === 1 ? 'săptămână' : 'săptămâni'}`;
+  return created.toLocaleDateString('ro-RO', { day: 'numeric', month: 'short' });
 }
 
 
@@ -407,7 +425,7 @@ function DashboardContent() {
   const fetchNotificationsRef = useRef(null);
 
   // Fetch notifications from API
-  const fetchNotifications = async ({ limit = 5 } = {}) => {
+  const fetchNotifications = useCallback(async ({ limit = 5 } = {}) => {
     setLoadingNotifications(true);
     try {
       const token = localStorage.getItem('token');
@@ -460,28 +478,8 @@ function DashboardContent() {
     } finally {
       setLoadingNotifications(false);
     }
-  };
+  }, []);
   fetchNotificationsRef.current = fetchNotifications;
-
-  // Format notification time (relative)
-  const formatNotificationTime = (createdAt) => {
-    const now = new Date();
-    const created = new Date(createdAt);
-    const diffMs = now - created;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
-    const diffWeeks = Math.floor(diffMs / 604800000);
-
-    if (diffMins < 1) return 'acum';
-    if (diffMins < 60) return `acum ${diffMins} ${diffMins === 1 ? 'minut' : 'minute'}`;
-    if (diffHours < 24) return `acum ${diffHours} ${diffHours === 1 ? 'oră' : 'ore'}`;
-    if (diffDays === 1) return 'ieri';
-    if (diffDays < 7) return `acum ${diffDays} zile`;
-    if (diffWeeks === 1) return 'acum 1 săptămână';
-    if (diffWeeks < 4) return `acum ${diffWeeks} săptămâni`;
-    return created.toLocaleDateString('ro-RO');
-  };
 
   // Mark notifications as read
   const markNotificationsAsRead = async (notificationIds) => {
@@ -623,7 +621,7 @@ function DashboardContent() {
       clearInterval(intervalId);
       if (channel && supabaseClient) supabaseClient.removeChannel(channel);
     };
-  }, []);
+  }, [fetchNotifications]);
 
   // Polling mai rapid când panoul de notificări e deschis
   useEffect(() => {
@@ -631,7 +629,7 @@ function DashboardContent() {
     fetchNotifications({ limit: 5 }); // refresh imediat la deschidere
     const id = setInterval(() => fetchNotifications({ limit: 5 }), 15000);
     return () => clearInterval(id);
-  }, [notificationsOpen]);
+  }, [fetchNotifications, notificationsOpen]);
 
   // Fetch notificări imediat când o generare tocmai s-a terminat
   useEffect(() => {

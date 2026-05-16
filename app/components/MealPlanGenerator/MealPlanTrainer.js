@@ -4,7 +4,79 @@ import { useState } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import styles from './meal-plan.module.css';
 
-export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, onReset, onRegenerate, onViewProgress }) {
+const clonePlan = (value) => JSON.parse(JSON.stringify(value || {}));
+const roundMacro = (value) => Math.round((Number(value) || 0) * 10) / 10;
+const roundKcal = (value) => Math.round(Number(value) || 0);
+
+function recalculateDay(day) {
+  if (!day?.meals) return day;
+
+  for (const meal of day.meals) {
+    const totals = (meal.foods || []).reduce((acc, food) => ({
+      calories: acc.calories + (Number(food.calories) || 0),
+      protein: acc.protein + (Number(food.protein) || 0),
+      carbs: acc.carbs + (Number(food.carbs) || 0),
+      fat: acc.fat + (Number(food.fat) || 0),
+    }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+    meal.mealTotals = {
+      calories: roundKcal(totals.calories),
+      protein: roundMacro(totals.protein),
+      carbs: roundMacro(totals.carbs),
+      fat: roundMacro(totals.fat),
+    };
+  }
+
+  const dayTotals = day.meals.reduce((acc, meal) => ({
+    calories: acc.calories + (Number(meal.mealTotals?.calories) || 0),
+    protein: acc.protein + (Number(meal.mealTotals?.protein) || 0),
+    carbs: acc.carbs + (Number(meal.mealTotals?.carbs) || 0),
+    fat: acc.fat + (Number(meal.mealTotals?.fat) || 0),
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+  day.dailyTotals = {
+    calories: roundKcal(dayTotals.calories),
+    protein: roundMacro(dayTotals.protein),
+    carbs: roundMacro(dayTotals.carbs),
+    fat: roundMacro(dayTotals.fat),
+  };
+
+  return day;
+}
+
+function updateFoodAmount(plan, dayIndex, mealIndex, foodIndex, nextAmountRaw) {
+  const nextPlan = clonePlan(plan);
+  const food = nextPlan.days?.[dayIndex]?.meals?.[mealIndex]?.foods?.[foodIndex];
+  if (!food) return nextPlan;
+
+  const oldAmount = Math.max(1, Number(food.amount) || 1);
+  const nextAmount = Math.max(5, Math.round((Number(nextAmountRaw) || 5) / 5) * 5);
+  const ratio = nextAmount / oldAmount;
+  const unit = food.unit || 'g';
+
+  food.amount = nextAmount;
+  food.displayAmount = `${nextAmount}${unit}`;
+  food.calories = roundKcal((Number(food.calories) || 0) * ratio);
+  food.protein = roundMacro((Number(food.protein) || 0) * ratio);
+  food.carbs = roundMacro((Number(food.carbs) || 0) * ratio);
+  food.fat = roundMacro((Number(food.fat) || 0) * ratio);
+
+  recalculateDay(nextPlan.days[dayIndex]);
+  return nextPlan;
+}
+
+export default function MealPlanTrainer({
+  plan,
+  clientData,
+  nutritionalNeeds,
+  onReset,
+  onRegenerate,
+  onViewProgress,
+  editableAmounts = false,
+  onPlanChange,
+  onPlanDirtyChange,
+  hideReviewActions = false,
+}) {
   const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -76,15 +148,18 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
     }
   };
 
-  // Debug log
-  console.log('MealPlanTrainer - onViewProgress:', typeof onViewProgress, onViewProgress);
-  console.log('MealPlanTrainer - clientData:', clientData?.clientId);
-
   if (!plan || !plan.days || plan.days.length === 0) {
     return <div className={styles.container}>Nu s-a putut genera planul.</div>;
   }
 
   const currentDay = plan.days[activeDay];
+  const canEditAmounts = editableAmounts && user?.role === 'trainer' && typeof onPlanChange === 'function';
+
+  const handleFoodAmountChange = (mealIndex, foodIndex, nextAmount) => {
+    const nextPlan = updateFoodAmount(plan, activeDay, mealIndex, foodIndex, nextAmount);
+    onPlanChange?.(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
 
   return (
     <div className={styles.container}>
@@ -203,6 +278,7 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
               </button>
             ))}
           </div>
+          {!hideReviewActions && (
           <div className={styles.tabsActions}>
             {/* Buton pentru antrenor: vizualizează progresul clientului */}
             <button
@@ -246,6 +322,7 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
               )}
             </button>
           </div>
+          )}
         </div>
 
         {/* Day Totals */}
@@ -280,9 +357,44 @@ export default function MealPlanTrainer({ plan, clientData, nutritionalNeeds, on
                 <ul className={styles.mealList}>
                   {meal.foods.map((food, foodIndex) => (
                     <li key={foodIndex} className={styles.mealItem}>
-                      <span className={styles.foodName}>
-                        {food.name} ({food.displayAmount || `${food.amount}${food.unit}`})
-                      </span>
+                      <div className={styles.foodMainRow}>
+                        <span className={styles.foodName}>{food.name}</span>
+                        {canEditAmounts ? (
+                          <div className={styles.amountStepper} aria-label={`Gramaj ${food.name}`}>
+                            <button
+                              type="button"
+                              className={styles.amountStepBtn}
+                              onClick={() => handleFoodAmountChange(mealIndex, foodIndex, (Number(food.amount) || 5) - 5)}
+                              disabled={(Number(food.amount) || 0) <= 5}
+                              aria-label={`Scade gramajul pentru ${food.name}`}
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="5"
+                              step="5"
+                              className={styles.amountInput}
+                              value={food.amount ?? 5}
+                              onChange={(event) => handleFoodAmountChange(mealIndex, foodIndex, event.target.value)}
+                              aria-label={`Gramaj ${food.name}`}
+                            />
+                            <span className={styles.amountUnit}>{food.unit || 'g'}</span>
+                            <button
+                              type="button"
+                              className={styles.amountStepBtn}
+                              onClick={() => handleFoodAmountChange(mealIndex, foodIndex, (Number(food.amount) || 5) + 5)}
+                              aria-label={`Crește gramajul pentru ${food.name}`}
+                            >
+                              +
+                            </button>
+                          </div>
+                        ) : (
+                          <span className={styles.foodAmount}>
+                            {food.displayAmount || `${food.amount}${food.unit}`}
+                          </span>
+                        )}
+                      </div>
                       <span className={styles.foodMacros}>
                         {food.nutritionNote ? '≈ ' : ''}{food.calories}kcal · P:{food.protein}g · C:{food.carbs}g · G:{food.fat}g
                       </span>

@@ -16,7 +16,18 @@ export function getSupabase() {
         '[supabase] Missing env vars: NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY'
       );
     }
-    _supabase = createClient(url, key);
+    _supabase = createClient(url, key, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'aplicatienutritie-server',
+        },
+      },
+    });
   }
   return _supabase;
 }
