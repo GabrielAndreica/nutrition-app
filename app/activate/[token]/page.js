@@ -140,15 +140,15 @@ export default function ActivatePage({ params }) {
           </div>
           <div className={styles.tagline}>
             <h1 className={styles.taglineHeading}>
-              Planuri alimentare<br />complet personalizate.
+              Planurile tale<br />organizate clar.
             </h1>
             <p className={styles.taglineSub}>
-              Activează-ți contul și începe să colaborezi cu antrenorul tău pentru rezultate optime.
+              Activează-ți contul și vezi planurile și progresul într-un singur loc.
             </p>
           </div>
           <div className={styles.aiBadge}>
             <span className={styles.dot} />
-            Planuri inteligente
+            Simplu și organizat
           </div>
         </div>
         <div className={styles.rightPanel}>
@@ -171,15 +171,15 @@ export default function ActivatePage({ params }) {
           </div>
           <div className={styles.tagline}>
             <h1 className={styles.taglineHeading}>
-              Planuri alimentare<br />complet personalizate.
+              Planurile tale<br />organizate clar.
             </h1>
             <p className={styles.taglineSub}>
-              Activează-ți contul și începe să colaborezi cu antrenorul tău pentru rezultate optime.
+              Activează-ți contul și vezi planurile și progresul într-un singur loc.
             </p>
           </div>
           <div className={styles.aiBadge}>
             <span className={styles.dot} />
-            Planuri inteligente
+            Simplu și organizat
           </div>
         </div>
         <div className={styles.rightPanel}>
@@ -207,15 +207,15 @@ export default function ActivatePage({ params }) {
         </div>
         <div className={styles.tagline}>
           <h1 className={styles.taglineHeading}>
-            Planuri alimentare<br />complet personalizate.
+            Planurile tale<br />organizate clar.
           </h1>
           <p className={styles.taglineSub}>
-            Activează-ți contul și începe să colaborezi cu antrenorul tău pentru rezultate optime.
+            Activează-ți contul și vezi planurile și progresul într-un singur loc.
           </p>
         </div>
         <div className={styles.aiBadge}>
           <span className={styles.dot} />
-          Planuri inteligente
+          Simplu și organizat
         </div>
       </div>
       <div className={styles.rightPanel}>

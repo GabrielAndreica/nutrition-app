@@ -103,7 +103,7 @@ function UpgradeContent() {
       {/* Page title */}
       <div className={styles.titleSection}>
         <h1 className={styles.title}>Alege planul tău</h1>
-        <p className={styles.subtitle}>Fără contracte. Anulezi oricând.</p>
+        <p className={styles.subtitle}>Clienți, planuri și progres într-un singur loc.</p>
       </div>
 
       {/* Pricing cards */}
@@ -120,8 +120,8 @@ function UpgradeContent() {
           </div>
           <ul className={styles.features}>
             <li className={styles.feature}><span className={styles.check}>✓</span> Până la <strong>10 clienți</strong></li>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Generare planuri nutriționale</li>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Generare planuri de antrenament</li>
+            <li className={styles.feature}><span className={styles.check}>✓</span> Planuri nutriționale pe fiecare client</li>
+            <li className={styles.feature}><span className={styles.check}>✓</span> Planuri de antrenament pe fiecare client</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Monitorizare progres</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Suport email</li>
           </ul>

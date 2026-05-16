@@ -1015,7 +1015,7 @@ function DashboardContent() {
                   Bună ziua, <span className={styles.accent}>{firstName}</span>.
                 </h2>
                 <p className={styles.heroSub}>
-                  Gestionează clienții și generează planuri alimentare sau de antrenament.
+                  Gestionează clienții, planurile, revizia și progresul într-un singur loc.
                 </p>
               </div>
             )}

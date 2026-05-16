@@ -1,7 +1,11 @@
 import LegalPage from '@/app/components/LegalPage';
 
 export const metadata = {
-  title: 'Politica Cookies | trevano',
+  title: 'Politica Cookies',
+  description: 'Ce cookies folosește Trevano și cum sunt folosite în aplicație.',
+  alternates: {
+    canonical: '/politica-cookies',
+  },
 };
 
 export default function CookiesPage() {
