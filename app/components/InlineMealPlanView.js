@@ -1,6 +1,7 @@
 ﻿'use client';
 
 import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from 'react';
+import PlanReviewControls from '@/app/components/PlanReviewControls';
 import styles from '@/app/meal-plan/meal-plan-view.module.css';
 
 // Lazy load MealPlanTrainer pentru performanță
@@ -41,6 +42,33 @@ function SkeletonMealPlan() {
 }
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const mealDraftKey = (planId) => `mealPlanDraft:${planId}`;
+
+function readMealDraft(planId) {
+  if (typeof window === 'undefined' || !planId) return null;
+  try {
+    const raw = sessionStorage.getItem(mealDraftKey(planId));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMealDraft(planId, plan) {
+  if (typeof window === 'undefined' || !planId || !plan) return;
+  try {
+    sessionStorage.setItem(mealDraftKey(planId), JSON.stringify({ plan, savedAt: Date.now() }));
+  } catch {
+    // sessionStorage may be full or blocked; the in-memory state still works.
+  }
+}
+
+function clearMealDraft(planId) {
+  if (typeof window === 'undefined' || !planId) return;
+  try {
+    sessionStorage.removeItem(mealDraftKey(planId));
+  } catch {}
+}
 
 export default function InlineMealPlanView({ planId: initialPlanId, clientDataVersion, scrollContainerRef, onBack, onViewProgress, onViewWorkoutPlan, onEditClient, onDeleteClient }) {
   // DEBUG
@@ -49,6 +77,8 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
   const [planTab, setPlanTab] = useState('alimentar');
   const [mealPlan, setMealPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
+  const [planStatus, setPlanStatus] = useState('approved');
+  const [mealPlanDirty, setMealPlanDirty] = useState(false);
   const [workoutPlanId, setWorkoutPlanId] = useState(null);
 
   // Scroll to top când se montează componenta
@@ -95,6 +125,7 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
     }
     let cancelled = false;
     setMealPlan(null);
+    setMealPlanDirty(false);
     setWorkoutPlanId(null);
     setLoading(true);
     setError(null);
@@ -117,9 +148,14 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
       .then(data => {
         if (cancelled) return;
         if (!data.mealPlan) throw new Error(data.error || 'Planul nu a fost găsit.');
-        const { plan_data, daily_targets, client_id } = data.mealPlan;
-        setMealPlan(plan_data);
+        const { plan_data, daily_targets, client_id, approval_status } = data.mealPlan;
+        const storedDraft = readMealDraft(currentPlanId);
+        const canUseStoredDraft = (approval_status || 'approved') !== 'approved';
+        if (!canUseStoredDraft) clearMealDraft(currentPlanId);
+        setMealPlan(canUseStoredDraft && storedDraft?.plan ? storedDraft.plan : plan_data);
         setNutritionalNeeds(daily_targets);
+        setPlanStatus(approval_status || 'approved');
+        setMealPlanDirty(canUseStoredDraft && !!storedDraft?.plan);
         const c = data.client || {};
         setClientData({
           clientId: client_id,
@@ -145,7 +181,7 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [currentPlanId, resolveWorkoutPlanId, clientDataVersion]);
+  }, [currentPlanId, resolveWorkoutPlanId, clientDataVersion, scrollContainerRef]);
 
   useEffect(() => {
     return () => { abortControllerRef.current?.abort(); };
@@ -261,6 +297,9 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
             setRegenProgress(100);
             setMealPlan(event.plan);
             setNutritionalNeeds(event.nutritionalNeeds);
+            setPlanStatus('pending_review');
+            setMealPlanDirty(false);
+            clearMealDraft(event.planId || currentPlanId);
             if (progressData?.currentWeight) {
               setClientData(prev => ({ ...prev, weight: String(parseFloat(progressData.currentWeight)) }));
             }
@@ -279,10 +318,59 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
     } finally {
       setRegenerating(false);
     }
-  }, [clientData]); // Dependency: clientData
+  }, [clientData, currentPlanId, nutritionalNeeds?.calories]);
+
+  useEffect(() => {
+    if (!currentPlanId || !mealPlan) return;
+    if (mealPlanDirty) writeMealDraft(currentPlanId, mealPlan);
+    else clearMealDraft(currentPlanId);
+  }, [currentPlanId, mealPlan, mealPlanDirty]);
 
   // Memoized computed values
   const nutritionalNeedsMemo = useMemo(() => nutritionalNeeds, [nutritionalNeeds]);
+  const saveMealPlanDraftNow = useCallback(async () => {
+    if (!currentPlanId || !mealPlan || !mealPlanDirty) return;
+    if (planStatus === 'approved') {
+      setMealPlanDirty(false);
+      clearMealDraft(currentPlanId);
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const response = await fetch(`/api/meal-plans/${currentPlanId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: 'update',
+        plan_data: mealPlan,
+        daily_targets: nutritionalNeeds,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('[InlineMealPlanView] Autosave meal plan failed:', data);
+      throw new Error(data.error || 'Nu am putut salva automat modificările.');
+    }
+    setMealPlanDirty(false);
+    setPlanStatus(data.mealPlan?.approval_status || 'pending_review');
+    clearMealDraft(currentPlanId);
+  }, [currentPlanId, mealPlan, mealPlanDirty, nutritionalNeeds, planStatus]);
+
+  useEffect(() => {
+    if (!mealPlanDirty || !mealPlan || !currentPlanId) return;
+    const timer = setTimeout(() => {
+      saveMealPlanDraftNow().catch((err) => {
+        console.error('[InlineMealPlanView] Autosave meal plan failed:', err);
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [currentPlanId, mealPlan, mealPlanDirty, saveMealPlanDraftNow]);
+
   const handleOpenWorkoutPlan = useCallback(async () => {
     if (!onViewWorkoutPlan || !clientData?.clientId) return;
 
@@ -296,11 +384,19 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
     }
 
     if (targetWorkoutPlanId) {
+      if (mealPlanDirty && mealPlan) writeMealDraft(currentPlanId, mealPlan);
+      if (mealPlanDirty) {
+        try {
+          await saveMealPlanDraftNow();
+        } catch (err) {
+          console.error('[InlineMealPlanView] Nu am putut salva înainte de comutarea pe antrenament:', err);
+        }
+      }
       onViewWorkoutPlan(targetWorkoutPlanId);
     } else {
       setError('Planul de antrenament nu este încă disponibil pentru acest client.');
     }
-  }, [clientData?.clientId, onViewWorkoutPlan, resolveWorkoutPlanId, workoutPlanId]);
+  }, [clientData?.clientId, currentPlanId, mealPlan, mealPlanDirty, onViewWorkoutPlan, resolveWorkoutPlanId, saveMealPlanDraftNow, workoutPlanId]);
 
   return (
     <div className={styles.content}>
@@ -408,11 +504,31 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
       )}
 
       {!loading && !regenerating && mealPlan && (
+        <>
+        <PlanReviewControls
+          type="meal"
+          planId={currentPlanId}
+          status={planStatus}
+          plan={mealPlan}
+          dailyTargets={nutritionalNeedsMemo}
+          onPlanChange={setMealPlan}
+          onDailyTargetsChange={setNutritionalNeeds}
+          onStatusChange={setPlanStatus}
+          externalDirty={mealPlanDirty}
+          onExternalDirtyChange={(dirty) => {
+            setMealPlanDirty(dirty);
+            if (!dirty) clearMealDraft(currentPlanId);
+          }}
+        />
         <Suspense fallback={<SkeletonMealPlan />}>
           <MealPlanTrainer
             plan={mealPlan}
             clientData={clientData}
             nutritionalNeeds={nutritionalNeedsMemo}
+            editableAmounts={planStatus !== 'approved'}
+            onPlanChange={setMealPlan}
+            onPlanDirtyChange={setMealPlanDirty}
+            hideReviewActions={planStatus === 'pending_review'}
             onReset={onBack}
             onRegenerate={handleRegenerate}
             onViewProgress={onViewProgress ? (() => {
@@ -422,6 +538,7 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
             }) : undefined}
           />
         </Suspense>
+        </>
       )}
     </div>
   );

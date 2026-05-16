@@ -117,23 +117,7 @@ export async function GET(request) {
     clientsQuery = clientsQuery.ilike('name', `%${search}%`);
   }
 
-  // Run queries IN PARALLEL — optimizat pentru speed
-  const [clientsResult, plansResult, workoutPlansResult] = await Promise.all([
-    clientsQuery,
-    // Optimizare: Doar ultimul plan per client (folosește DISTINCT ON în Postgres)
-    supabase
-      .from('meal_plans')
-      .select('id, client_id, created_at')
-      .eq('trainer_id', auth.userId)
-      .order('created_at', { ascending: false })
-      .limit(500),
-    supabase
-      .from('workout_plans')
-      .select('id, client_id, created_at')
-      .eq('trainer_id', auth.userId)
-      .order('created_at', { ascending: false })
-      .limit(500),
-  ]);
+  const clientsResult = await clientsQuery;
 
   if (clientsResult.error) {
     console.error('Supabase GET clients error:', clientsResult.error);
@@ -150,12 +134,39 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Eroare la încărcarea clienților.' }, { status: 500 });
   }
 
+  const clientIds = (clientsResult.data || []).map(client => client.id);
+  const [plansResult, workoutPlansResult] = clientIds.length > 0
+    ? await Promise.all([
+        supabase
+          .from('meal_plans')
+          .select('id, client_id, created_at, approval_status')
+          .eq('trainer_id', auth.userId)
+          .in('client_id', clientIds)
+          .order('created_at', { ascending: false }),
+        supabase
+          .from('workout_plans')
+          .select('id, client_id, created_at, approval_status')
+          .eq('trainer_id', auth.userId)
+          .in('client_id', clientIds)
+          .order('created_at', { ascending: false }),
+      ])
+    : [{ data: [] }, { data: [] }];
+
+  if (plansResult.error || workoutPlansResult.error) {
+    console.error('Supabase GET client plans error:', plansResult.error || workoutPlansResult.error);
+    return NextResponse.json({ error: 'Eroare la încărcarea planurilor clienților.' }, { status: 500 });
+  }
+
   // Build planMap — first occurrence per client_id is the most recent (ordered desc)
   const planMap = {};
   if (plansResult.data) {
     for (const plan of plansResult.data) {
       if (!planMap[plan.client_id]) {
-        planMap[plan.client_id] = { planId: plan.id, createdAt: plan.created_at };
+        planMap[plan.client_id] = {
+          planId: plan.id,
+          createdAt: plan.created_at,
+          approvalStatus: plan.approval_status || 'approved',
+        };
       }
     }
   }
@@ -164,7 +175,11 @@ export async function GET(request) {
   if (workoutPlansResult.data) {
     for (const plan of workoutPlansResult.data) {
       if (!workoutPlanMap[plan.client_id]) {
-        workoutPlanMap[plan.client_id] = { planId: plan.id, createdAt: plan.created_at };
+        workoutPlanMap[plan.client_id] = {
+          planId: plan.id,
+          createdAt: plan.created_at,
+          approvalStatus: plan.approval_status || 'approved',
+        };
       }
     }
   }

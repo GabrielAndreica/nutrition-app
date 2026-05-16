@@ -1300,6 +1300,73 @@
   color: #1d1d1f;
 }
 
+.foodMainRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.foodAmount {
+  color: #5f6368;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.amountStepper {
+  display: grid;
+  grid-template-columns: 30px 58px 18px 30px;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.amountStepBtn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid #dedee4;
+  background: #fff;
+  color: #1d1d1f;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.14s, border-color 0.14s, opacity 0.14s;
+}
+
+.amountStepBtn:hover:not(:disabled) {
+  background: #f5f5f7;
+  border-color: #cfcfd6;
+}
+
+.amountStepBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.amountInput {
+  width: 58px;
+  height: 30px;
+  border: 1px solid #dedee4;
+  border-radius: 8px;
+  padding: 0 6px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1d1d1f;
+  text-align: center;
+  background: #fff;
+}
+
+.amountUnit {
+  color: #6b6f76;
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .foodMacros {
   font-size: 13px;
   color: #86868b;
@@ -1634,6 +1701,11 @@
     font-size: 15px;
   }
 
+  .foodMainRow {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
   .foodMacros {
     font-size: 12px;
   }
@@ -1716,6 +1788,24 @@
 
   .foodName {
     font-size: 13px;
+  }
+
+  .amountStepper {
+    grid-template-columns: 28px 50px 16px 28px;
+  }
+
+  .amountStepBtn,
+  .amountInput {
+    height: 28px;
+  }
+
+  .amountStepBtn {
+    width: 28px;
+  }
+
+  .amountInput {
+    width: 50px;
+    font-size: 12px;
   }
 
   .foodMacros {

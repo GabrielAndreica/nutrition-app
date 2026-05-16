@@ -459,6 +459,190 @@
   color: #ff3b30;
 }
 
+/* ── Trainer Review ─────────────────────────────────────────── */
+.reviewPanel {
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  background: #fffaf0;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 8px 0 20px;
+}
+
+.reviewPanelApproved {
+  border-color: rgba(34, 197, 94, 0.25);
+  background: #f4fbf6;
+}
+
+.reviewHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.reviewKicker {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.14);
+  color: #9a5a00;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.reviewPanelApproved .reviewKicker {
+  background: rgba(34, 197, 94, 0.12);
+  color: #147534;
+}
+
+.reviewHeader h3 {
+  margin: 8px 0 4px;
+  font-size: 18px;
+  line-height: 1.2;
+  color: #1d1d1f;
+}
+
+.reviewHeader p {
+  margin: 0;
+  color: #5f6368;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.reviewActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.reviewPrimaryBtn,
+.reviewSecondaryBtn {
+  min-height: 40px;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+
+.reviewPrimaryBtn {
+  border: 1px solid #111;
+  background: #111;
+  color: #fff;
+}
+
+.reviewPrimaryBtn:hover:not(:disabled) {
+  background: #2b2b2d;
+}
+
+.reviewSecondaryBtn {
+  border: 1px solid #e0e0e5;
+  background: #fff;
+  color: #2f3135;
+}
+
+.reviewSecondaryBtn:hover:not(:disabled) {
+  background: #f5f5f7;
+  border-color: #d0d0d6;
+}
+
+.reviewPrimaryBtn:disabled,
+.reviewSecondaryBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.reviewEditor {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.reviewDay {
+  border: 1px solid #ececf0;
+  background: #fff;
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.reviewDay h4 {
+  margin: 0 0 12px;
+  color: #1d1d1f;
+  font-size: 15px;
+}
+
+.reviewGroup {
+  padding-top: 10px;
+  border-top: 1px solid #f0f0f3;
+}
+
+.reviewGroup:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
+.reviewGroup p {
+  margin: 0 0 8px;
+  color: #5f6368;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.reviewInputRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 86px 42px;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  color: #303034;
+  font-size: 14px;
+}
+
+.reviewInputRow span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reviewInputRow input {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #dedee4;
+  border-radius: 7px;
+  padding: 0 10px;
+  font: inherit;
+  color: #1d1d1f;
+  background: #fff;
+}
+
+.reviewMessage,
+.reviewError {
+  margin-top: 12px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.reviewMessage {
+  background: rgba(34, 197, 94, 0.1);
+  color: #147534;
+  margin-bottom: 16px;
+}
+
+.reviewError {
+  background: rgba(220, 38, 38, 0.08);
+  color: #b91c1c;
+}
+
 /* ── Mobile ──────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .container {
@@ -546,6 +730,33 @@
   .error {
     margin: 12px 0;
     font-size: 15px;
+  }
+
+  .reviewPanel {
+    margin: 8px 0 14px;
+    padding: 14px;
+  }
+
+  .reviewHeader {
+    flex-direction: column;
+  }
+
+  .reviewActions {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .reviewPrimaryBtn,
+  .reviewSecondaryBtn {
+    flex: 1 1 auto;
+  }
+
+  .reviewEditor {
+    grid-template-columns: 1fr;
+  }
+
+  .reviewInputRow {
+    grid-template-columns: minmax(0, 1fr) 74px 34px;
   }
 }
 

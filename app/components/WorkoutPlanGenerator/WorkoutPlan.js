@@ -46,7 +46,17 @@ const TRAINING_SPLIT_LABELS = {
 };
 
 // ─── Main WorkoutPlan component ───────────────────────────────────────────────
-export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmitProgress, progressCooldownUntil }) {
+export default function WorkoutPlan({
+  plan,
+  clientData,
+  onViewProgress,
+  onSubmitProgress,
+  progressCooldownUntil,
+  hideReviewActions = false,
+  editableSets = false,
+  onPlanChange,
+  onPlanDirtyChange,
+}) {
   const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
@@ -62,9 +72,15 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
   }
 
   // În UI afișăm doar zilele de antrenament (nu și zilele de odihnă).
-  const workoutOnlyDays = plan.days.filter(day => !day.isRestDay);
-  const visibleDays = workoutOnlyDays.length > 0 ? workoutOnlyDays : plan.days;
-  const currentDay = visibleDays[activeDay] || visibleDays[0] || {};
+  const workoutOnlyDayEntries = plan.days
+    .map((day, dayIndex) => ({ day, dayIndex }))
+    .filter(({ day }) => !day.isRestDay);
+  const visibleDayEntries = workoutOnlyDayEntries.length > 0
+    ? workoutOnlyDayEntries
+    : plan.days.map((day, dayIndex) => ({ day, dayIndex }));
+  const visibleDays = visibleDayEntries.map(({ day }) => day);
+  const currentDayEntry = visibleDayEntries[activeDay] || visibleDayEntries[0] || { day: {}, dayIndex: 0 };
+  const currentDay = currentDayEntry.day || {};
   const currentDayName = currentDay.dayName
     || (typeof currentDay.day === 'number' ? DAY_NAMES_FULL[currentDay.day - 1] : null)
     || DAY_NAMES_FULL[activeDay]
@@ -75,6 +91,23 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
     || clientData?.training_split
     || plan.split
     || 'Split personalizat';
+  const canEditSets = editableSets && user?.role === 'trainer' && typeof onPlanChange === 'function';
+
+  const changeExerciseSets = (exerciseIndex, rawValue) => {
+    const nextSets = Math.max(1, Math.min(12, Number.parseInt(rawValue, 10) || 1));
+    const nextPlan = JSON.parse(JSON.stringify(plan));
+    const exercise = nextPlan.days?.[currentDayEntry.dayIndex]?.exercises?.[exerciseIndex];
+    if (!exercise) return;
+    exercise.sets = nextSets;
+    onPlanChange(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const stepExerciseSets = (exerciseIndex, delta) => {
+    const currentSets = Number(currentDay.exercises?.[exerciseIndex]?.sets) || 3;
+    changeExerciseSets(exerciseIndex, currentSets + delta);
+  };
+
   const handleDownload = async () => {
     if (pdfLoading) return;
     setPdfLoading(true);
@@ -157,6 +190,7 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
             );
             })}
           </div>
+          {!hideReviewActions && (
           <div className={mealStyles.tabsActions}>
             {onSubmitProgress && (
               <button
@@ -221,6 +255,7 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
               )}
             </button>
           </div>
+          )}
         </div>
 
         <div className={mealStyles.dayTotalsBar}>
@@ -271,7 +306,39 @@ export default function WorkoutPlan({ plan, clientData, onViewProgress, onSubmit
                 </div>
 
                 <div className={mealStyles.mealTotals}>
-                  <span>Seturi: {exercise.sets || 3}</span>
+                  {canEditSets ? (
+                    <div className={styles.setsControl}>
+                      <span>Seturi</span>
+                      <div className={styles.setsStepper}>
+                        <button
+                          type="button"
+                          onClick={() => stepExerciseSets(index, -1)}
+                          disabled={(Number(exercise.sets) || 0) <= 1}
+                          aria-label={`Scade numărul de serii pentru ${exercise.name || `exercițiul ${index + 1}`}`}
+                        >
+                          -
+                        </button>
+                        <input
+                          type="number"
+                          min="1"
+                          max="12"
+                          step="1"
+                          value={exercise.sets || 3}
+                          onChange={(event) => changeExerciseSets(index, event.target.value)}
+                          aria-label={`Număr de serii pentru ${exercise.name || `exercițiul ${index + 1}`}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => stepExerciseSets(index, 1)}
+                          aria-label={`Crește numărul de serii pentru ${exercise.name || `exercițiul ${index + 1}`}`}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <span>Seturi: {exercise.sets || 3}</span>
+                  )}
                   <span>Repetări: {exercise.reps || '8-12'}</span>
                 </div>
               </div>

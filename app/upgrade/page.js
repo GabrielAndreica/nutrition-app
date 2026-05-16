@@ -9,11 +9,14 @@ import styles from './upgrade.module.css';
 function UpgradeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { logout, token } = useAuth();
+  const { logout, token, user } = useAuth();
   const reason = searchParams.get('reason');
   const payment = searchParams.get('payment');
   const [loadingPlan, setLoadingPlan] = useState(null);
   const [checkoutError, setCheckoutError] = useState('');
+  const trialExpired = user?.trial_ends_at ? new Date(user.trial_ends_at) < new Date() : false;
+  const subscriptionInactive = ['expired', 'cancelled', 'inactive'].includes(user?.subscription_status);
+  const mustChoosePlan = reason === 'trial_expired' || reason === 'subscription_inactive' || trialExpired || subscriptionInactive;
 
   useEffect(() => {
     const resetCheckoutState = () => {
@@ -29,7 +32,12 @@ function UpgradeContent() {
     };
   }, [payment]);
 
-  const handleLogout = async () => {
+  const handleHeaderAction = async () => {
+    if (!mustChoosePlan) {
+      router.push('/dashboard');
+      return;
+    }
+
     await logout();
     router.replace('/auth');
   };
@@ -75,8 +83,8 @@ function UpgradeContent() {
     <div className={styles.page}>
       {/* Header */}
       <header className={styles.header}>
-        <button className={styles.backBtn} onClick={handleLogout}>
-          Ieșire
+        <button className={styles.backBtn} onClick={handleHeaderAction}>
+          {mustChoosePlan ? 'Ieșire' : 'Înapoi la dashboard'}
         </button>
         <div className={styles.logo}>trevano</div>
       </header>

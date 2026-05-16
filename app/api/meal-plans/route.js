@@ -18,7 +18,7 @@ export async function GET(request) {
 
   let query = supabase
     .from('meal_plans')
-    .select('id, client_id, created_at')
+    .select('id, client_id, created_at, approval_status')
     .order('created_at', { ascending: false });
 
   // Dacă e trainer, returnează planurile clienților săi
@@ -45,6 +45,7 @@ export async function GET(request) {
     }
 
     query = query.eq('client_id', client.id);
+    query = query.eq('approval_status', 'approved');
     if (clientIdFilter && clientIdFilter !== client.id) {
       return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
     }
@@ -63,7 +64,11 @@ export async function GET(request) {
     const latestPerClient = {};
     for (const row of data) {
       if (!latestPerClient[row.client_id]) {
-        latestPerClient[row.client_id] = { planId: row.id, createdAt: row.created_at };
+        latestPerClient[row.client_id] = {
+          planId: row.id,
+          createdAt: row.created_at,
+          approvalStatus: row.approval_status || 'approved',
+        };
       }
     }
     return NextResponse.json({ plans: latestPerClient });

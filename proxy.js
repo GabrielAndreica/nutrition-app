@@ -21,6 +21,8 @@ const PUBLIC_API_PREFIXES = [
 function withSecurityHeaders(response, request) {
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('X-DNS-Prefetch-Control', 'off');
+  response.headers.set('X-Permitted-Cross-Domain-Policies', 'none');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set(
     'Permissions-Policy',
@@ -39,7 +41,7 @@ function withSecurityHeaders(response, request) {
   return response;
 }
 
-export function middleware(request) {
+export function proxy(request) {
   const { pathname } = request.nextUrl;
 
   // Lasă trece toate API-urile publice (auth, health etc.) — le verifică propria logică

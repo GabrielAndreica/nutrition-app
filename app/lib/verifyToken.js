@@ -18,11 +18,18 @@ export function verifyToken(request) {
   }
 
   const rawToken = authHeader.substring(7);
+  if (!rawToken || rawToken.length > 4096) {
+    return { error: 'Token JWT invalid.', status: 401 };
+  }
 
   try {
-    const decoded = jwt.verify(rawToken, getJwtSecret());
+    const decoded = jwt.verify(rawToken, getJwtSecret(), { algorithms: ['HS256'] });
+    const userId = decoded.userId || decoded.id || decoded.sub;
+    if (!userId) {
+      return { error: 'Token JWT invalid.', status: 401 };
+    }
     return {
-      userId: String(decoded.userId || decoded.id || decoded.sub),
+      userId: String(userId),
       email: decoded.email || null,
       role: decoded.role || null,
     };

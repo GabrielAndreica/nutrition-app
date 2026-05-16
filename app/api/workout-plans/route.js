@@ -20,7 +20,7 @@ export async function GET(request) {
 
   let query = supabase
     .from('workout_plans')
-    .select('id, client_id, created_at')
+    .select('id, client_id, created_at, approval_status')
     .order('created_at', { ascending: false });
 
   if (auth.role === 'trainer') {
@@ -38,6 +38,7 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Client negăsit.' }, { status: 404 });
     }
     query = query.eq('client_id', client.id);
+    query = query.eq('approval_status', 'approved');
     if (clientIdFilter && clientIdFilter !== client.id) {
       return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
     }
@@ -54,7 +55,11 @@ export async function GET(request) {
     const latestPerClient = {};
     for (const row of data) {
       if (!latestPerClient[row.client_id]) {
-        latestPerClient[row.client_id] = { planId: row.id, createdAt: row.created_at };
+        latestPerClient[row.client_id] = {
+          planId: row.id,
+          createdAt: row.created_at,
+          approvalStatus: row.approval_status || 'approved',
+        };
       }
     }
     const res = NextResponse.json({ plans: latestPerClient });
