@@ -55,7 +55,7 @@ function ResetPasswordContent() {
         </div>
         <div className={styles.aiBadge}>
           <span className={styles.dot} />
-          Planuri inteligente
+          Simplu și organizat
         </div>
       </div>
 

@@ -146,16 +146,16 @@ function AuthContent() {
 
         <div className={styles.tagline}>
           <h1 className={styles.taglineHeading}>
-            Planuri alimentare<br />complet personalizate.
+            Pentru antrenori<br />de fitness.
           </h1>
           <p className={styles.taglineSub}>
-            Creaza planuri alimentare pentru clientii tai, in cateva secunde.
+            Clienți, planuri alimentare, antrenamente și progres într-un singur loc.
           </p>
         </div>
 
         <div className={styles.aiBadge}>
           <span className={styles.dot} />
-          Planuri inteligente
+          Simplu și organizat
         </div>
       </div>
 

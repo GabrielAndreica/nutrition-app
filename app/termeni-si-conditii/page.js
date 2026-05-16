@@ -1,7 +1,11 @@
 import LegalPage from '@/app/components/LegalPage';
 
 export const metadata = {
-  title: 'Termeni și condiții | trevano',
+  title: 'Termeni și condiții',
+  description: 'Termenii de utilizare pentru Trevano, aplicația pentru antrenori de fitness.',
+  alternates: {
+    canonical: '/termeni-si-conditii',
+  },
 };
 
 export default function TermsPage() {
