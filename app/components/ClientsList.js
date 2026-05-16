@@ -155,6 +155,7 @@ const ClientsList = forwardRef(function ClientsList({
 
   const [clients,    setClients]    = useState([]);
   const [planMap,    setPlanMap]    = useState({});
+  const [workoutPlanMap, setWorkoutPlanMap] = useState({});
   const [generatingClients, setGeneratingClients] = useState(new Set());
   const [justFinishedClients, setJustFinishedClients] = useState(new Set());
   const [generatingInitialized, setGeneratingInitialized] = useState(false);
@@ -249,6 +250,7 @@ const ClientsList = forwardRef(function ClientsList({
       const data = await res.json();
       setClients(data.clients || []);
       setPlanMap(data.plans || {});
+      setWorkoutPlanMap(data.workoutPlans || {});
       setTotal(data.total || 0);
       setHasMore((data.total || 0) > limit);
     } catch {}
@@ -283,14 +285,17 @@ const ClientsList = forwardRef(function ClientsList({
       
       const newClients = data.clients || [];
       const newPlans   = data.plans   || {};
+      const newWorkoutPlans = data.workoutPlans || {};
       
       if (silent) {
         // Silent refresh: înlocuiește complet (sync cu serverul)
         setClients(newClients);
         setPlanMap(newPlans);
+        setWorkoutPlanMap(newWorkoutPlans);
       } else if (isFirstPage) {
         setClients(newClients);
         setPlanMap(newPlans);
+        setWorkoutPlanMap(newWorkoutPlans);
       } else {
         // Infinite scroll: append cu deduplicare după id
         setClients(prev => {
@@ -299,6 +304,7 @@ const ClientsList = forwardRef(function ClientsList({
           return [...prev, ...unique];
         });
         setPlanMap(prev => ({ ...prev, ...newPlans }));
+        setWorkoutPlanMap(prev => ({ ...prev, ...newWorkoutPlans }));
       }
       
       const fetchedTotal = data.total || 0;
@@ -318,6 +324,29 @@ const ClientsList = forwardRef(function ClientsList({
       }
     }
   }, [authHeaders]);
+
+  useEffect(() => {
+    const updatePlanMap = (setter, plan) => {
+      if (!plan?.client_id || !plan?.id) return;
+      setter(prev => ({
+        ...prev,
+        [plan.client_id]: {
+          planId: plan.id,
+          createdAt: plan.created_at || prev[plan.client_id]?.createdAt || null,
+          approvalStatus: plan.approval_status || 'approved',
+        },
+      }));
+    };
+
+    const handlePlanReviewStatusChanged = (event) => {
+      updatePlanMap(setPlanMap, event.detail?.mealPlan);
+      updatePlanMap(setWorkoutPlanMap, event.detail?.workoutPlan);
+      fetchClientsRange(pageRef.current * LIMIT);
+    };
+
+    window.addEventListener('planReviewStatusChanged', handlePlanReviewStatusChanged);
+    return () => window.removeEventListener('planReviewStatusChanged', handlePlanReviewStatusChanged);
+  }, [fetchClientsRange]);
 
   useEffect(() => {
     fetchClients(page, debouncedSearch);
@@ -1390,10 +1419,12 @@ const ClientsList = forwardRef(function ClientsList({
               const hasAccount = !!client.user_id;
               const isPending = client.invitation_status === 'pending';
               const plan = planMap[client.id];
+              const workoutPlan = workoutPlanMap[client.id];
               const hasNewProgress = client.has_new_progress;
               const isGenerating = generatingClients.has(String(client.id));
               const isJustFinished = justFinishedClients.has(String(client.id));
               const isDraft = (client.status || 'draft') === 'draft' && !plan && !isPending && !hasAccount;
+              const isPendingReview = plan?.approvalStatus === 'pending_review' || workoutPlan?.approvalStatus === 'pending_review';
 
               return (
               <div key={client.id} className={styles.clientRow}>
@@ -1412,6 +1443,9 @@ const ClientsList = forwardRef(function ClientsList({
                     )}
                     {isDraft && (
                       <span className={`${styles.accountBadge} ${styles.badgeDraft}`}>Draft gratuit</span>
+                    )}
+                    {isPendingReview && (
+                      <span className={`${styles.accountBadge} ${styles.badgeReview}`}>În revizie</span>
                     )}
                   </div>
                   </div>

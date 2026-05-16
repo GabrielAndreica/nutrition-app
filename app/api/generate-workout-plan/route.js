@@ -1650,6 +1650,7 @@ export async function POST(request) {
                 client_id: input.clientId,
                 trainer_id: trainerId,
                 plan_data: plan,
+                approval_status: 'pending_review',
               })
               .select('id')
               .single());
@@ -1659,19 +1660,7 @@ export async function POST(request) {
             }
             savedPlanId = inserted?.id || null;
 
-            if (savedPlanId && input.clientUserId) {
-              await supabaseQuery(() => supabase
-                .from('notifications')
-                .insert({
-                  user_id: input.clientUserId,
-                  type: 'new_workout_plan',
-                  title: 'Plan de antrenament nou',
-                  message: 'Antrenorul tău a generat un plan de antrenament personalizat pentru tine.',
-                  related_plan_id: savedPlanId,
-                  related_client_id: input.clientId,
-                  is_read: false,
-                }));
-            }
+            // Clientul primește notificare doar după ce antrenorul aprobă explicit planul.
           }
 
           logActivity({

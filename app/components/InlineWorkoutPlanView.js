@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import PlanReviewControls from '@/app/components/PlanReviewControls';
 import WorkoutPlan from '@/app/components/WorkoutPlanGenerator/WorkoutPlan';
 import styles from '@/app/meal-plan/meal-plan-view.module.css';
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -38,6 +39,8 @@ function SkeletonWorkoutPlan() {
 export default function InlineWorkoutPlanView({ planId, clientDataVersion, scrollContainerRef, onBack, onViewMealPlan, onViewProgress, onEditClient, onDeleteClient }) {
   const [workoutPlan, setWorkoutPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
+  const [planStatus, setPlanStatus] = useState('approved');
+  const [workoutPlanDirty, setWorkoutPlanDirty] = useState(false);
   const [mealPlanId, setMealPlanId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -50,6 +53,7 @@ export default function InlineWorkoutPlanView({ planId, clientDataVersion, scrol
       setLoading(true);
       setError(null);
       setWorkoutPlan(null);
+      setWorkoutPlanDirty(false);
       scrollContainerRef?.current?.scrollTo({ top: 0, behavior: 'instant' });
 
       const token = localStorage.getItem('token');
@@ -68,6 +72,7 @@ export default function InlineWorkoutPlanView({ planId, clientDataVersion, scrol
           if (cancelled) return;
           if (!data.workoutPlan) throw new Error(data.error || 'Planul nu a fost găsit.');
           setWorkoutPlan(data.workoutPlan.plan_data || data.workoutPlan);
+          setPlanStatus(data.workoutPlan.approval_status || 'approved');
           const clientId = data.workoutPlan?.client_id || null;
           setClientData(data.client ? { ...data.client, id: clientId } : null);
           if (!clientId) return;
@@ -170,11 +175,31 @@ export default function InlineWorkoutPlanView({ planId, clientDataVersion, scrol
       )}
 
       {!loading && !error && workoutPlan && (
-        <WorkoutPlan plan={workoutPlan} clientData={clientData} onViewProgress={onViewProgress ? (() => {
+        <>
+        <PlanReviewControls
+          type="workout"
+          planId={planId}
+          status={planStatus}
+          plan={workoutPlan}
+          onPlanChange={setWorkoutPlan}
+          onStatusChange={setPlanStatus}
+          externalDirty={workoutPlanDirty}
+          onExternalDirtyChange={setWorkoutPlanDirty}
+        />
+        <WorkoutPlan
+          plan={workoutPlan}
+          clientData={clientData}
+          editableSets={planStatus !== 'approved'}
+          onPlanChange={setWorkoutPlan}
+          onPlanDirtyChange={setWorkoutPlanDirty}
+          hideReviewActions={planStatus === 'pending_review'}
+          onViewProgress={onViewProgress ? (() => {
               if (clientData?.id) {
                 onViewProgress(clientData.id);
               }
-            }) : undefined} />
+            }) : undefined}
+        />
+        </>
       )}
     </div>
   );

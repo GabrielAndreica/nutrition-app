@@ -60,6 +60,8 @@ const getMetricToneClass = (key, value) => {
   return styles.progressMetricChipNeutral;
 };
 
+const getProgressHandledKey = (clientId, progressId) => `progress_handled_${clientId}_${progressId}`;
+
 export default function InlineProgressView({ clientId, scrollContainerRef, onBack, onGeneratePlan }) {
   const router = useRouter();
   const [client, setClient] = useState(null);
@@ -381,15 +383,15 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
           setNewWeight(String(clientEntry.weight));
           setLastProgressId(clientEntry.id);
           
-          // Dacă DB spune că există progres netratat (has_new_progress=true),
-          // înseamnă că e un progres NOU — ștergem cheia veche din sessionStorage
-          // și lăsăm butoanele active.
-          const continuedKey = `plan_continued_${clientId}_${clientEntry.id}`;
-          if (clientData.client?.has_new_progress) {
-            sessionStorage.removeItem(continuedKey);
-          } else {
-            const wasContinued = sessionStorage.getItem(continuedKey);
-            if (wasContinued) setPlanContinued(true);
+          const handledKey = getProgressHandledKey(clientId, clientEntry.id);
+          const wasHandledLocally = sessionStorage.getItem(handledKey);
+          const legacyContinuedKey = `plan_continued_${clientId}_${clientEntry.id}`;
+          const wasHandledWithLegacyKey = sessionStorage.getItem(legacyContinuedKey);
+          if (wasHandledWithLegacyKey && !wasHandledLocally) {
+            sessionStorage.setItem(handledKey, 'continue');
+          }
+          if (wasHandledLocally || wasHandledWithLegacyKey || !clientData.client?.has_new_progress) {
+            setPlanContinued(true);
           }
         }
 
@@ -445,8 +447,7 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
 
   const handleContinue = async () => {
     if (lastProgressId) {
-      const continuedKey = `plan_continued_${clientId}_${lastProgressId}`;
-      sessionStorage.setItem(continuedKey, 'true');
+      sessionStorage.setItem(getProgressHandledKey(clientId, lastProgressId), 'continue');
     }
     setPlanContinued(true);
     setShowBanner(true);
@@ -551,8 +552,7 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
       
       // Marchează progresul ca fiind tratat (s-a generat plan nou) + şterge badge din DB
       if (lastProgressId) {
-        const continuedKey = `plan_continued_${clientId}_${lastProgressId}`;
-        sessionStorage.setItem(continuedKey, 'true');
+        sessionStorage.setItem(getProgressHandledKey(clientId, lastProgressId), 'regenerate');
         setPlanContinued(true);
       }
       // Persist în DB

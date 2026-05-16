@@ -178,17 +178,25 @@ export function sanitizeFoodPreferences(preferences) {
 export function sanitizeForLog(data) {
   if (!data || typeof data !== 'object') return data;
   
-  const sensitiveKeys = ['password', 'token', 'jwt', 'secret', 'apiKey', 'api_key'];
-  const sanitized = { ...data };
-  
-  for (const key of Object.keys(sanitized)) {
-    const lowerKey = key.toLowerCase();
-    if (sensitiveKeys.some(sensitive => lowerKey.includes(sensitive))) {
-      sanitized[key] = '[REDACTED]';
+  const sensitiveKeys = ['password', 'token', 'jwt', 'secret', 'apiKey', 'api_key', 'authorization', 'cookie'];
+  const sanitizeValue = (value, depth = 0) => {
+    if (depth > 4) return '[TRUNCATED]';
+    if (Array.isArray(value)) return value.slice(0, 50).map(item => sanitizeValue(item, depth + 1));
+    if (value && typeof value === 'object') {
+      const result = {};
+      for (const [key, nestedValue] of Object.entries(value)) {
+        const lowerKey = key.toLowerCase();
+        result[key] = sensitiveKeys.some(sensitive => lowerKey.includes(sensitive))
+          ? '[REDACTED]'
+          : sanitizeValue(nestedValue, depth + 1);
+      }
+      return result;
     }
-  }
+    if (typeof value === 'string') return value.slice(0, 2000);
+    return value;
+  };
   
-  return sanitized;
+  return sanitizeValue(data);
 }
 
 // ============================================

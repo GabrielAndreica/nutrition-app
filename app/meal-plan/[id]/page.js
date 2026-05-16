@@ -1,14 +1,40 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { FEATURES, getDefaultRedirectURL } from '@/app/config/features';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
 import AppHeader from '@/app/components/AppHeader';
+import PlanReviewControls from '@/app/components/PlanReviewControls';
 import styles from '../meal-plan-view.module.css';
 
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const mealDraftKey = (planId) => `mealPlanDraft:${planId}`;
+
+function readMealDraft(planId) {
+  if (typeof window === 'undefined' || !planId) return null;
+  try {
+    const raw = sessionStorage.getItem(mealDraftKey(planId));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeMealDraft(planId, plan) {
+  if (typeof window === 'undefined' || !planId || !plan) return;
+  try {
+    sessionStorage.setItem(mealDraftKey(planId), JSON.stringify({ plan, savedAt: Date.now() }));
+  } catch {}
+}
+
+function clearMealDraft(planId) {
+  if (typeof window === 'undefined' || !planId) return;
+  try {
+    sessionStorage.removeItem(mealDraftKey(planId));
+  } catch {}
+}
 
 // Dynamic imports cu ssr: false pentru componente care folosesc jsPDF
 const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPlan'), {
@@ -74,6 +100,8 @@ function MealPlanViewContent() {
 
   const [mealPlan, setMealPlan] = useState(null);
   const [clientData, setClientData] = useState(null);
+  const [planStatus, setPlanStatus] = useState('approved');
+  const [mealPlanDirty, setMealPlanDirty] = useState(false);
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
@@ -177,9 +205,14 @@ function MealPlanViewContent() {
       })
       .then(data => {
         if (!data.mealPlan) throw new Error(data.error || 'Planul nu a fost găsit.');
-        const { plan_data, daily_targets, client_id, created_at } = data.mealPlan;
-        setMealPlan(plan_data);
+        const { plan_data, daily_targets, client_id, created_at, approval_status } = data.mealPlan;
+        const storedDraft = readMealDraft(id);
+        const canUseStoredDraft = (approval_status || 'approved') !== 'approved';
+        if (!canUseStoredDraft) clearMealDraft(id);
+        setMealPlan(canUseStoredDraft && storedDraft?.plan ? storedDraft.plan : plan_data);
         setNutritionalNeeds(daily_targets);
+        setPlanStatus(approval_status || 'approved');
+        setMealPlanDirty(canUseStoredDraft && !!storedDraft?.plan);
         const c = data.client || {};
         setClientData({
           clientId: client_id,
@@ -249,6 +282,14 @@ function MealPlanViewContent() {
     if (!targetWorkoutPlanId) {
       setError('Planul de antrenament nu este încă disponibil pentru acest client.');
       return;
+    }
+    if (mealPlanDirty && mealPlan) writeMealDraft(id, mealPlan);
+    if (mealPlanDirty) {
+      try {
+        await saveMealPlanDraftNow();
+      } catch (err) {
+        console.error('[MealPlanView] Nu am putut salva înainte de comutarea pe antrenament:', err);
+      }
     }
     setPlanTab('antrenament');
     router.push(`/workout-plan/${targetWorkoutPlanId}`);
@@ -341,6 +382,9 @@ function MealPlanViewContent() {
             setRegenProgress(100);
             setMealPlan(event.plan);
             setNutritionalNeeds(event.nutritionalNeeds);
+            setPlanStatus('pending_review');
+            setMealPlanDirty(false);
+            clearMealDraft(event.planId || id);
             // Actualizează greutatea afișată dacă a fost trimisă ca progres
             if (progressData?.currentWeight) {
               setClientData(prev => ({ ...prev, weight: String(parseFloat(progressData.currentWeight)) }));
@@ -361,6 +405,55 @@ function MealPlanViewContent() {
       setRegenerating(false);
     }
   };
+
+  useEffect(() => {
+    if (!id || !mealPlan) return;
+    if (mealPlanDirty) writeMealDraft(id, mealPlan);
+    else clearMealDraft(id);
+  }, [id, mealPlan, mealPlanDirty]);
+
+  const saveMealPlanDraftNow = useCallback(async () => {
+    if (!id || !mealPlan || !mealPlanDirty) return;
+    if (planStatus === 'approved') {
+      setMealPlanDirty(false);
+      clearMealDraft(id);
+      return;
+    }
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const response = await fetch(`/api/meal-plans/${id}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: 'update',
+        plan_data: mealPlan,
+        daily_targets: nutritionalNeeds,
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('[MealPlanView] Autosave meal plan failed:', data);
+      throw new Error(data.error || 'Nu am putut salva automat modificările.');
+    }
+    setMealPlanDirty(false);
+    setPlanStatus(data.mealPlan?.approval_status || 'pending_review');
+    clearMealDraft(id);
+  }, [id, mealPlan, mealPlanDirty, nutritionalNeeds, planStatus]);
+
+  useEffect(() => {
+    if (!mealPlanDirty || !mealPlan || !id) return;
+    const timer = setTimeout(() => {
+      saveMealPlanDraftNow().catch((err) => {
+        console.error('[MealPlanView] Autosave meal plan failed:', err);
+      });
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [id, mealPlan, mealPlanDirty, saveMealPlanDraftNow]);
 
   if (!legacyRoutesAllowed) {
     return (
@@ -453,10 +546,30 @@ function MealPlanViewContent() {
         )}
 
         {!loading && !regenerating && mealPlan && !viewingProgressClientId && (
+          <>
+          <PlanReviewControls
+            type="meal"
+            planId={id}
+            status={planStatus}
+            plan={mealPlan}
+            dailyTargets={nutritionalNeeds}
+            onPlanChange={setMealPlan}
+            onDailyTargetsChange={setNutritionalNeeds}
+            onStatusChange={setPlanStatus}
+            externalDirty={mealPlanDirty}
+            onExternalDirtyChange={(dirty) => {
+              setMealPlanDirty(dirty);
+              if (!dirty) clearMealDraft(id);
+            }}
+          />
           <MealPlan
             plan={mealPlan}
             clientData={clientData}
             nutritionalNeeds={nutritionalNeeds}
+            editableAmounts={planStatus !== 'approved'}
+            onPlanChange={setMealPlan}
+            onPlanDirtyChange={setMealPlanDirty}
+            hideReviewActions={planStatus === 'pending_review'}
             onReset={() => router.back()}
             onRegenerate={handleRegenerate}
             onViewProgress={() => {
@@ -465,6 +578,7 @@ function MealPlanViewContent() {
               }
             }}
           />
+          </>
         )}
 
         {viewingProgressClientId && (

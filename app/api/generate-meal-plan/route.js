@@ -2241,6 +2241,7 @@ export async function POST(request) {
           trainer_id: auth.userId,
           plan_data: plan,
           daily_targets: targets,
+          approval_status: 'pending_review',
         })
         .select('id')
         .single();
@@ -2301,25 +2302,7 @@ export async function POST(request) {
         .eq('trainer_id', auth.userId)
         .eq('status', 'generating');
 
-      if (auth.role === 'trainer' && clientData.clientUserId && savedPlanId) {
-        const { error: notificationError } = await supabase2
-          .from('notifications')
-          .insert({
-            user_id: clientData.clientUserId,
-            type: 'new_meal_plan',
-            title: isProgressRegeneration ? 'Plan alimentar actualizat' : 'Plan alimentar nou',
-            message: isProgressRegeneration
-              ? 'Antrenorul tău ți-a actualizat planul alimentar pe baza progresului tău.'
-              : 'Antrenorul tău a generat un plan alimentar nou pentru tine.',
-            related_plan_id: savedPlanId,
-            related_client_id: clientData.clientId,
-            is_read: false,
-          });
-
-        if (notificationError) {
-          console.error('[generate-meal-plan] Eroare la notificarea clientului:', notificationError.message);
-        }
-      }
+      // Planul rămâne în revizia antrenorului; notificarea clientului se trimite la aprobare.
     }
 
     sendEvent({ type: 'complete', plan, nutritionalNeeds: targets, planId: savedPlanId, workoutPlanId: savedWorkoutPlanId });
