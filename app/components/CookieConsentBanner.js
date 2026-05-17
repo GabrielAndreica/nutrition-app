@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import styles from './CookieConsentBanner.module.css';
 
 const STORAGE_KEY = 'trevano_cookie_consent';
+const CONSENT_VERSION = 3;
 const PROTECTED_ROUTE_PREFIXES = [
   '/dashboard',
   '/clients',
@@ -20,6 +21,18 @@ function isProtectedRoute(pathname) {
   return PROTECTED_ROUTE_PREFIXES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
+function hasValidChoice() {
+  try {
+    const rawConsent = window.localStorage.getItem(STORAGE_KEY);
+    if (!rawConsent) return false;
+
+    const consent = JSON.parse(rawConsent);
+    return ['accepted', 'rejected'].includes(consent?.value) && Number(consent?.version) >= CONSENT_VERSION;
+  } catch {
+    return false;
+  }
+}
+
 export default function CookieConsentBanner() {
   const pathname = usePathname();
   const [hasChoice, setHasChoice] = useState(null);
@@ -31,11 +44,7 @@ export default function CookieConsentBanner() {
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
-      try {
-        setHasChoice(Boolean(window.localStorage.getItem(STORAGE_KEY)));
-      } catch {
-        setHasChoice(false);
-      }
+      setHasChoice(hasValidChoice());
     });
 
     return () => window.cancelAnimationFrame(frameId);
@@ -44,8 +53,9 @@ export default function CookieConsentBanner() {
   const savePreference = (value) => {
     const payload = {
       value,
+      marketing: false,
       savedAt: new Date().toISOString(),
-      version: 1,
+      version: CONSENT_VERSION,
     };
 
     try {
@@ -63,9 +73,9 @@ export default function CookieConsentBanner() {
   return (
     <section className={styles.banner} aria-label="Preferințe cookie Trevano">
       <div className={styles.content}>
-        <p className={styles.title}>Cookie-uri necesare</p>
+        <p className={styles.title}>Cookie-uri</p>
         <p className={styles.text}>
-          Folosim cookie-uri pentru autentificare și funcționarea aplicației. Nu folosim tracking sau marketing.
+          Folosim doar cookie-uri necesare pentru autentificare și funcționarea aplicației. Nu folosim momentan cookie-uri de tracking sau marketing.
         </p>
         <Link href="/politica-cookies" className={styles.policyLink}>
           Politica Cookies

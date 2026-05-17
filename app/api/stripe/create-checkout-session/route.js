@@ -202,6 +202,14 @@ export async function POST(request) {
       mode: 'subscription',
       payment_method_types: ['card'],
       customer: customerId,
+      billing_address_collection: 'required',
+      customer_update: {
+        address: 'auto',
+        name: 'auto',
+      },
+      tax_id_collection: {
+        enabled: true,
+      },
       line_items: [
         {
           price: priceId,

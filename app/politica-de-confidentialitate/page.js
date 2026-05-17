@@ -108,7 +108,8 @@ export default function PrivacyPage() {
         {
           title: '8. Cookies',
           body: [
-            'Folosim exclusiv cookies tehnice necesare pentru funcționarea aplicației (sesiune de autentificare). Nu folosim cookies de marketing sau tracking terță parte.',
+            'Folosim cookies tehnice necesare pentru funcționarea aplicației (sesiune de autentificare).',
+            'Momentan nu folosim cookies de marketing sau tracking terță parte. Meta Pixel și TikTok Pixel sunt dezactivate.',
             'Pentru detalii, consultați Politica noastră de Cookies.',
           ],
         },
