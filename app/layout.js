@@ -2,6 +2,7 @@ import { Inter, Space_Grotesk } from "next/font/google";
 import { AuthProvider } from "./contexts/AuthContext";
 import ExternalNavigationReloadGuard from "./components/ExternalNavigationReloadGuard";
 import CookieConsentBanner from "./components/CookieConsentBanner";
+import MarketingPixels from "./components/MarketingPixels";
 import "./globals.css";
 
 const inter = Inter({
@@ -98,6 +99,7 @@ export default function RootLayout({ children }) {
       <body className="min-h-full flex flex-col">
         <AuthProvider>
           <ExternalNavigationReloadGuard />
+          <MarketingPixels />
           {children}
           <CookieConsentBanner />
         </AuthProvider>

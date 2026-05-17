@@ -39,7 +39,7 @@ export default function CookiesPage() {
             '2.2. Cookies terță parte — Stripe',
             'Stripe, procesatorul nostru de plăți, poate plasa cookies pentru prevenirea fraudelor în momentul efectuării plăților. Aceste cookies sunt guvernate de politica de confidențialitate Stripe (stripe.com/privacy).',
             '2.3. Cookies de tracking sau marketing',
-            'Nu folosim cookies de tracking, analytics sau marketing. Nu instalăm Google Analytics, Facebook Pixel sau instrumente similare.',
+            'Momentan nu folosim cookies de tracking sau marketing. Meta Pixel și TikTok Pixel sunt dezactivate.',
           ],
         },
         {
