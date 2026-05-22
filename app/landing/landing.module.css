@@ -939,6 +939,18 @@
 }
 .footerLink:hover { color: #B7FF00; }
 
+.footerButtonLink {
+  border: 0;
+  background: transparent;
+  color: rgba(255,255,255,0.3);
+  font: inherit;
+  font-size: 13px;
+  padding: 0;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.footerButtonLink:hover { color: #B7FF00; }
+
 /* ── PHONE FRAME ── */
 .phoneFrame {
   width: 300px;

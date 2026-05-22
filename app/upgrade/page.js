@@ -4,7 +4,13 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/contexts/AuthContext';
 import { markExternalNavigation } from '@/app/components/ExternalNavigationReloadGuard';
+import { trackMarketingEvent } from '@/app/lib/marketingEvents';
 import styles from './upgrade.module.css';
+
+const PLAN_PRICES_RON = {
+  starter: 149,
+  pro: 249,
+};
 
 function UpgradeContent() {
   const searchParams = useSearchParams();
@@ -70,6 +76,12 @@ function UpgradeContent() {
         return;
       }
 
+      trackMarketingEvent('InitiateCheckout', {
+        content_name: `Trevano ${planType}`,
+        content_type: 'subscription',
+        currency: 'RON',
+        value: PLAN_PRICES_RON[planType],
+      });
       markExternalNavigation();
       window.location.assign(data.url);
     } catch {
