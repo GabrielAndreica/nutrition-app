@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import CookieSettingsButton from '@/app/components/CookieSettingsButton';
 import styles from '@/app/legal.module.css';
 
 export default function LegalPage({ eyebrow, title, meta = [], intro, sections }) {
@@ -35,6 +36,7 @@ export default function LegalPage({ eyebrow, title, meta = [], intro, sections }
           <Link href="/termeni-si-conditii">Termeni și condiții</Link>
           <Link href="/politica-de-confidentialitate">Politica de confidențialitate</Link>
           <Link href="/politica-cookies">Politica Cookies</Link>
+          <CookieSettingsButton className={styles.cookieSettingsButton} />
         </footer>
       </main>
     </div>

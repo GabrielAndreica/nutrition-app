@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { usePathname } from 'next/navigation';
 
 const STORAGE_KEY = 'trevano_cookie_consent';
-const CONSENT_VERSION = 3;
+const CONSENT_VERSION = 4;
 const MARKETING_PIXELS_ENABLED = process.env.NEXT_PUBLIC_MARKETING_PIXELS_ENABLED === 'true';
 
 const PROTECTED_ROUTE_PREFIXES = [
@@ -59,6 +59,7 @@ function initMetaPixel(pixelId) {
     firstScript.parentNode.insertBefore(script, firstScript);
   }
 
+  window.fbq('consent', 'grant');
   window.fbq('init', pixelId);
   window.__trevanoMetaPixelInitialized = true;
 }
@@ -111,13 +112,37 @@ function initTikTokPixel(pixelId) {
     }(window, document, 'ttq');
   }
 
+  if (typeof window.ttq.grantConsent === 'function') {
+    window.ttq.grantConsent();
+  }
+  if (typeof window.ttq.enableCookie === 'function') {
+    window.ttq.enableCookie();
+  }
   window.ttq.load(pixelId);
   window.__trevanoTikTokPixelInitialized = true;
 }
 
 function trackTikTokPageView() {
-  if (window.ttq) {
+  if (window.ttq && !window.__trevanoTikTokInitialPageViewSent) {
     window.ttq.page();
+    window.__trevanoTikTokInitialPageViewSent = true;
+  }
+}
+
+function revokeMarketingConsent() {
+  if (typeof window === 'undefined') return;
+
+  if (window.fbq && window.__trevanoMetaPixelInitialized) {
+    window.fbq('consent', 'revoke');
+  }
+
+  if (window.ttq && window.__trevanoTikTokPixelInitialized) {
+    if (typeof window.ttq.disableCookie === 'function') {
+      window.ttq.disableCookie();
+    }
+    if (typeof window.ttq.revokeConsent === 'function') {
+      window.ttq.revokeConsent();
+    }
   }
 }
 
@@ -134,6 +159,14 @@ function subscribeToConsentChanges(callback) {
 export default function MarketingPixels() {
   const pathname = usePathname();
   const canTrack = useSyncExternalStore(subscribeToConsentChanges, hasMarketingConsent, () => false);
+  const canTrackRef = useRef(canTrack);
+
+  useEffect(() => {
+    canTrackRef.current = canTrack;
+    if (!canTrack) {
+      revokeMarketingConsent();
+    }
+  }, [canTrack]);
 
   const isTrackableRoute = useMemo(() => {
     if (!pathname) return false;
@@ -157,6 +190,30 @@ export default function MarketingPixels() {
       trackTikTokPageView();
     }
   }, [canTrack, isTrackableRoute, pathname]);
+
+  useEffect(() => {
+    if (!MARKETING_PIXELS_ENABLED) return undefined;
+
+    const handleMarketingEvent = (event) => {
+      if (!canTrackRef.current || !isTrackableRoute) return;
+
+      const eventName = event?.detail?.name;
+      if (!eventName) return;
+
+      const parameters = event.detail.parameters || {};
+
+      if (window.fbq) {
+        window.fbq('trackCustom', eventName, parameters);
+      }
+
+      if (window.ttq) {
+        window.ttq.track(eventName, parameters);
+      }
+    };
+
+    window.addEventListener('trevano-marketing-event', handleMarketingEvent);
+    return () => window.removeEventListener('trevano-marketing-event', handleMarketingEvent);
+  }, [isTrackableRoute]);
 
   return null;
 }

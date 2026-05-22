@@ -15,7 +15,7 @@ export default function PrivacyPage() {
       title="POLITICĂ DE CONFIDENȚIALITATE"
       meta={[
         'Trevano (trevano.app)',
-        'Ultima actualizare: 07.05.2026',
+        'Ultima actualizare: 22.05.2026',
       ]}
       sections={[
         {
@@ -43,6 +43,8 @@ export default function PrivacyPage() {
             'Nume client; vârstă, greutate, înălțime; obiective de fitness; alergii și restricții alimentare; date despre progres (greutate săptămânală, aderență la plan).',
             '2.3. Date tehnice',
             'Adresă IP; tip browser și sistem de operare; jurnale de activitate (logs) pentru securitate și depanare.',
+            '2.4. Date de marketing și atribuire reclame',
+            'Dacă îți dai consimțământul pentru cookie-uri de marketing, putem prelucra prin TikTok Pixel și Meta Pixel date tehnice despre vizita pe paginile publice: URL vizitat, referrer, identificatori de click/reclamă, timestamp, adresă IP, user agent și interacțiuni generale cu pagina.',
           ],
         },
         {
@@ -52,6 +54,7 @@ export default function PrivacyPage() {
             'Gestionarea contului și autentificarea utilizatorului',
             'Procesarea plăților prin Stripe',
             'Comunicări legate de cont (confirmare email, facturi, notificări)',
+            'Măsurarea traficului venit din campanii TikTok/Meta și optimizarea reclamelor, doar pe baza consimțământului tău',
             'Îmbunătățirea serviciului și depanarea erorilor',
             'Respectarea obligațiilor legale',
           ],
@@ -60,7 +63,7 @@ export default function PrivacyPage() {
           title: '4. Temeiul legal al prelucrării',
           items: [
             'Executarea contractului (art. 6 alin. 1 lit. b GDPR) — pentru furnizarea serviciului',
-            'Consimțământul utilizatorului (art. 6 alin. 1 lit. a GDPR) — pentru comunicări de marketing',
+            'Consimțământul utilizatorului (art. 6 alin. 1 lit. a GDPR) — pentru comunicări de marketing și cookie-uri/pixeli de marketing',
             'Obligație legală (art. 6 alin. 1 lit. c GDPR) — pentru facturare și contabilitate',
             'Interes legitim (art. 6 alin. 1 lit. f GDPR) — pentru securitate și prevenirea fraudelor',
           ],
@@ -83,9 +86,12 @@ export default function PrivacyPage() {
             'Resend Inc. — trimiterea emailurilor tranzacționale',
             'OpenAI LLC — generarea planurilor AI (doar datele necesare: obiectiv, vârstă, greutate, preferințe)',
             'SmartBill — emiterea facturilor fiscale',
+            'TikTok Technology Limited / TikTok Information Technologies UK Limited — măsurarea și atribuirea campaniilor publicitare, doar dacă accepți cookie-urile de marketing',
+            'Meta Platforms Ireland Limited — măsurarea și atribuirea campaniilor publicitare, doar dacă accepți cookie-urile de marketing',
           ],
           after: [
             'Toți partenerii sunt obligați contractual să respecte GDPR și să protejeze datele tale.',
+            'Unii furnizori pot prelucra date în afara Spațiului Economic European. În aceste cazuri folosim garanțiile contractuale disponibile, cum ar fi clauzele contractuale standard, acolo unde sunt aplicabile.',
           ],
         },
         {
@@ -109,7 +115,8 @@ export default function PrivacyPage() {
           title: '8. Cookies',
           body: [
             'Folosim cookies tehnice necesare pentru funcționarea aplicației (sesiune de autentificare).',
-            'Momentan nu folosim cookies de marketing sau tracking terță parte. Meta Pixel și TikTok Pixel sunt dezactivate.',
+            'Cu acordul tău explicit, putem folosi TikTok Pixel și Meta Pixel pe paginile publice pentru analytics publicitar și atribuire campanii. Acestea nu sunt încărcate pe rutele protejate ale aplicației și nu primesc date despre clienții antrenorilor sau planurile generate.',
+            'Îți poți retrage consimțământul oricând din "Setări cookies".',
             'Pentru detalii, consultați Politica noastră de Cookies.',
           ],
         },
