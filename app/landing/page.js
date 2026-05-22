@@ -1,4 +1,5 @@
 ﻿import Link from 'next/link';
+import CookieSettingsButton from '@/app/components/CookieSettingsButton';
 import styles from './landing.module.css';
 import ScrollReveal from './ScrollReveal';
 
@@ -236,6 +237,7 @@ export default function LandingPage() {
           <Link href="/termeni-si-conditii" className={styles.footerLink}>Termeni și condiții</Link>
           <Link href="/politica-de-confidentialitate" className={styles.footerLink}>Politica de confidențialitate</Link>
           <Link href="/politica-cookies" className={styles.footerLink}>Politica Cookies</Link>
+          <CookieSettingsButton className={styles.footerButtonLink} />
           <Link href="/auth" className={styles.footerLink}>Autentificare</Link>
         </div>
       </footer>

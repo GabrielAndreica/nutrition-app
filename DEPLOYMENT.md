@@ -9,6 +9,8 @@
 - [ ] `OPENAI_API_KEY` este valid și are credit
 - [ ] `RESEND_API_KEY` este valid pentru trimitere emailuri
 - [ ] `NEXT_PUBLIC_APP_URL` este setat la URL-ul de producție
+- [ ] Pentru ads: `NEXT_PUBLIC_MARKETING_PIXELS_ENABLED=true` și `NEXT_PUBLIC_TIKTOK_PIXEL_ID` este Pixel ID-ul din TikTok Events Manager
+- [ ] Dacă folosești și Meta Ads: `NEXT_PUBLIC_META_PIXEL_ID` este completat
 
 ### 2. Database Setup
 - [ ] Toate scripturile SQL din `supabase/` au fost rulate
@@ -112,6 +114,9 @@ pm2 save
 - [ ] Notificări funcționează
 - [ ] Export PDF funcționează
 - [ ] Invitații email se trimit
+- [ ] Bannerul de cookies permite "Doar necesare" și "Acceptă toate"
+- [ ] TikTok Pixel apare în TikTok Pixel Helper doar după acceptarea cookie-urilor de marketing
+- [ ] Test Events din TikTok Events Manager primește PageView pe paginile publice
 
 ### 2. Monitoring
 - [ ] Setup monitoring (Vercel Analytics / Sentry)

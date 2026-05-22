@@ -45,6 +45,8 @@ Aplicație web pentru managementul planurilor de nutriție, dezvoltată cu Next.
    - `OPENAI_API_KEY` - Cheia API OpenAI
    - `RESEND_API_KEY` - Cheia API Resend
    - `NEXT_PUBLIC_APP_URL` - URL-ul aplicației (localhost:3000 pentru dev)
+   - `NEXT_PUBLIC_MARKETING_PIXELS_ENABLED` - `true` doar când vrei să activezi pixelii de marketing după consimțământ
+   - `NEXT_PUBLIC_TIKTOK_PIXEL_ID` - Pixel ID-ul din TikTok Events Manager
 
 4. **Configurează baza de date**
    
