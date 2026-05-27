@@ -101,10 +101,7 @@ export default function RegisterPage() {
             Gestionează clienții, planurile alimentare, antrenamentele și progresul într-un singur loc.
           </p>
         </div>
-        <div className={styles.aiBadge}>
-          <span className={styles.dot} />
-          Gratuit 14 zile
-        </div>
+
       </div>
 
       {/* Right form panel */}

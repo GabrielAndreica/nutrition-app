@@ -57,6 +57,8 @@ function AuthContent() {
     if (!loading && user) {
       if (user.role === 'client') {
         router.push('/client/dashboard');
+      } else if (user.role === 'user') {
+        router.push(user.onboarding_completed ? '/client/dashboard' : '/onboarding');
       } else {
         router.push('/dashboard');
       }
@@ -116,6 +118,8 @@ function AuthContent() {
       // Redirect în funcție de rol
       if (data.user.role === 'client') {
         router.push('/client/dashboard');
+      } else if (data.user.role === 'user') {
+        router.push(data.user.onboarding_completed ? '/client/dashboard' : '/onboarding');
       } else {
         router.push('/dashboard');
       }
@@ -153,10 +157,7 @@ function AuthContent() {
           </p>
         </div>
 
-        <div className={styles.aiBadge}>
-          <span className={styles.dot} />
-          Simplu și organizat
-        </div>
+
       </div>
 
       <div className={styles.rightPanel}>

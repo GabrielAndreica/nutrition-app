@@ -8,11 +8,16 @@ export function ProtectedRoute({ children, requiredRole = 'trainer' }) {
   const router = useRouter();
   const { user, loading } = useAuth();
 
+  const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
+
   useEffect(() => {
     if (!loading) {
       if (!user) {
         router.push('/auth');
-      } else if (user.role !== requiredRole) {
+      } else if (user.role === 'user' && !allowedRoles.includes('user')) {
+        // Self-registered users: send to onboarding or client dashboard
+        router.push(user.onboarding_completed === false ? '/onboarding' : '/client/dashboard');
+      } else if (!allowedRoles.includes(user.role)) {
         // Redirect to correct dashboard based on role
         if (user.role === 'client') {
           router.push('/client/dashboard');
@@ -21,7 +26,7 @@ export function ProtectedRoute({ children, requiredRole = 'trainer' }) {
         }
       }
     }
-  }, [user, loading, router, requiredRole]);
+  }, [user, loading, router]);
 
   if (loading) {
     return (
@@ -55,11 +60,7 @@ export function ProtectedRoute({ children, requiredRole = 'trainer' }) {
     );
   }
 
-  if (!user) {
-    return null;
-  }
-  // Check if user has the required role
-  if (user.role !== requiredRole) {
+  if (!user || !allowedRoles.includes(user.role)) {
     return null;
   }
   return children;

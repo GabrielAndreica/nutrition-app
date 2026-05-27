@@ -53,10 +53,7 @@ function ResetPasswordContent() {
           <h1 className={styles.taglineHeading}>Parolă nouă,<br />cont securizat.</h1>
           <p className={styles.taglineSub}>Alege o parolă puternică pentru contul tău.</p>
         </div>
-        <div className={styles.aiBadge}>
-          <span className={styles.dot} />
-          Simplu și organizat
-        </div>
+
       </div>
 
       <div className={styles.rightPanel}>

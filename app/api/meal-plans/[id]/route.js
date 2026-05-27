@@ -12,7 +12,7 @@ params }) {
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   // Construiește query-ul bazat pe rol
-  if (!auth.role || !['trainer', 'client'].includes(auth.role)) {
+  if (!auth.role || !['trainer', 'client', 'user'].includes(auth.role)) {
     return NextResponse.json({ error: 'Rol necunoscut. Acces interzis.' }, { status: 403 });
   }
 
@@ -51,7 +51,7 @@ params }) {
     query = query.eq('trainer_id', auth.userId);
   }
   // Dacă e client, verifică că planul aparține clientului
-  else if (auth.role === 'client') {
+  else if (auth.role === 'client' || auth.role === 'user') {
     // Obține client_id pentru user
     const { data: clientCheck, error: clientError } = await supabase
       .from('clients')

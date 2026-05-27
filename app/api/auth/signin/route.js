@@ -139,6 +139,18 @@ export async function POST(request) {
       );
     }
 
+    // Check onboarding completion for 'user' role
+    let onboardingCompleted = false;
+    if (user.role === 'user') {
+      const { data: clientRow } = await supabase
+        .from('clients')
+        .select('id')
+        .eq('user_id', user.id)
+        .is('trainer_id', null)
+        .maybeSingle();
+      onboardingCompleted = !!clientRow;
+    }
+
     // Successful login
     // Generate JWT token
     const token = jwt.sign(
@@ -169,6 +181,7 @@ export async function POST(request) {
           subscription_status: user.subscription_status || 'trial',
           subscription_plan: user.subscription_plan || null,
           trial_ends_at: user.trial_ends_at || null,
+          onboarding_completed: onboardingCompleted,
         }
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }

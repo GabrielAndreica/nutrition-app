@@ -11,7 +11,7 @@ export async function GET(request) {
   const clientIdFilter = searchParams.get('clientId');
   const trainerId = Number.parseInt(String(auth.userId), 10);
 
-  if (!auth.role || !['trainer', 'client'].includes(auth.role)) {
+  if (!auth.role || !['trainer', 'client', 'user'].includes(auth.role)) {
     return NextResponse.json({ error: 'Rol necunoscut. Acces interzis.' }, { status: 403 });
   }
   if (auth.role === 'trainer' && !Number.isFinite(trainerId)) {

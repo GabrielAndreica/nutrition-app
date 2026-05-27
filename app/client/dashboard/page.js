@@ -964,7 +964,7 @@ function ClientDashboardContent() {
 
 export default function ClientDashboard() {
   return (
-    <ProtectedRoute requiredRole="client">
+    <ProtectedRoute requiredRole={['client', 'user']}>
       <ClientDashboardContent />
     </ProtectedRoute>
   );

@@ -24,7 +24,7 @@ export async function GET(request, { params }) {
   if (auth.role === 'trainer' && String(data.trainer_id) !== String(auth.userId)) {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
-  if (auth.role === 'client') {
+  if (auth.role === 'client' || auth.role === 'user') {
     const { data: client } = await supabase
       .from('clients')
       .select('id')

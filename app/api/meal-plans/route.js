@@ -12,7 +12,7 @@ export async function GET(request) {
   const trainerId = Number.parseInt(String(auth.userId), 10);
 
   // Construiește query-ul bazat pe rol
-  if (!auth.role || !['trainer', 'client'].includes(auth.role)) {
+  if (!auth.role || !['trainer', 'client', 'user'].includes(auth.role)) {
     return NextResponse.json({ error: 'Rol necunoscut. Acces interzis.' }, { status: 403 });
   }
 
@@ -32,7 +32,7 @@ export async function GET(request) {
     }
   }
   // Dacă e client, returnează doar planurile sale
-  else if (auth.role === 'client') {
+  else if (auth.role === 'client' || auth.role === 'user') {
     // Obține client_id pentru user
     const { data: client, error: clientError } = await supabase
       .from('clients')
@@ -73,7 +73,7 @@ export async function GET(request) {
     }
     return NextResponse.json({ plans: latestPerClient });
   } else {
-    // Pentru client, returnează array direct
+    // Pentru client/user, returnează array direct
     return NextResponse.json({ plans: data });
   }
 }

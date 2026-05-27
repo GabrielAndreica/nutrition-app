@@ -146,10 +146,6 @@ export default function ActivatePage({ params }) {
               Activează-ți contul și vezi planurile și progresul într-un singur loc.
             </p>
           </div>
-          <div className={styles.aiBadge}>
-            <span className={styles.dot} />
-            Simplu și organizat
-          </div>
         </div>
         <div className={styles.rightPanel}>
           <div className={styles.card}>
@@ -176,10 +172,6 @@ export default function ActivatePage({ params }) {
             <p className={styles.taglineSub}>
               Activează-ți contul și vezi planurile și progresul într-un singur loc.
             </p>
-          </div>
-          <div className={styles.aiBadge}>
-            <span className={styles.dot} />
-            Simplu și organizat
           </div>
         </div>
         <div className={styles.rightPanel}>
@@ -212,10 +204,6 @@ export default function ActivatePage({ params }) {
           <p className={styles.taglineSub}>
             Activează-ți contul și vezi planurile și progresul într-un singur loc.
           </p>
-        </div>
-        <div className={styles.aiBadge}>
-          <span className={styles.dot} />
-          Simplu și organizat
         </div>
       </div>
       <div className={styles.rightPanel}>

@@ -1376,17 +1376,20 @@ export async function POST(request) {
     if (auth.error) {
       return NextResponse.json({ error: auth.error }, { status: auth.status });
     }
-    if (auth.role !== 'trainer') {
-      return NextResponse.json({ error: 'Acces interzis. Doar antrenorii pot genera planuri.' }, { status: 403 });
+    if (auth.role !== 'trainer' && auth.role !== 'user') {
+      return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
     }
 
-    // ── Subscription check (live from DB — JWT can be stale) ─────────────
-    const sub = await checkSubscription(auth.userId);
-    if (!sub.allowed) return sub.response;
+    // ── Subscription check — doar pentru antrenori ──────────────────────
+    let sub = null;
+    if (auth.role === 'trainer') {
+      sub = await checkSubscription(auth.userId);
+      if (!sub.allowed) return sub.response;
+    }
 
     const trainerId = Number.parseInt(String(auth.userId), 10);
     if (!Number.isFinite(trainerId)) {
-      return NextResponse.json({ error: 'ID antrenor invalid în token.' }, { status: 401 });
+      return NextResponse.json({ error: 'ID utilizator invalid în token.' }, { status: 401 });
     }
 
     let body;
@@ -1432,13 +1435,19 @@ export async function POST(request) {
 
     let ownedClient = null;
     if (rawClientId) {
-      const { data, error } = await supabaseQuery(() => supabase
+      let clientQuery = supabase
         .from('clients')
         .select('id, name, gender, activity_level, training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, goal, injuries_limitations, workout_preferences, user_id')
         .eq('id', rawClientId)
-        .eq('trainer_id', trainerId)
-        .is('deleted_at', null)
-        .single());
+        .is('deleted_at', null);
+
+      if (auth.role === 'trainer') {
+        clientQuery = clientQuery.eq('trainer_id', trainerId);
+      } else if (auth.role === 'user') {
+        clientQuery = clientQuery.eq('user_id', auth.userId).is('trainer_id', null);
+      }
+
+      const { data, error } = await supabaseQuery(() => clientQuery.single());
 
       if (error || !data) {
         return NextResponse.json({ error: 'Clientul nu a fost găsit sau nu îți aparține.' }, { status: 404 });
@@ -1446,14 +1455,16 @@ export async function POST(request) {
       ownedClient = data;
       clientIdForLogs = data.id;
 
-      const usage = await reserveMonthlyClientUsage({
-        trainerId,
-        clientId: rawClientId,
-        reason: 'workout_plan_generate',
-        subscription: sub,
-      });
+      if (auth.role === 'trainer') {
+        const usage = await reserveMonthlyClientUsage({
+          trainerId,
+          clientId: rawClientId,
+          reason: 'workout_plan_generate',
+          subscription: sub,
+        });
 
-      if (!usage.allowed) return usage.response;
+        if (!usage.allowed) return usage.response;
+      }
     }
 
     const resolvedSplit = rawClientId
@@ -1648,9 +1659,9 @@ export async function POST(request) {
               .from('workout_plans')
               .insert({
                 client_id: input.clientId,
-                trainer_id: trainerId,
+                trainer_id: auth.role === 'trainer' ? trainerId : null,
                 plan_data: plan,
-                approval_status: 'pending_review',
+                approval_status: auth.role === 'user' ? 'approved' : 'pending_review',
               })
               .select('id')
               .single());

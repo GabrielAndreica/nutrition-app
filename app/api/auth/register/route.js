@@ -133,6 +133,7 @@ export async function POST(request) {
     name: name.trim(),
     email: email.toLowerCase(),
     password: hashedPassword,
+    role: 'user',
     status: 'pending',
     confirmation_token: confirmationToken,
     confirmation_token_expires_at: tokenExpiresAt,

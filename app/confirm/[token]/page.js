@@ -21,7 +21,7 @@ export default function ConfirmPage() {
           setState('success');
           setMessage(data.message || 'Email confirmat!');
           // Redirect to login after 3 seconds
-          setTimeout(() => router.push('/auth?confirmed=1'), 3000);
+          setTimeout(() => router.push('/onboarding'), 3000);
         } else if (res.status === 410) {
           setState('expired');
           setMessage(data.error);
@@ -55,10 +55,7 @@ export default function ConfirmPage() {
           <h1 className={styles.taglineHeading}>Activare cont</h1>
           <p className={styles.taglineSub}>Îți confirmăm adresa de email.</p>
         </div>
-        <div className={styles.aiBadge}>
-          <span className={styles.dot} />
-          Securizat
-        </div>
+
       </div>
 
       <div className={styles.rightPanel}>
@@ -69,7 +66,7 @@ export default function ConfirmPage() {
 
           {effectiveState === 'success' && (
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
-              Vei fi redirecționat automat în câteva secunde...
+              Vei fi redirecționat la configurarea profilului în câteva secunde...
             </p>
           )}
 

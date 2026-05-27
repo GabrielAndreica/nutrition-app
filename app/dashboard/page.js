@@ -693,6 +693,15 @@ function DashboardContent() {
     }
   }, [notificationsOpen]);
 
+  // Userii auto-înregistrați (role:'user') nu au interfața de trainer — redirectează la planurile lor
+  useEffect(() => {
+    if (user?.role === 'user') {
+      router.replace('/client/dashboard');
+    }
+  }, [user, router]);
+
+  if (user?.role === 'user') return null;
+
   return (
     <>
     <div className={styles.container}>
@@ -1197,7 +1206,7 @@ function DashboardContent() {
 
 export default function DashboardPage() {
   return (
-    <ProtectedRoute requiredRole="trainer">
+    <ProtectedRoute requiredRole={['trainer', 'user']}>
       <Suspense>
         <DashboardContent />
       </Suspense>

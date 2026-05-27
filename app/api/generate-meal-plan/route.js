@@ -1774,6 +1774,8 @@ export async function POST(request) {
         clientQuery = clientQuery.eq('trainer_id', auth.userId);
       } else if (auth.role === 'client') {
         clientQuery = clientQuery.eq('user_id', auth.userId);
+      } else if (auth.role === 'user') {
+        clientQuery = clientQuery.eq('user_id', auth.userId).is('trainer_id', null);
       }
 
       const { data: dbClient, error: dbClientError } = await clientQuery.single();
@@ -2238,10 +2240,10 @@ export async function POST(request) {
         .from('meal_plans')
         .insert({
           client_id: clientData.clientId,
-          trainer_id: auth.userId,
+          trainer_id: auth.role === 'trainer' ? auth.userId : null,
           plan_data: plan,
           daily_targets: targets,
-          approval_status: 'pending_review',
+          approval_status: auth.role === 'user' ? 'approved' : 'pending_review',
         })
         .select('id')
         .single();

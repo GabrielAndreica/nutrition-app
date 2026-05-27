@@ -37,9 +37,11 @@ export function AuthProvider({ children }) {
       if (!userData || !tokenData) {
         clearStoredAuth();
         setLoading(false);
+        if (!isPublicPath(pathname)) {
+          router.replace('/auth');
+        }
         return;
       }
-
       try {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
@@ -69,7 +71,39 @@ export function AuthProvider({ children }) {
 
         // ── Verificare live subscription (JWT poate fi stale) ────────────
         // Sărind paginile publice și /upgrade — ele nu necesită subscripție
-        if (!isPublicPath(pathname)) {
+        // Utilizatorii cu rol 'user' nu au subscripție — sărind verificarea
+        const parsedUser = JSON.parse(userData);
+
+        // ── Verificare onboarding status pentru role 'user' ──────────────
+        if (!isPublicPath(pathname) && parsedUser?.role === 'user') {
+          // Dacă localStorage nu are onboarding_completed, setează-l false pending verificare
+          // astfel ProtectedRoute știe să aștepte (nu va fi undefined)
+          if (parsedUser.onboarding_completed === undefined) {
+            const pending = { ...parsedUser, onboarding_completed: false };
+            setUser(pending);
+            localStorage.setItem('user', JSON.stringify(pending));
+          }
+          isValidatingSession = true;
+          fetch('/api/user/onboarding', {
+            headers: { Authorization: `Bearer ${tokenData}` },
+            cache: 'no-store',
+          })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (!data) return;
+              const completed = data.onboarding_completed === true;
+              setUser(currentUser => {
+                if (!currentUser) return currentUser;
+                const updatedUser = { ...currentUser, onboarding_completed: completed };
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+                return updatedUser;
+              });
+            })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+        }
+
+        if (!isPublicPath(pathname) && parsedUser?.role !== 'user') {
           isValidatingSession = true;
           abortRef.current?.abort(); // anulează orice fetch anterior
           const controller = new AbortController();
