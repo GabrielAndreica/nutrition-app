@@ -82,6 +82,10 @@ export default function MealPlan({
   onPlanChange,
   onPlanDirtyChange,
   hideReviewActions = false,
+  lockedAfterDay = null,
+  currentPlanDay = 0,
+  dayStatus = {},
+  onFinishMeals,
 }) {
   const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(0);
@@ -110,6 +114,12 @@ export default function MealPlan({
     muscleSoreness: '',
   });
   const [progressStep, setProgressStep] = useState(1);
+  const safeCurrentPlanDay = Math.max(0, Math.min(7, Number(currentPlanDay) || 0));
+
+  useEffect(() => {
+    if (!onFinishMeals || !plan?.days?.length) return;
+    setActiveDay(Math.min(safeCurrentPlanDay, plan.days.length - 1));
+  }, [onFinishMeals, plan?.days?.length, safeCurrentPlanDay]);
 
   const goalLabels = {
     weight_loss: 'Slăbit',
@@ -747,100 +757,98 @@ export default function MealPlan({
         {/* Day Tabs + Download */}
         <div className={styles.tabsRow}>
           <div className={styles.dayTabs}>
-            {plan.days.map((day, index) => (
+            {plan.days.map((day, index) => {
+              const isCompleted = dayStatus[String(index)] === true;
+              return (
               <button
                 key={index}
                 className={`${styles.dayTab} ${activeDay === index ? styles.dayTabActive : ''}`}
                 onClick={() => setActiveDay(index)}
               >
-                <span className={styles.dayFull}>{dayNames[index]}</span>
-                <span className={styles.dayShort}>{dayNamesShort[index]}</span>
+                  <span className={styles.dayTabInner}>
+                    <span className={styles.dayFull}>{`Ziua ${index + 1}`}</span>
+                    <span className={styles.dayShort}>{`Z${index + 1}`}</span>
+                    {isCompleted && (
+                      <svg className={styles.dayTabLockIcon} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                </span>
               </button>
-            ))}
+              );
+            })}
           </div>
-          {!hideReviewActions && (
+          {onFinishMeals && (
           <div className={styles.tabsActions}>
-            {/* Pentru antrenor: onViewProgress deschide pagina de progres client */}
-            {/* Pentru client: onSubmitProgress deschide formularul de trimitere progres */}
-            {(onViewProgress || onRegenerate || onSubmitProgress) && (
-              <button
-                className={`${styles.updateProgressBtn} ${progressInCooldown && onSubmitProgress ? styles.updateProgressBtnLocked : ''}`}
-                onClick={() => {
-                  if (onViewProgress) {
-                    // Antrenor: deschide pagina de progres a clientului
-                    onViewProgress();
-                  } else if (!progressInCooldown) {
-                    // Client sau regenerare: deschide formularul
-                    handleOpenProgress();
-                  }
-                }}
-                disabled={!!(progressInCooldown && onSubmitProgress)}
-                title={progressInCooldown && onSubmitProgress ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}` : undefined}
-              >
-                {progressInCooldown && onSubmitProgress ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12 6 12 12 16 14"/>
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                    <path d="M3 3v5h5"/>
-                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                    <path d="M16 16h5v5"/>
-                  </svg>
-                )}
-                {progressInCooldown && onSubmitProgress
-                  ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}`
-                  : onSubmitProgress ? 'Trimite progres' : onViewProgress ? 'PROGRES CLIENT' : 'Actualizează progres'
-                }
-              </button>
-            )}
-            <button
-              className={`${styles.downloadBtn} ${pdfLoading ? styles.downloadBtnLoading : ''}`}
-              onClick={handleDownload}
-              disabled={pdfLoading}
-              title="Descarcă plan PDF"
-            >
-              {pdfLoading ? (
-                <>
-                  <span className={styles.pdfSpinner} />
-                  <span className={styles.downloadBtnLabel}>Se generează...</span>
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  <span className={styles.downloadBtnLabel}>PDF</span>
-                </>
-              )}
-            </button>
+            {(() => {
+              const dayCompleted = dayStatus[String(activeDay)] === true;
+              const dayDisabled = activeDay < safeCurrentPlanDay && !dayCompleted;
+              const weekCompleted = safeCurrentPlanDay >= 7;
+              const dayLocked = dayDisabled || activeDay > safeCurrentPlanDay || (lockedAfterDay !== null && activeDay > lockedAfterDay);
+              const btnDisabled = progressInCooldown || dayLocked || dayCompleted || weekCompleted;
+              const isDone = dayCompleted || (progressInCooldown && !dayLocked);
+              const daysUntilUnlock = dayLocked ? Math.max(1, activeDay - safeCurrentPlanDay) : progressDaysLeft;
+              const disabledLabel = weekCompleted
+                ? 'Săptămână completă'
+                : (dayDisabled
+                  ? 'Dezactivat'
+                  : isDone
+                  ? 'Finalizat'
+                  : `Disponibil în ${daysUntilUnlock} ${daysUntilUnlock === 1 ? 'zi' : 'zile'}`);
+              return (
+                <button
+                  className={`${styles.updateProgressBtn} ${btnDisabled ? (isDone ? styles.updateProgressBtnDone : styles.updateProgressBtnLocked) : ''}`}
+                  onClick={() => { if (!btnDisabled) onFinishMeals(activeDay); }}
+                  disabled={btnDisabled}
+                  title={btnDisabled ? disabledLabel : undefined}
+                >
+                  {btnDisabled ? (
+                    isDone ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : disabledLabel === 'Dezactivat' ? null : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                      </svg>
+                    )
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"/>
+                    </svg>
+                  )}
+                  {btnDisabled ? disabledLabel : 'Finalizare zi'}
+                </button>
+              );
+            })()}
           </div>
           )}
         </div>
 
         {/* Day Totals */}
-        {currentDay.dailyTotals && (
-          <div className={styles.dayTotalsBar}>
-            <span className={styles.dayTotalsLabel}>Total {dayNames[activeDay]}</span>
-            <div className={styles.dayTotalsValues}>
-              <span><strong>{currentDay.dailyTotals.calories}</strong> kcal</span>
-              <span className={styles.dotLight}>·</span>
-              <span><strong>{currentDay.dailyTotals.protein}g</strong> prot</span>
-              <span className={styles.dotLight}>·</span>
-              <span><strong>{currentDay.dailyTotals.carbs}g</strong> carbo</span>
-              <span className={styles.dotLight}>·</span>
-              <span><strong>{currentDay.dailyTotals.fat}g</strong> grăsimi</span>
-            </div>
-          </div>
-        )}
+        {(() => {
+          const isDayLocked = lockedAfterDay !== null && activeDay > lockedAfterDay;
+          void isDayLocked;
+          return (
+            <div>
+              {currentDay.dailyTotals && (
+                <div className={styles.dayTotalsBar}>
+                  <span className={styles.dayTotalsLabel}>Total {dayNames[activeDay]}</span>
+                  <div className={styles.dayTotalsValues}>
+                    <span><strong>{currentDay.dailyTotals.calories}</strong> kcal</span>
+                    <span className={styles.dotLight}>·</span>
+                    <span><strong>{currentDay.dailyTotals.protein}g</strong> prot</span>
+                    <span className={styles.dotLight}>·</span>
+                    <span><strong>{currentDay.dailyTotals.carbs}g</strong> carbo</span>
+                    <span className={styles.dotLight}>·</span>
+                    <span><strong>{currentDay.dailyTotals.fat}g</strong> grăsimi</span>
+                  </div>
+                </div>
+              )}
 
-        {/* Meals Grid for Active Day */}
-        <div className={styles.mealsGrid}>
-          {currentDay.meals.map((meal, mealIndex) => {
+              {/* Meals Grid for Active Day */}
+              <div className={styles.mealsGrid}>
+                {currentDay.meals.map((meal, mealIndex) => {
             const { name } = getMealLabel(meal.mealType);
             return (
               <div key={mealIndex} className={styles.mealCard}>
@@ -915,7 +923,10 @@ export default function MealPlan({
               </div>
             );
           })}
-        </div>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Modal Progres */}

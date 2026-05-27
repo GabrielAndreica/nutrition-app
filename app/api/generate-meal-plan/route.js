@@ -53,6 +53,15 @@ const PROTEIN_SOURCE_TO_DB_KEY = {
   'leguminoase':   'legumes',
 };
 
+function shuffleArray(items) {
+  const arr = [...(items || [])];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 // Gramaj fix pentru legume și fructe (nu participă la redistribuire calorică)
 const FIXED_VEG_FRUIT_GRAMS = 80;
 
@@ -986,8 +995,8 @@ function enforceWeeklyRecipeVariety(selection, eligibleRecipes, mealDistribution
         );
         const pool = freshPool.length > 0 ? freshPool : relaxedPool;
         if (pool.length > 0) {
-          const seed = (dayIndex + 1) * 31 + slot.length * 17;
-          recipe = [...pool].sort((a, b) => {
+          const seed = Math.floor(Math.random() * 100000) + (dayIndex + 1) * 31 + slot.length * 17;
+          recipe = shuffleArray(pool).sort((a, b) => {
             const ah = (a.id.charCodeAt(0) + a.name.length + seed) % 101;
             const bh = (b.id.charCodeAt(0) + b.name.length + seed) % 101;
             return ah - bh;
@@ -1023,17 +1032,20 @@ async function selectRecipesWithAI(eligibleRecipes, clientData, targets, mealDis
 
   // Grupează rețetele pe meal_type
   const byType = {};
-  for (const r of eligibleRecipes) {
+  for (const r of shuffleArray(eligibleRecipes)) {
     if (!byType[r.meal_type]) byType[r.meal_type] = [];
     byType[r.meal_type].push({ id: r.id, name: r.name, protein_source: r.protein_source || 'mixed' });
   }
 
   const recipeListText = Object.entries(byType)
     .map(([type, recipes]) =>
-      `${type.toUpperCase()}:\n${recipes.map(r => `  - id:"${r.id}" | "${r.name}" | proteina:${r.protein_source}`).join('\n')}`)
+      `${type.toUpperCase()}:\n${shuffleArray(recipes).map(r => `  - id:"${r.id}" | "${r.name}" | proteina:${r.protein_source}`).join('\n')}`)
     .join('\n\n');
 
   const mealsPerDay = mealDistribution.map(([slot]) => slot);
+  const exampleMealsJson = mealsPerDay
+    .map(slot => `        {"slot": "${slot}", "recipe_id": "uuid-exact-din-lista"}`)
+    .join(',\n');
 
   // Rotație proteică pe zile
   const dayProteinHints = PROTEIN_SOURCE_BY_DAY.map((srcs, i) => {
@@ -1107,9 +1119,7 @@ Răspunde EXCLUSIV cu JSON valid, fără text adițional, fără markdown:
     {
       "day": 1,
       "meals": [
-        {"slot": "Mic Dejun", "recipe_id": "uuid-exact-din-lista"},
-        {"slot": "Prânz", "recipe_id": "uuid-exact-din-lista"},
-        {"slot": "Cină", "recipe_id": "uuid-exact-din-lista"}
+${exampleMealsJson}
       ]
     }
   ]
@@ -1159,16 +1169,19 @@ async function selectRecipesWithAIFromProgress(
 
   // Grupează rețetele pe meal_type
   const byType = {};
-  for (const r of eligibleRecipes) {
+  for (const r of shuffleArray(eligibleRecipes)) {
     if (!byType[r.meal_type]) byType[r.meal_type] = [];
     byType[r.meal_type].push({ id: r.id, name: r.name, protein_source: r.protein_source || 'mixed' });
   }
   const recipeListText = Object.entries(byType)
     .map(([type, recipes]) =>
-      `${type.toUpperCase()}:\n${recipes.map(r => `  - id:"${r.id}" | "${r.name}" | proteina:${r.protein_source}`).join('\n')}`)
+      `${type.toUpperCase()}:\n${shuffleArray(recipes).map(r => `  - id:"${r.id}" | "${r.name}" | proteina:${r.protein_source}`).join('\n')}`)
     .join('\n\n');
 
   const mealsPerDay = mealDistribution.map(([slot]) => slot);
+  const exampleMealsJson = mealsPerDay
+    .map(slot => `        {"slot": "${slot}", "recipe_id": "uuid-exact-din-lista"}`)
+    .join(',\n');
 
   // Rotație proteică pe zile
   const dayProteinHints = PROTEIN_SOURCE_BY_DAY.map((srcs, i) => {
@@ -1279,9 +1292,7 @@ Răspunde EXCLUSIV cu JSON valid, fără text adițional, fără markdown:
     {
       "day": 1,
       "meals": [
-        {"slot": "Mic Dejun", "recipe_id": "uuid-exact-din-lista"},
-        {"slot": "Prânz", "recipe_id": "uuid-exact-din-lista"},
-        {"slot": "Cină", "recipe_id": "uuid-exact-din-lista"}
+${exampleMealsJson}
       ]
     }
   ]
@@ -1911,7 +1922,7 @@ export async function POST(request) {
 
     const { name, age, weight, height, goal, activityLevel, allergies, mealsPerDay, dietType } = clientData;
     const sex = clientData.gender === 'M' ? 'Masculin' : 'Feminin';
-    const mealsNum = parseInt(mealsPerDay) || 3;
+    const mealsNum = parseInt(mealsPerDay) || 5;
 
     // mealDistribution calculat la nevoie în getMealDistribution(mealsNum)
 
@@ -2120,7 +2131,7 @@ export async function POST(request) {
           if (pool.length === 0) pool = eligibleRecipes.filter(r => r.meal_type === mealType);
           if (pool.length === 0) throw new Error(`Nu există rețete pentru tipul "${mealType}".`);
 
-          // Shuffle determinist bazat pe dayIndex + attemptIndex pentru varietate între zile și retry-uri
+          // Shuffle per generare pentru varietate între planuri, zile și retry-uri
           // Bonus: rețetele care conțin cuvinte cheie din preferințe sunt urcate în față
           // Extinde keywords prin sinonime (ex: 'pudra' → 'shake proteic', 'pudra de proteine')
           const rawPrefKeywords = [
@@ -2133,15 +2144,15 @@ export async function POST(request) {
             ...rawPrefKeywords,
             ...rawPrefKeywords.flatMap(kw => PREF_INGREDIENT_SYNONYMS[kw] || []),
           ];
-          const seed   = dayIndex * 37 + attemptIndex * 13;
-          const sorted = [...pool].sort((a, b) => {
+          const seed   = Math.floor(Math.random() * 100000) + dayIndex * 37 + attemptIndex * 13;
+          const sorted = shuffleArray(pool).sort((a, b) => {
             const nameA = (a.name || '').toLowerCase();
             const nameB = (b.name || '').toLowerCase();
             const prefA = prefKeywords.some(kw => nameA.includes(kw)) ? -1000 : 0;
             const prefB = prefKeywords.some(kw => nameB.includes(kw)) ? -1000 : 0;
             if (prefA !== prefB) return prefA - prefB;
-            const ha = (a.id.charCodeAt(0) + seed) % 97;
-            const hb = (b.id.charCodeAt(0) + seed) % 97;
+            const ha = ((a.name || a.id).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) + seed) % 997;
+            const hb = ((b.name || b.id).split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0) + seed) % 997;
             return ha - hb;
           });
           recipe = sorted[0];
@@ -3385,7 +3396,7 @@ function getMealDistribution(mealsPerDay) {
     4: [['Mic Dejun', 0.25], ['Gustare 1', 0.15], ['Prânz', 0.35], ['Cină', 0.25]],
     5: [['Mic Dejun', 0.20], ['Gustare 1', 0.15], ['Prânz', 0.30], ['Gustare 2', 0.15], ['Cină', 0.20]],
   };
-  return distributions[mealsPerDay] || distributions[3];
+  return distributions[mealsPerDay] || distributions[5];
 }
 
 /**

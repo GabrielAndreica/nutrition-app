@@ -152,7 +152,7 @@ export async function POST(request) {
         goal: goal,
         activity_level: activityLevel,
         diet_type: dietTypeSafe,
-        meals_per_day: 3,
+        meals_per_day: 5,
         food_preferences: '',
         updated_at: new Date().toISOString(),
       })
@@ -185,7 +185,7 @@ export async function POST(request) {
         goal: goal,
         activity_level: activityLevel,
         diet_type: dietTypeSafe,
-        meals_per_day: 3,
+        meals_per_day: 5,
         food_preferences: '',
         created_at: new Date().toISOString(),
       })

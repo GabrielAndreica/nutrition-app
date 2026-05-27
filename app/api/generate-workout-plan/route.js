@@ -99,6 +99,15 @@ function normalizeTextKey(v) {
     .trim();
 }
 
+function shuffleArray(items) {
+  const arr = [...(items || [])];
+  for (let i = arr.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
 function mapExerciseEquipmentLabel(eq) {
   const value = normalizeTextKey(eq);
   if (value === 'barbell') return 'bară';
@@ -261,7 +270,7 @@ function buildExerciseCatalogMap(rows) {
 
 function buildExerciseCatalogPrompt(rows) {
   const toDisplayName = (row) => String(row?.name_ro || row?.name || '').trim();
-  const lines = (rows || []).map((row) => (
+  const lines = shuffleArray(rows || []).map((row) => (
     `- ${toDisplayName(row)} | grupă:${row.muscle_group}`
   ));
   return lines.join('\n');
@@ -498,7 +507,7 @@ function buildDayScopedExerciseCatalog(input, rows) {
   for (let i = 0; i < input.workoutsPerWeek; i += 1) {
     const focus = focuses[i] || 'fullBody';
     const dayRowsRaw = (rows || []).filter((r) => matchesFocus(r, focus));
-    const dayRows = (dayRowsRaw.length > 0 ? dayRowsRaw : rows).slice(0, DAY_CATALOG_LIMIT);
+    const dayRows = shuffleArray(dayRowsRaw.length > 0 ? dayRowsRaw : rows).slice(0, DAY_CATALOG_LIMIT);
     const names = [];
     const allowedSet = new Set();
 
@@ -1287,12 +1296,12 @@ function buildFallbackWorkoutPlan(input) {
   const days = focuses.map((focus, idx) => {
     const sourceExercises = focus === 'fullBody'
       ? [
-          ...(bank.legs || []).slice(0, 2),
-          ...(bank.push || []).slice(0, 3),
-          ...(bank.pull || []).slice(0, 3),
-          ...(bank.upper || []).slice(0, 2),
+          ...shuffleArray(bank.legs || []).slice(0, 2),
+          ...shuffleArray(bank.push || []).slice(0, 3),
+          ...shuffleArray(bank.pull || []).slice(0, 3),
+          ...shuffleArray(bank.upper || []).slice(0, 2),
         ]
-      : (bank[focus] || bank.upper);
+      : shuffleArray(bank[focus] || bank.upper);
     const exercises = sourceExercises.slice(0, volume.minExercises).map((ex, exIdx) => ({
       order: exIdx + 1,
       name: ex[0],

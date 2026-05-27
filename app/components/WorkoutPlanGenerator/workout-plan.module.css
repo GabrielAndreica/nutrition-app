@@ -5,6 +5,36 @@
   color: var(--text-primary);
 }
 
+.finishWorkoutRow {
+  display: flex;
+  justify-content: center;
+  padding: 20px 0 8px;
+}
+
+.finishWorkoutBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #1d1d1f;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 12px 24px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  letter-spacing: -0.1px;
+}
+
+.finishWorkoutBtn:hover {
+  background: #3c3c43;
+}
+
+.finishWorkoutBtn:active {
+  transform: scale(0.97);
+}
+
 .restDayWrapper {
   display: block;
 }

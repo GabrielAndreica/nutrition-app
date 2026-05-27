@@ -184,7 +184,7 @@ export default function OnboardingPage() {
         activityLevel: activityMap[Number(form.workoutsPerWeek)] || 'moderate',
         dietType: form.dietType,
         allergies: [],
-        mealsPerDay: 3,
+        mealsPerDay: 5,
         foodPreferences: '',
       };
 

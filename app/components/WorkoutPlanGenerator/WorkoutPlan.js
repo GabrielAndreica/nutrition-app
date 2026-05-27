@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/app/contexts/AuthContext';
 import mealStyles from '@/app/components/MealPlanGenerator/meal-plan.module.css';
@@ -56,10 +56,15 @@ export default function WorkoutPlan({
   editableSets = false,
   onPlanChange,
   onPlanDirtyChange,
+  lockedAfterDay = null,
+  currentPlanDay = 0,
+  dayStatus = {},
+  onFinishWorkout,
 }) {
   const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const safeCurrentPlanDay = Math.max(0, Math.min(7, Number(currentPlanDay) || 0));
 
   const cooldownDate = progressCooldownUntil ? new Date(progressCooldownUntil) : null;
   const progressInCooldown = !!(cooldownDate && cooldownDate > new Date());
@@ -67,20 +72,35 @@ export default function WorkoutPlan({
     ? Math.ceil((cooldownDate - new Date()) / (1000 * 60 * 60 * 24))
     : 0;
 
+  useEffect(() => {
+    if (!onFinishWorkout) return;
+    setActiveDay(Math.min(safeCurrentPlanDay, 6));
+  }, [onFinishWorkout, safeCurrentPlanDay]);
+
   if (!plan || !plan.days || plan.days.length === 0) {
     return <div className={styles.container}>Nu s-a putut genera planul.</div>;
   }
 
-  // În UI afișăm doar zilele de antrenament (nu și zilele de odihnă).
+  // Construim întotdeauna 7 zile: zilele de antrenament + zile de recuperare ca filler.
   const workoutOnlyDayEntries = plan.days
     .map((day, dayIndex) => ({ day, dayIndex }))
     .filter(({ day }) => !day.isRestDay);
-  const visibleDayEntries = workoutOnlyDayEntries.length > 0
-    ? workoutOnlyDayEntries
-    : plan.days.map((day, dayIndex) => ({ day, dayIndex }));
+  const TOTAL_WEEK_DAYS = 7;
+  const visibleDayEntries = Array.from({ length: TOTAL_WEEK_DAYS }, (_, i) => {
+    if (i < workoutOnlyDayEntries.length) return workoutOnlyDayEntries[i];
+    return {
+      day: {
+        isRestDay: true,
+        dayName: DAY_NAMES_FULL[i],
+        message: 'Zi de recuperare — mers ușor, mobilitate, hidratare și somn de calitate.',
+      },
+      dayIndex: -1,
+    };
+  });
   const visibleDays = visibleDayEntries.map(({ day }) => day);
   const currentDayEntry = visibleDayEntries[activeDay] || visibleDayEntries[0] || { day: {}, dayIndex: 0 };
   const currentDay = currentDayEntry.day || {};
+  const isCurrentDayRecovery = currentDay.isRestDay === true;
   const currentDayName = currentDay.dayName
     || (typeof currentDay.day === 'number' ? DAY_NAMES_FULL[currentDay.day - 1] : null)
     || DAY_NAMES_FULL[activeDay]
@@ -173,118 +193,98 @@ export default function WorkoutPlan({
       <div className={mealStyles.rightColumn}>
         <div className={mealStyles.tabsRow}>
           <div className={mealStyles.dayTabs}>
-            {visibleDays.map((day, i) => {
-              const fullDayName = day.dayName
-                || (typeof day.day === 'number' ? DAY_NAMES_FULL[day.day - 1] : null)
-                || DAY_NAMES_FULL[i];
-              const shortDayName = DAY_SHORT_BY_NAME[fullDayName] || DAY_NAMES_SHORT[i] || fullDayName;
-              return (
+            {visibleDays.map((day, i) => (
               <button
                 key={i}
                 className={`${mealStyles.dayTab} ${i === activeDay ? mealStyles.dayTabActive : ''}`}
                 onClick={() => setActiveDay(i)}
               >
-                <span className={mealStyles.dayFull}>{fullDayName}</span>
-                <span className={mealStyles.dayShort}>{shortDayName}</span>
+                <span className={mealStyles.dayTabInner}>
+                  <span className={mealStyles.dayFull}>{`Ziua ${i + 1}`}</span>
+                  <span className={mealStyles.dayShort}>{`Z${i + 1}`}</span>
+                </span>
               </button>
-            );
-            })}
+            ))}
           </div>
-          {!hideReviewActions && (
+          {onFinishWorkout && (
           <div className={mealStyles.tabsActions}>
-            {onSubmitProgress && (
-              <button
-                className={`${mealStyles.updateProgressBtn} ${progressInCooldown ? mealStyles.updateProgressBtnLocked : ''}`}
-                onClick={() => { if (!progressInCooldown) onSubmitProgress(); }}
-                disabled={progressInCooldown}
-                title={progressInCooldown ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}` : undefined}
-              >
-                {progressInCooldown ? (
-                  <>
+            {(() => {
+              const dayCompleted = dayStatus[String(activeDay)] === true;
+              const dayDisabled = activeDay < safeCurrentPlanDay && !dayCompleted;
+              const weekCompleted = safeCurrentPlanDay >= 7;
+              const dayLocked = dayDisabled || activeDay > safeCurrentPlanDay || (lockedAfterDay !== null && activeDay > lockedAfterDay);
+              const btnDisabled = progressInCooldown || dayLocked || dayCompleted || weekCompleted;
+              const isDone = dayCompleted || (progressInCooldown && !dayLocked);
+              const daysUntilUnlock = dayLocked ? Math.max(1, activeDay - safeCurrentPlanDay) : progressDaysLeft;
+              const disabledLabel = weekCompleted
+                ? 'Săptămână completă'
+                : (dayDisabled
+                  ? 'Dezactivat'
+                  : isDone
+                  ? 'Finalizat'
+                  : `Disponibil în ${daysUntilUnlock} ${daysUntilUnlock === 1 ? 'zi' : 'zile'}`);
+              return (
+                <button
+                  className={`${mealStyles.updateProgressBtn} ${btnDisabled ? (isDone ? mealStyles.updateProgressBtnDone : mealStyles.updateProgressBtnLocked) : ''}`}
+                  onClick={() => { if (!btnDisabled) onFinishWorkout(activeDay, isCurrentDayRecovery); }}
+                  disabled={btnDisabled}
+                  title={btnDisabled ? disabledLabel : undefined}
+                >
+                  {btnDisabled ? (
+                    isDone ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"/>
+                      </svg>
+                    ) : disabledLabel === 'Dezactivat' ? null : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                      </svg>
+                    )
+                  ) : (
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                      <polyline points="20 6 9 17 4 12"/>
                     </svg>
-                    {`Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}`}
-                  </>
-                ) : (
-                  <>
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                      <path d="M3 3v5h5"/>
-                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                      <path d="M16 16h5v5"/>
-                    </svg>
-                    Trimite progres
-                  </>
-                )}
-              </button>
-            )}
-            {onViewProgress && (
-              <button
-                className={mealStyles.updateProgressBtn}
-                onClick={() => onViewProgress()}
-                title="Vizualizează progresul trimis de client"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-                  <circle cx="12" cy="12" r="3"/>
-                </svg>
-                Vizualizează progres
-              </button>
-            )}
-            <button
-              className={`${mealStyles.downloadBtn} ${pdfLoading ? mealStyles.downloadBtnLoading : ''}`}
-              onClick={handleDownload}
-              disabled={pdfLoading}
-              title="Descarcă plan PDF"
-            >
-              {pdfLoading ? (
-                <>
-                  <span className={mealStyles.pdfSpinner} />
-                  <span className={mealStyles.downloadBtnLabel}>Se generează...</span>
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
-                  </svg>
-                  <span className={mealStyles.downloadBtnLabel}>PDF</span>
-                </>
-              )}
-            </button>
+                  )}
+                  {btnDisabled ? disabledLabel : (isCurrentDayRecovery ? 'Finalizare zi' : 'Finalizare antrenament')}
+                </button>
+              );
+            })()}
           </div>
           )}
         </div>
 
-        <div className={mealStyles.dayTotalsBar}>
-          <span className={mealStyles.dayTotalsLabel}>
-            {currentDayName} · {currentDay.sessionName || 'Antrenament'}
-          </span>
-          <div className={mealStyles.dayTotalsValues}>
-            <span><strong>{exerciseCount}</strong> exerciții</span>
-            <span className={mealStyles.dotLight}>·</span>
-            <span><strong>{totalSets}</strong> serii totale</span>
-            <span className={mealStyles.dotLight}>·</span>
-            <span><strong>{currentDay.estimatedDuration || 0}</strong> min</span>
-          </div>
-        </div>
+        {(() => {
+          return (
+            <div>
+              <div className={mealStyles.dayTotalsBar}>
+                <span className={mealStyles.dayTotalsLabel}>
+                  {currentDayName} · {isCurrentDayRecovery ? 'Recuperare' : (currentDay.sessionName || 'Antrenament')}
+                </span>
+                {!isCurrentDayRecovery && (
+                <div className={mealStyles.dayTotalsValues}>
+                  <span><strong>{exerciseCount}</strong> exerciții</span>
+                  <span className={mealStyles.dotLight}>·</span>
+                  <span><strong>{totalSets}</strong> serii totale</span>
+                  <span className={mealStyles.dotLight}>·</span>
+                  <span><strong>{currentDay.estimatedDuration || 0}</strong> min</span>
+                </div>
+                )}
+              </div>
 
         {currentDay.isRestDay ? (
-          <div className={styles.restDayWrapper}>
+          <div className={mealStyles.mealsGrid}>
             <div className={mealStyles.mealCard}>
               <div className={mealStyles.mealCardHeader}>
                 <div className={mealStyles.mealCardHeaderText}>
                   <p className={mealStyles.mealTypeLabel}>Recuperare</p>
-                  <h4>Zi de odihnă</h4>
-                  <p className={mealStyles.mealSubtitle}>{currentDay.message || 'Recuperare activă recomandată — mers, mobilitate, hidratare.'}</p>
+                  <h4>Zi de recuperare</h4>
+                  <p className={mealStyles.mealSubtitle}>Lasă corpul să se refacă. Activitate ușoară și odihnă activă.</p>
                 </div>
               </div>
-              <div className={styles.restTips}>
-                <span>Hidratare</span>
-                <span>Mobilitate</span>
-                <span>Somn</span>
+              <div className={mealStyles.mealTotals}>
+                <span>Hidratare adecvată</span>
+                <span>Somn 8 ore</span>
+                <span>Mers ușor</span>
               </div>
             </div>
           </div>
@@ -345,6 +345,9 @@ export default function WorkoutPlan({
             ))}
           </div>
         )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

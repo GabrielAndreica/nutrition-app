@@ -15,6 +15,7 @@
     "@stripe/stripe-js": "^9.4.0",
     "@supabase/supabase-js": "^2.99.3",
     "bcrypt": "^6.0.0",
+    "canvas-confetti": "^1.9.4",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
