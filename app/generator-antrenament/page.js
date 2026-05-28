@@ -111,6 +111,10 @@ function GeneratorContent() {
       }
     } catch (err) {
       if (err.name === 'AbortError') return;
+      if (err.message && err.message.includes('limita')) {
+        router.push('/upgrade?reason=client_limit');
+        return;
+      }
       setError(err.message);
       console.error('Error:', err);
     } finally {

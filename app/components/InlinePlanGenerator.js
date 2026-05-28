@@ -1,11 +1,13 @@
 ﻿'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import ClientForm from '@/app/components/MealPlanGenerator/ClientForm';
 import MealPlan from '@/app/components/MealPlanGenerator/MealPlan';
 import styles from '@/app/generator-plan/generator.module.css';
 
 export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated }) {
+  const router = useRouter();
   const [mealPlan, setMealPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadingStep, setLoadingStep] = useState(0);
@@ -283,6 +285,21 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
     } catch (err) {
       if (err.name === 'AbortError') {
         // La abort, PĂSTREAZĂ starea în sessionStorage - generarea continuă pe server
+        return;
+      }
+      if (err.message && err.message.includes('limita')) {
+        if (formData.clientId) {
+          sessionStorage.removeItem(`generatingPlan_${formData.clientId}`);
+          const token = localStorage.getItem('token');
+          if (token) {
+            fetch('/api/generation-status', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ clientId: formData.clientId, status: 'failed', errorMessage: err.message }),
+            }).catch(() => {});
+          }
+        }
+        router.push('/upgrade?reason=client_limit');
         return;
       }
       setError(err.message);

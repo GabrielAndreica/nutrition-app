@@ -275,6 +275,10 @@ function GeneratorContent() {
         // La abort, PĂSTREAZĂ starea în sessionStorage - generarea continuă
         return;
       }
+      if (err.message && err.message.includes('limita')) {
+        router.push('/upgrade?reason=client_limit');
+        return;
+      }
       setError(err.message);
       console.error('Error:', err);
       // Șterge la eroare

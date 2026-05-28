@@ -98,16 +98,6 @@ export async function checkSubscription(userId) {
     maxClients,
   };
 
-  // Trial expired
-  if (subscription_status === SUB_STATUS.TRIAL) {
-    if (trial_ends_at && new Date(trial_ends_at) < new Date()) {
-      const result = _denied('trial_expired', 403, 'TRIAL_EXPIRED',
-        'Perioada de trial a expirat. Alege un plan pentru a continua.', base);
-      _cacheSet(uid, result);
-      return result;
-    }
-  }
-
   // Subscription inactive / cancelled
   if (
     subscription_status === SUB_STATUS.CANCELLED

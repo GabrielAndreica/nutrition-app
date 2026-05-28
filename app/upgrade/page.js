@@ -20,9 +20,9 @@ function UpgradeContent() {
   const payment = searchParams.get('payment');
   const [loadingPlan, setLoadingPlan] = useState(null);
   const [checkoutError, setCheckoutError] = useState('');
-  const trialExpired = user?.trial_ends_at ? new Date(user.trial_ends_at) < new Date() : false;
+  const trialExpired = false; // Trial este acum plan gratuit permanent
   const subscriptionInactive = ['expired', 'cancelled', 'inactive'].includes(user?.subscription_status);
-  const mustChoosePlan = reason === 'trial_expired' || reason === 'subscription_inactive' || trialExpired || subscriptionInactive;
+  const mustChoosePlan = reason === 'subscription_inactive' || subscriptionInactive;
 
   useEffect(() => {
     const resetCheckoutState = () => {
@@ -49,8 +49,8 @@ function UpgradeContent() {
   };
 
   function getBannerText() {
-    if (reason === 'trial_expired') return 'Perioada de trial a expirat. Alege un plan pentru a continua.';
     if (reason === 'subscription_inactive') return 'Abonamentul tău este inactiv. Reactivează-l pentru a continua.';
+    if (reason === 'client_limit') return 'Ai atins limita de 3 clienți din planul gratuit. Upgrade pentru mai mult.';
     if (payment === 'cancelled') return 'Plata a fost anulată. Poți alege oricând un plan.';
     return 'Alege planul potrivit pentru tine.';
   }
@@ -102,7 +102,7 @@ function UpgradeContent() {
       </header>
 
       {/* Status banner */}
-      <div className={reason === 'trial_expired' || reason === 'subscription_inactive' ? styles.bannerExpired : styles.bannerInfo}>
+      <div className={reason === 'subscription_inactive' ? styles.bannerExpired : styles.bannerInfo}>
         {getBannerText()}
       </div>
 
@@ -114,8 +114,8 @@ function UpgradeContent() {
 
       {/* Page title */}
       <div className={styles.titleSection}>
-        <h1 className={styles.title}>Alege planul tău</h1>
-        <p className={styles.subtitle}>Clienți, planuri și progres într-un singur loc.</p>
+        <h1 className={styles.title}>Crește odată cu clienții tăi</h1>
+        <p className={styles.subtitle}>Planul gratuit include până la 3 clienți. Fără limită de timp.</p>
       </div>
 
       {/* Pricing cards */}
@@ -132,8 +132,8 @@ function UpgradeContent() {
           </div>
           <ul className={styles.features}>
             <li className={styles.feature}><span className={styles.check}>✓</span> Până la <strong>10 clienți</strong></li>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Planuri nutriționale pe fiecare client</li>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Planuri de antrenament pe fiecare client</li>
+            <li className={styles.feature}><span className={styles.check}>✓</span> Tot ce include Free</li>
+            <li className={styles.feature}><span className={styles.check}>✓</span> Portal clienți</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Monitorizare progres</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Suport email</li>
           </ul>
