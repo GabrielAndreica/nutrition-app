@@ -213,31 +213,84 @@ function safeEnum(value, allowed, fallback) {
   return allowed.has(value) ? value : fallback;
 }
 
-function getVolumeTargets(level, goal, split) {
-  const levelBase = {
-    beginner: { minExercises: 4, maxExercises: 7, minSetsPerExercise: 2, maxSetsPerExercise: 4, minDuration: 40, maxDuration: 75, minTotalSets: 12 },
-    intermediate: { minExercises: 4, maxExercises: 8, minSetsPerExercise: 3, maxSetsPerExercise: 5, minDuration: 45, maxDuration: 90, minTotalSets: 14 },
-    advanced: { minExercises: 4, maxExercises: 9, minSetsPerExercise: 3, maxSetsPerExercise: 6, minDuration: 45, maxDuration: 110, minTotalSets: 16 },
-  }[level] || { minExercises: 4, maxExercises: 8, minSetsPerExercise: 2, maxSetsPerExercise: 5, minDuration: 45, maxDuration: 90, minTotalSets: 14 };
+/**
+ * Calculeaza bugetul saptamanal de seturi per grupa musculara.
+ * Aceasta este REGULA SFANTA: totalul pe saptamana, nu per sesiune.
+ * Sets per sesiune = weeklyBudget / workoutsPerWeek
+ */
+function getWeeklySetBudget(level, goal) {
+  const base = {
+    beginner:     { min: 10, max: 15 },
+    intermediate: { min: 14, max: 20 },
+    advanced:     { min: 16, max: 24 },
+  }[level] || { min: 12, max: 18 };
 
-  const adjusted = { ...levelBase };
+  if (goal === 'strength')    return { min: base.min + 2, max: base.max + 2 };
+  if (goal === 'muscle gain') return { min: base.min + 2, max: base.max + 4 };
+  if (goal === 'endurance')   return { min: base.min - 2, max: base.max - 2 };
+  return base;
+}
+
+function getVolumeTargets(level, goal, split, workoutsPerWeek = 3) {
+  const weeklyBudget = getWeeklySetBudget(level, goal);
+  // Seturi per sesiune per grupa = buget saptamanal / sesiuni
+  // Dar pentru spliturie specializate (Bro, PPL) fiecare sesiune lucreaza grupe diferite,
+  // deci sets/sesiune pot fi mai mari (grupe lucrate mai rar).
+  const isHighFreqFullBody = split === 'Full Body' && workoutsPerWeek >= 4;
+
+  // Sets per exercitiu per sesiune, ajustate la frecventa
+  let setsPerExLow, setsPerExHigh;
+  if (isHighFreqFullBody) {
+    // Full Body 4-5x/sapt: seturi putine per sesiune (grupe lucrate zilnic)
+    // 15 seturi/sapt / 5 sesiuni = 3 seturi/sapt per grupa per sesiune ~ 1-2 exercitii × 1-2 serii
+    const avgSetsPerSession = Math.round(weeklyBudget.min / workoutsPerWeek);
+    setsPerExLow  = Math.max(1, avgSetsPerSession - 1);
+    setsPerExHigh = Math.max(2, avgSetsPerSession);
+  } else {
+    const levelBase = {
+      beginner:     { low: 2, high: 4 },
+      intermediate: { low: 3, high: 5 },
+      advanced:     { low: 3, high: 6 },
+    }[level] || { low: 2, high: 5 };
+    setsPerExLow  = levelBase.low;
+    setsPerExHigh = levelBase.high;
+  }
+
+  const levelBase = {
+    beginner: { minExercises: 4, maxExercises: 7, minDuration: 40, maxDuration: 75, minTotalSets: 12 },
+    intermediate: { minExercises: 4, maxExercises: 8, minDuration: 45, maxDuration: 90, minTotalSets: 14 },
+    advanced: { minExercises: 4, maxExercises: 9, minDuration: 45, maxDuration: 110, minTotalSets: 16 },
+  }[level] || { minExercises: 4, maxExercises: 8, minDuration: 45, maxDuration: 90, minTotalSets: 14 };
+
+  const adjusted = {
+    ...levelBase,
+    minSetsPerExercise: setsPerExLow,
+    maxSetsPerExercise: setsPerExHigh,
+    weeklySetBudget: weeklyBudget,
+    workoutsPerWeek,
+    isHighFreqFullBody,
+  };
 
   if (split === 'Full Body') {
-    // Full Body antrenează mai multe grupe => minim mai mare
     adjusted.minExercises = Math.max(adjusted.minExercises, 5);
     adjusted.maxExercises = Math.max(adjusted.maxExercises, 8);
-    adjusted.minTotalSets = Math.max(adjusted.minTotalSets, 16);
+    if (isHighFreqFullBody) {
+      // Full Body cu frecventa mare: seturi totale per sesiune mai putine
+      adjusted.minTotalSets = Math.max(8, Math.round(weeklyBudget.min * 3 / workoutsPerWeek));
+    } else {
+      adjusted.minTotalSets = Math.max(adjusted.minTotalSets, 16);
+    }
   }
-  // PPL / Upper-Lower / Bro Split: numărul variază natural per sesiune
-  // (ziua de picioare poate avea 7, ziua de biceps+triceps poate avea 4-5)
   if (goal === 'strength') {
-    adjusted.minSetsPerExercise = Math.max(adjusted.minSetsPerExercise, 3);
-    adjusted.minTotalSets = Math.max(adjusted.minTotalSets, 18);
+    adjusted.minSetsPerExercise = Math.max(adjusted.minSetsPerExercise, isHighFreqFullBody ? 2 : 3);
+    adjusted.minTotalSets = Math.max(adjusted.minTotalSets, isHighFreqFullBody ? 10 : 18);
   }
   if (goal === 'muscle gain') {
-    adjusted.minSetsPerExercise = Math.max(adjusted.minSetsPerExercise, 3);
-    const muscleGainFloorByLevel = { beginner: 15, intermediate: 17, advanced: 19 }[level] || 17;
-    adjusted.minTotalSets = Math.max(adjusted.minTotalSets, muscleGainFloorByLevel);
+    adjusted.minSetsPerExercise = Math.max(adjusted.minSetsPerExercise, isHighFreqFullBody ? 1 : 3);
+    const floor = isHighFreqFullBody
+      ? Math.max(8, Math.round(weeklyBudget.min * 3 / workoutsPerWeek))
+      : ({ beginner: 15, intermediate: 17, advanced: 19 }[level] || 17);
+    adjusted.minTotalSets = Math.max(adjusted.minTotalSets, floor);
   }
   if (goal === 'weight loss' || goal === 'endurance') {
     adjusted.maxRestSeconds = 120;
@@ -566,8 +619,9 @@ function getLocalExercisePrescription({ input, volume, catalogItem, exerciseInde
   if (goal === 'strength') sets = Math.max(sets, isCompound ? 4 : 3);
   if (goal === 'muscle gain') sets = Math.max(sets, isCompound ? 3 : 2);
   if (goal === 'weight loss' || goal === 'endurance') sets = Math.max(sets - 1, isCompound ? 2 : 2);
-  if (exerciseIndex === 0 && (goal === 'strength' || goal === 'muscle gain')) sets = Math.min(sets + 1, volume.maxSetsPerExercise + 1);
-  sets = Math.max(volume.minSetsPerExercise, Math.min(volume.maxSetsPerExercise + 1, sets));
+  const hardMax = volume.isHighFreqFullBody ? volume.maxSetsPerExercise : volume.maxSetsPerExercise + 1;
+  if (exerciseIndex === 0 && (goal === 'strength' || goal === 'muscle gain')) sets = Math.min(sets + 1, hardMax);
+  sets = Math.max(volume.minSetsPerExercise, Math.min(hardMax, sets));
 
   let reps = String(catalogItem?.default_reps || '').trim() || '8-12';
   let restSeconds = Number(catalogItem?.default_rest_seconds) || 90;
@@ -606,7 +660,7 @@ function rebalanceDayVolume(day, volume) {
     guard += 1;
     for (const ex of day.exercises || []) {
       if (totalSets >= volume.minTotalSets) break;
-      const maxSets = volume.maxSetsPerExercise + 1;
+      const maxSets = volume.isHighFreqFullBody ? volume.maxSetsPerExercise : volume.maxSetsPerExercise + 1;
       if ((ex.sets || 0) < maxSets) {
         ex.sets += 1;
         totalSets += 1;
@@ -636,7 +690,7 @@ function normalizeGeneratedPlan(rawPlan, input, exerciseCatalogMap = null) {
     if (focus === 'upper') return '4-6 min respirație + stretching partea superioară.';
     return '4-6 min mers ușor + stretching pentru grupele lucrate.';
   };
-  const volume = getVolumeTargets(input.fitnessLevel, input.fitnessGoal, input.trainingSplit);
+  const volume = getVolumeTargets(input.fitnessLevel, input.fitnessGoal, input.trainingSplit, input.workoutsPerWeek);
   const normalizedDays = rawDays.slice(0, targetWorkoutDays).map((day, idx) => {
     const focus = focuses[idx] || '';
     const exercises = Array.isArray(day?.exercises)
@@ -782,7 +836,7 @@ function validatePlan(plan, input, exerciseCatalogMap = null, dayAllowedExercise
     throw new Error(`Planul trebuie să aibă exact ${workoutsPerWeek} sesiuni.`);
   }
 
-  const volume = getVolumeTargets(input.fitnessLevel, input.fitnessGoal, input.trainingSplit);
+  const volume = getVolumeTargets(input.fitnessLevel, input.fitnessGoal, input.trainingSplit, workoutsPerWeek);
   const injuryFlags = getInjuryRiskKeywords(input.injuriesLimitations);
   const forbiddenPatterns = [];
   if (injuryFlags.shoulder) forbiddenPatterns.push(/upright row|behind the neck|military press|overhead press/i);
@@ -902,7 +956,7 @@ function buildWorkoutPrompt(data, catalogPrompt, weeklyTargets = null, previousE
   } = data;
   const genderSection = buildGenderRuleSection(gender || 'M', trainingSplit);
   const schedule = DAY_SCHEDULES[workoutsPerWeek] || DAY_SCHEDULES[3];
-  const volume = getVolumeTargets(fitnessLevel, fitnessGoal, trainingSplit);
+  const volume = getVolumeTargets(fitnessLevel, fitnessGoal, trainingSplit, workoutsPerWeek);
   const splitStructure = trainingSplit === 'Push/Pull/Legs' && workoutsPerWeek === 4
     ? '- STRUCTURĂ PPL 4 ZILE: Push, Pull, Legs, Upper/Push-Pull accesorii. Nu inventa 7 zile și nu repeta Legs imediat.'
     : trainingSplit === 'Push/Pull/Legs' && workoutsPerWeek === 5
@@ -946,6 +1000,21 @@ function buildWorkoutPrompt(data, catalogPrompt, weeklyTargets = null, previousE
     : '';
   const volumeAndVarietySection = buildVolumeAndVarietySection(trainingSplit, workoutsPerWeek);
 
+  const weeklySetBudgetSection = (() => {
+    const wb = volume.weeklySetBudget;
+    const isHighFreqFB = trainingSplit === 'Full Body' && workoutsPerWeek >= 4;
+    if (!isHighFreqFB) return '';
+    const setsPerSession = Math.round(wb.min / workoutsPerWeek);
+    return `\n══════════════════════════════════════════
+REGULA SETURI PE SĂPTĂMÂNĂ (OBLIGATORIU pentru Full Body ${workoutsPerWeek}x/săpt):
+Buget săptămânal per grupă musculară: ${wb.min}-${wb.max} seturi/săptămână.
+Cu ${workoutsPerWeek} sesiuni/săpt, fiecare sesiune trebuie să aibă MAXIM ${setsPerSession}-${setsPerSession + 1} seturi per grupă musculară.
+NU pune 4-5 seturi per exercițiu dacă antrenezi aceeași grupă în 4-5 sesiuni pe săptămână!
+Exemplu Full Body 5x/săpt: piept → 1-2 seturi/sesiune × 5 sesiuni = 5-10 seturi/săpt (CORECT)
+Greșit: 4 seturi/sesiune × 5 sesiuni = 20 seturi/săpt (SUPRAANTRENAMENT)
+══════════════════════════════════════════\n`;
+  })();
+
   return `Generează un plan de antrenament JSON pentru clientul "${name}".
 Tip plan: "${trainingSplit}".
 Număr sesiuni pe săptămână: ${workoutsPerWeek}.
@@ -955,8 +1024,7 @@ ${equipmentRules}
 ${goalRules}
 ${splitStructure}
 ${genderSection}
-${weeklyTargetsSection}${previousExercisesSection}${injurySection}${prefSection}
-
+${weeklyTargetsSection}${previousExercisesSection}${injurySection}${prefSection}${weeklySetBudgetSection}
 ${volumeAndVarietySection}
 
 Reguli:
@@ -1279,10 +1347,9 @@ function getSessionFocuses(split, workoutsPerWeek) {
 function buildFallbackWorkoutPlan(input) {
   const workoutsPerWeek = input.workoutsPerWeek;
   const schedule = DAY_SCHEDULES[workoutsPerWeek] || DAY_SCHEDULES[3];
-  const volume = getVolumeTargets(input.fitnessLevel, input.fitnessGoal, input.trainingSplit);
+  const volume = getVolumeTargets(input.fitnessLevel, input.fitnessGoal, input.trainingSplit, workoutsPerWeek);
   const bank = FALLBACK_EXERCISES[input.availableEquipment] || FALLBACK_EXERCISES['full gym'];
   const focuses = getSessionFocuses(input.trainingSplit, workoutsPerWeek);
-  const setsByLevel = input.fitnessLevel === 'beginner' ? 3 : 4;
 
   const days = focuses.map((focus, idx) => {
     const sourceExercises = focus === 'fullBody'
@@ -1297,7 +1364,7 @@ function buildFallbackWorkoutPlan(input) {
       order: exIdx + 1,
       name: ex[0],
       muscleGroup: ex[1],
-      sets: setsByLevel,
+      sets: volume.minSetsPerExercise,
       reps: ex[2],
       restSeconds: Math.min(ex[3], volume.maxRestSeconds),
       instructions: 'Execută mișcarea controlat, păstrează postura stabilă și oprește setul când tehnica începe să se degradeze.',

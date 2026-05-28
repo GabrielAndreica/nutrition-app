@@ -1441,9 +1441,6 @@ const ClientsList = forwardRef(function ClientsList({
                     {hasNewProgress && (
                       <span className={`${styles.accountBadge} ${styles.badgeProgress}`}>Progres nou</span>
                     )}
-                    {isDraft && (
-                      <span className={`${styles.accountBadge} ${styles.badgeDraft}`}>Draft gratuit</span>
-                    )}
                     {isPendingReview && (
                       <span className={`${styles.accountBadge} ${styles.badgeReview}`}>În revizie</span>
                     )}

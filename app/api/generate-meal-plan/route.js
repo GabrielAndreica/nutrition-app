@@ -1966,6 +1966,19 @@ export async function POST(request) {
     const parsedPrefs     = parsePreferences(clientData.foodPreferences || clientData.preferences || '');
     console.log(`[generate] Preferințe parsate:`, { includes: parsedPrefs.includes, excludes: parsedPrefs.excludes, special: parsedPrefs.specialMeals });
     const eligibleRecipes = filterRecipesByDiet(allRecipesRaw, dietType, clientData.allergies || [], parsedPrefs.excludes);
+    // Shuffle eligibleRecipes cu seed client-specific pentru ca AI-ul să selecteze rețete diferite
+    // pentru clienți diferiți (altfel AI-ul tinde să aleagă mereu primele din listă)
+    const _clientSeedMeal = (() => {
+      const src = `${clientData.clientId || ''}${clientData.name || ''}${clientData.weight || ''}${clientData.age || ''}`;
+      let h = 5381;
+      for (let ci = 0; ci < src.length; ci++) h = ((h << 5) + h) ^ src.charCodeAt(ci);
+      return Math.abs(h);
+    })();
+    eligibleRecipes.sort((a, b) => {
+      const ha = (a.id.charCodeAt(0) + _clientSeedMeal) % 97;
+      const hb = (b.id.charCodeAt(0) + _clientSeedMeal) % 97;
+      return ha - hb;
+    });
     console.log(`[generate] ${allFoods.length} alimente | ${allRecipesRaw.length} rețete | ${eligibleRecipes.length} eligibile (${dietType})`);
     if (eligibleRecipes.length === 0) {
       throw new Error(`Nu există rețete disponibile pentru dieta "${dietType}". Adăugați rețete în baza de date.`);
@@ -2118,7 +2131,7 @@ export async function POST(request) {
           if (pool.length === 0) pool = eligibleRecipes.filter(r => r.meal_type === mealType);
           if (pool.length === 0) throw new Error(`Nu există rețete pentru tipul "${mealType}".`);
 
-          // Shuffle determinist bazat pe dayIndex + attemptIndex pentru varietate între zile și retry-uri
+          // Shuffle bazat pe dayIndex + attemptIndex + hash client-specific pentru varietate
           // Bonus: rețetele care conțin cuvinte cheie din preferințe sunt urcate în față
           // Extinde keywords prin sinonime (ex: 'pudra' → 'shake proteic', 'pudra de proteine')
           const rawPrefKeywords = [
@@ -2131,7 +2144,15 @@ export async function POST(request) {
             ...rawPrefKeywords,
             ...rawPrefKeywords.flatMap(kw => PREF_INGREDIENT_SYNONYMS[kw] || []),
           ];
-          const seed   = dayIndex * 37 + attemptIndex * 13;
+          // Seed client-specific: include clientId hash sau weight+age pentru a garanta
+          // că 2 clienți diferiți nu primesc aceleași rețete în aceeași ordine
+          const clientHash = (() => {
+            const src = `${clientData.clientId || ''}${clientData.name || ''}${clientData.weight || ''}${clientData.age || ''}`;
+            let h = 5381;
+            for (let ci = 0; ci < src.length; ci++) h = ((h << 5) + h) ^ src.charCodeAt(ci);
+            return Math.abs(h);
+          })();
+          const seed   = dayIndex * 37 + attemptIndex * 13 + (clientHash % 97);
           const sorted = [...pool].sort((a, b) => {
             const nameA = (a.name || '').toLowerCase();
             const nameB = (b.name || '').toLowerCase();
