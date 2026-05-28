@@ -4,8 +4,8 @@ import styles from './landing.module.css';
 import ScrollReveal from './ScrollReveal';
 
 export const metadata = {
-  title: 'Trevano — Aplicație pentru antrenori de fitness',
-  description: 'Trevano este aplicația pentru antrenori de fitness unde ții clienții, planurile alimentare, antrenamentele și progresul într-un singur loc.',
+  title: 'Trevano — Software de management pentru antrenori de fitness',
+  description: 'Trevano te ajută să-ți organizezi clienții, planurile alimentare, antrenamentele și progresul într-un singur loc. Mai mulți clienți, mai puțin timp pe planuri.',
   alternates: {
     canonical: '/',
   },
@@ -24,7 +24,7 @@ function PhoneMockup({ src, alt }) {
 }
 
 function MockupMealPlan() {
-  return <PhoneMockup src="/screenshots/mockup-meal-plan.png" alt="Plan alimentar generat" />;
+  return <PhoneMockup src="/screenshots/mockup-meal-plan.png" alt="Plan alimentar client" />;
 }
 
 export default function LandingPage() {
@@ -56,15 +56,16 @@ export default function LandingPage() {
         operatingSystem: 'Web',
         url: 'https://trevano.app',
         image: 'https://trevano.app/screenshots/mockup-meal-plan.png',
-        description: 'Trevano este aplicația pentru antrenori de fitness unde ții clienții, planurile alimentare, antrenamentele și progresul într-un singur loc.',
+        description: 'Trevano te ajută să-ți organizezi clienții, planurile și progresul într-un singur loc. Mai mulți clienți, mai puțin timp pe planuri.',
         publisher: {
           '@id': 'https://trevano.app/#organization',
         },
         audience: {
           '@type': 'Audience',
-          audienceType: 'Antrenori de fitness',
+          audienceType: 'Antrenori de fitness și nutriționiști',
         },
         offers: [
+          { '@type': 'Offer', name: 'Free', price: '0', priceCurrency: 'RON', url: 'https://trevano.app' },
           { '@type': 'Offer', name: 'Starter', price: '149', priceCurrency: 'RON', url: 'https://trevano.app' },
           { '@type': 'Offer', name: 'Pro', price: '249', priceCurrency: 'RON', url: 'https://trevano.app' },
         ],
@@ -94,21 +95,20 @@ export default function LandingPage() {
       <section className={styles.hero}>
         <div className={styles.heroGlow} />
         <div className={styles.heroLeft}>
-          <div className={styles.heroBadge} data-reveal data-delay="0">Pentru antrenori personali</div>
-          <h1 className={styles.heroHeadline} data-reveal data-delay="1">
-            Aplicația pentru antrenori de fitness<br /><span className={styles.accent}>care vor ordine.</span>
+          <h1 className={styles.heroHeadline} data-reveal data-delay="0">
+            Mai mulți clienți,<br /><span className={styles.accent}>mai puțin timp pe planuri.</span>
           </h1>
           <p className={styles.heroSub} data-reveal data-delay="2">
-            Trevano te ajută să ții clienții, planurile alimentare, antrenamentele și progresul într-un singur loc. Fără ChatGPT, Word, tabele și multe tab-uri deschise.
+            Trevano te ajută să-ți organizezi activitatea de coaching de la început: planuri alimentare, planuri de antrenament și monitorizare progres — gata rapid, totul într-un singur loc.
           </p>
           <div className={styles.heroActions} data-reveal data-delay="3">
-            <Link href="/auth" className={styles.ctaPrimary}>Începe gratuit 14 zile →</Link>
-            <span className={styles.heroNote}>Fără card de credit. Anulezi oricând.</span>
+            <Link href="/auth" className={styles.ctaPrimary}>Începe gratuit →</Link>
+            <span className={styles.heroNote}>Gratuit până la 3 clienți. Fără card de credit.</span>
           </div>
           <div className={styles.heroStats} data-reveal data-delay="4">
-            <div className={styles.heroStat}><span className={styles.heroStatNum}>1 loc</span><span className={styles.heroStatLabel}>pentru clienți și planuri</span></div>
+            <div className={styles.heroStat}><span className={styles.heroStatNum}>10h+</span><span className={styles.heroStatLabel}>economisit lunar pe planuri</span></div>
             <div className={styles.heroStatDivider} />
-            <div className={styles.heroStat}><span className={styles.heroStatNum}>10h+</span><span className={styles.heroStatLabel}>economisit lunar</span></div>
+            <div className={styles.heroStat}><span className={styles.heroStatNum}>1 loc</span><span className={styles.heroStatLabel}>clienți, planuri și progres</span></div>
             <div className={styles.heroStatDivider} />
             <div className={styles.heroStat}><span className={styles.heroStatNum}>0</span><span className={styles.heroStatLabel}>fișiere pierdute</span></div>
           </div>
@@ -128,13 +128,13 @@ export default function LandingPage() {
         <div className={styles.featureSectionInner}>
           <div className={styles.featureMockup}><MockupMealPlan /></div>
           <div className={styles.featureText}>
-            <p className={styles.sectionLabel}>Planuri complete</p>
-            <h2 className={styles.featureHeading}>Plan alimentar și antrenament,<br /><span className={styles.accent}>fără să sari între aplicații.</span></h2>
-            <p className={styles.featureDesc}>Adaugi clientul, creezi planurile, le verifici, ajustezi gramaje sau serii și abia apoi le trimiți în portalul clientului.</p>
+            <p className={styles.sectionLabel}>Management complet</p>
+            <h2 className={styles.featureHeading}>Toate planurile și clienții,<br /><span className={styles.accent}>într-un singur loc.</span></h2>
+            <p className={styles.featureDesc}>Adaugi clientul, construiești planurile, le ajustezi direct și le trimiți în portalul clientului. Totul organizat, fără fișiere pierdute.</p>
             <ul className={styles.featureBullets}>
               <li><span className={styles.bullet}>✓</span> Plan alimentar de 7 zile cu rețete reale</li>
               <li><span className={styles.bullet}>✓</span> Macro-uri, calorii și gramaje într-o pagină clară</li>
-              <li><span className={styles.bullet}>✓</span> Plan de antrenament adaptat nivelului</li>
+              <li><span className={styles.bullet}>✓</span> Plan de antrenament adaptat fiecărui client</li>
             </ul>
           </div>
         </div>
@@ -147,9 +147,9 @@ export default function LandingPage() {
           <h2 className={styles.sectionTitle} style={{ textAlign: 'center' }}>3 pași simpli</h2>
           <div className={styles.stepsGrid}>
             {[
-              { num: '01', title: 'Adaugi clientul', desc: 'Profil, obiectiv, preferințe alimentare și date de antrenament într-o singură fișă.' },
-              { num: '02', title: 'Verifici planurile', desc: 'Plan alimentar și antrenament în pagini clare, cu ajustări directe pentru gramaje și serii.' },
-              { num: '03', title: 'Urmărești progresul', desc: 'Progresul clientului ajunge în același sistem, iar tu decizi dacă păstrezi sau actualizezi planul.' },
+              { num: '01', title: 'Adaugi clientul', desc: 'Profil, obiectiv, preferințe alimentare și date de antrenament — totul într-o singură fișă organizată.' },
+              { num: '02', title: 'Construiești planurile', desc: 'Plan alimentar și antrenament în pagini clare. Ajustezi direct gramaje, serii și mese — fără să sari între aplicații.' },
+              { num: '03', title: 'Urmărești progresul', desc: 'Progresul clientului ajunge direct în dashboard. Tu decizi când și cum actualizezi planul.' },
             ].map(({ num, title, desc }) => (
               <div key={num} className={styles.stepCard}>
                 <div className={styles.stepNum}>{num}</div>
@@ -166,8 +166,8 @@ export default function LandingPage() {
         <div className={styles.statsInner}>
           <div className={styles.statsLeft}>
             <p className={styles.sectionLabel}>De ce Trevano</p>
-            <h2 className={styles.featureHeading}>Cât timp pierzi lunar<br /><span className={styles.accent}>cu lucruri puse peste tot?</span></h2>
-            <p className={styles.featureDesc}>Când lucrezi cu ChatGPT, documente, tabele și PDF-uri separate, devine greu să urmărești fiecare client. Trevano pune lucrurile importante într-un singur loc.</p>
+            <h2 className={styles.featureHeading}>Timp economisit<br /><span className={styles.accent}>= mai mulți clienți.</span></h2>
+            <p className={styles.featureDesc}>Fiecare plan făcut manual în Word sau ChatGPT îți ia 1-2 ore. Cu Trevano, același plan e gata în câteva minute. Timpul economisit înseamnă mai mult spațiu pentru clienți noi, antrenamente și coaching real.</p>
             <Link href="/auth" className={styles.ctaPrimary} style={{ display: 'inline-block', marginTop: '24px' }}>Încearcă gratuit →</Link>
           </div>
           <div className={styles.statsRight}>
@@ -189,30 +189,41 @@ export default function LandingPage() {
       <section className={styles.pricingSection} data-reveal>
         <div className={styles.pricingInner}>
           <p className={styles.sectionLabel} style={{ textAlign: 'center' }}>Prețuri</p>
-          <h2 className={styles.sectionTitle} style={{ textAlign: 'center' }}>Simplu. Transparent. Fără surprize.</h2>
+          <h2 className={styles.sectionTitle} style={{ textAlign: 'center' }}>Crești odată cu clienții tăi.</h2>
           <div className={styles.pricingGrid}>
+            <div className={styles.pricingCard}>
+              <h3 className={styles.planName}>Free</h3>
+              <div className={styles.planPrice}><span className={styles.planAmount}>0 RON</span><span className={styles.planPeriod}>/ mereu</span></div>
+              <ul className={styles.planFeatures}>
+                <li><span className={styles.check}>✓</span> Până la <strong>3 clienți activi</strong></li>
+                <li><span className={styles.check}>✓</span> Planuri alimentare pe fiecare client</li>
+                <li><span className={styles.check}>✓</span> Planuri de antrenament pe fiecare client</li>
+                <li><span className={styles.check}>✓</span> Dashboard clienți</li>
+                <li><span className={styles.check}>✓</span> Monitorizare progres</li>
+              </ul>
+              <Link href="/auth" className={styles.planCta}>Începe gratuit</Link>
+            </div>
             <div className={styles.pricingCard}>
               <h3 className={styles.planName}>Starter</h3>
               <div className={styles.planPrice}><span className={styles.planAmount}>149 RON</span><span className={styles.planPeriod}>/ lună</span></div>
               <ul className={styles.planFeatures}>
-                <li><span className={styles.check}>✓</span> Până la 10 clienți activi</li>
-                <li><span className={styles.check}>✓</span> Planuri alimentare pe fiecare client</li>
-                <li><span className={styles.check}>✓</span> Planuri de antrenament pe fiecare client</li>
+                <li><span className={styles.check}>✓</span> Până la <strong>10 clienți activi</strong></li>
+                <li><span className={styles.check}>✓</span> Tot ce include Free</li>
                 <li><span className={styles.check}>✓</span> Portal clienți</li>
-                <li><span className={styles.check}>✓</span> Monitorizare progres clienți</li>
+                <li><span className={styles.check}>✓</span> Suport email</li>
               </ul>
-              <Link href="/auth" className={styles.planCta}>Începe gratuit 14 zile</Link>
+              <Link href="/auth" className={styles.planCta}>Încearcă gratuit</Link>
             </div>
             <div className={`${styles.pricingCard} ${styles.pricingCardPro}`}>
               <div className={styles.proBadge}>Popular</div>
               <h3 className={styles.planName}>Pro</h3>
               <div className={styles.planPrice}><span className={styles.planAmount}>249 RON</span><span className={styles.planPeriod}>/ lună</span></div>
               <ul className={styles.planFeatures}>
-                <li><span className={styles.checkAccent}>✓</span> Până la 30 clienți activi</li>
-                <li><span className={styles.checkAccent}>✓</span> Tot ce e în Starter</li>
+                <li><span className={styles.checkAccent}>✓</span> Până la <strong>30 clienți activi</strong></li>
+                <li><span className={styles.checkAccent}>✓</span> Tot ce include Starter</li>
                 <li><span className={styles.checkAccent}>✓</span> Suport prioritar</li>
               </ul>
-              <Link href="/auth" className={styles.planCtaAccent}>Începe gratuit 14 zile →</Link>
+              <Link href="/auth" className={styles.planCtaAccent}>Încearcă gratuit →</Link>
             </div>
           </div>
         </div>
@@ -222,10 +233,10 @@ export default function LandingPage() {
       <section className={styles.finalCta} data-reveal>
         <div className={styles.finalGlow} />
         <div className={styles.finalCtaInner}>
-          <h2 className={styles.finalTitle}>Gata să pui <span className={styles.accent}>totul</span> în ordine?</h2>
-          <p className={styles.finalSub}>Trevano este pentru antrenorii care vor clienți, planuri și progres într-un singur loc.</p>
-          <Link href="/auth" className={styles.ctaPrimary}>Începe 14 zile gratuit →</Link>
-          <p className={styles.heroNote}>Fără card de credit. Anulezi oricând.</p>
+          <h2 className={styles.finalTitle}>Gata să antrenezi<br /><span className={styles.accent}>mai mulți clienți?</span></h2>
+          <p className={styles.finalSub}>Organizează-ți activitatea de coaching de la început. Planuri rapide, totul într-un singur loc, mai mult timp pentru ce contează.</p>
+          <Link href="/auth" className={styles.ctaPrimary}>Încearcă gratuit →</Link>
+          <p className={styles.heroNote}>Gratuit până la 3 clienți. Fără card de credit.</p>
         </div>
       </section>
 

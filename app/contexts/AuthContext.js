@@ -107,11 +107,7 @@ export function AuthProvider({ children }) {
                   return updatedUser;
                 });
 
-                if (subscription_status === 'trial') {
-                  if (trial_ends_at && new Date(trial_ends_at) < new Date()) {
-                    router.replace('/upgrade?reason=trial_expired');
-                  }
-                } else if (subscription_status === 'cancelled' || subscription_status === 'inactive' || subscription_status === 'expired') {
+                if (subscription_status === 'cancelled' || subscription_status === 'inactive' || subscription_status === 'expired') {
                   router.replace('/upgrade?reason=subscription_inactive');
                 }
               })
