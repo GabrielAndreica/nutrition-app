@@ -614,3 +614,36 @@
     display: none;
   }
 }
+
+/* ── Workout edit — mobile touch optimizations ── */
+@media (max-width: 768px) {
+  /* Grip band wider for easier touch */
+  .dragGrip {
+    width: 36px !important;
+  }
+
+  /* Bigger tap targets on inline inputs */
+  .editInlineInput {
+    min-height: 36px;
+    font-size: 15px !important;
+  }
+
+  /* mealTotals wrap to 2 columns on small screens */
+  .mealTotalsMobile {
+    flex-wrap: wrap;
+    gap: 10px 20px;
+  }
+
+  /* Stepper buttons larger on touch */
+  .setsStepper button {
+    width: 38px;
+    height: 38px;
+    font-size: 20px;
+  }
+
+  .setsStepper input {
+    width: 44px;
+    height: 38px;
+    font-size: 14px;
+  }
+}

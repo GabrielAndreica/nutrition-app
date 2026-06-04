@@ -330,9 +330,55 @@ export default function MealPlan({
 
   const currentDay = plan && plan.days ? plan.days[activeDay] : null;
   const canEditAmounts = editableAmounts && user?.role === 'trainer' && typeof onPlanChange === 'function';
+  const canEdit = canEditAmounts;
 
   const handleFoodAmountChange = (mealIndex, foodIndex, nextAmount) => {
     const nextPlan = updateFoodAmount(plan, activeDay, mealIndex, foodIndex, nextAmount);
+    onPlanChange?.(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const changeFoodName = (mealIndex, foodIndex, value) => {
+    const nextPlan = clonePlan(plan);
+    const food = nextPlan.days?.[activeDay]?.meals?.[mealIndex]?.foods?.[foodIndex];
+    if (!food) return;
+    food.name = value;
+    onPlanChange?.(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const deleteFood = (mealIndex, foodIndex) => {
+    const nextPlan = clonePlan(plan);
+    nextPlan.days?.[activeDay]?.meals?.[mealIndex]?.foods?.splice(foodIndex, 1);
+    recalculateDay(nextPlan.days?.[activeDay]);
+    onPlanChange?.(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const addFood = (mealIndex) => {
+    const nextPlan = clonePlan(plan);
+    const foods = nextPlan.days?.[activeDay]?.meals?.[mealIndex]?.foods;
+    if (!Array.isArray(foods)) return;
+    foods.push({ name: 'Aliment nou', amount: 100, unit: 'g', displayAmount: '100g', calories: 0, protein: 0, carbs: 0, fat: 0 });
+    recalculateDay(nextPlan.days?.[activeDay]);
+    onPlanChange?.(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const changeMealName = (mealIndex, value) => {
+    const nextPlan = clonePlan(plan);
+    const meal = nextPlan.days?.[activeDay]?.meals?.[mealIndex];
+    if (!meal) return;
+    meal.name = value;
+    onPlanChange?.(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const changeMealNotes = (mealIndex, value) => {
+    const nextPlan = clonePlan(plan);
+    const meal = nextPlan.days?.[activeDay]?.meals?.[mealIndex];
+    if (!meal) return;
+    meal.preparation = value;
     onPlanChange?.(nextPlan);
     onPlanDirtyChange?.(true);
   };
@@ -845,7 +891,16 @@ export default function MealPlan({
             return (
               <div key={mealIndex} className={styles.mealCard}>
                 <div className={styles.mealCardHeader}>
-                  <h4>{meal.name || name}</h4>
+                  {canEdit ? (
+                    <input
+                      className={styles.mealNameInput}
+                      value={meal.name || name}
+                      onChange={e => changeMealName(mealIndex, e.target.value)}
+                      placeholder="Nume masă"
+                    />
+                  ) : (
+                    <h4>{meal.name || name}</h4>
+                  )}
                   {meal.mealTotals && (
                     <span className={styles.mealCalories}>{meal.mealTotals.calories} kcal</span>
                   )}
@@ -855,36 +910,25 @@ export default function MealPlan({
                   {meal.foods.map((food, foodIndex) => (
                     <li key={foodIndex} className={styles.mealItem}>
                       <div className={styles.foodMainRow}>
-                        <span className={styles.foodName}>{food.name}</span>
-                        {canEditAmounts ? (
-                          <div className={styles.amountStepper} aria-label={`Gramaj ${food.name}`}>
-                            <button
-                              type="button"
-                              className={styles.amountStepBtn}
-                              onClick={() => handleFoodAmountChange(mealIndex, foodIndex, (Number(food.amount) || 5) - 5)}
-                              disabled={(Number(food.amount) || 0) <= 5}
-                              aria-label={`Scade gramajul pentru ${food.name}`}
-                            >
-                              -
-                            </button>
-                            <input
-                              type="number"
-                              min="5"
-                              step="5"
-                              className={styles.amountInput}
-                              value={food.amount ?? 5}
-                              onChange={(event) => handleFoodAmountChange(mealIndex, foodIndex, event.target.value)}
-                              aria-label={`Gramaj ${food.name}`}
-                            />
-                            <span className={styles.amountUnit}>{food.unit || 'g'}</span>
-                            <button
-                              type="button"
-                              className={styles.amountStepBtn}
-                              onClick={() => handleFoodAmountChange(mealIndex, foodIndex, (Number(food.amount) || 5) + 5)}
-                              aria-label={`Crește gramajul pentru ${food.name}`}
-                            >
-                              +
-                            </button>
+                        {canEdit ? (
+                          <input
+                            className={styles.foodNameInput}
+                            value={food.name}
+                            onChange={e => changeFoodName(mealIndex, foodIndex, e.target.value)}
+                            placeholder="Nume aliment"
+                          />
+                        ) : (
+                          <span className={styles.foodName}>{food.name}</span>
+                        )}
+                        {canEdit ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                            <div className={styles.amountStepper} aria-label={`Gramaj ${food.name}`}>
+                              <button type="button" className={styles.amountStepBtn} onClick={() => handleFoodAmountChange(mealIndex, foodIndex, (Number(food.amount) || 5) - 5)} disabled={(Number(food.amount) || 0) <= 5} aria-label="Scade gramajul">-</button>
+                              <input type="number" min="5" step="5" className={styles.amountInput} value={food.amount ?? 5} onChange={e => handleFoodAmountChange(mealIndex, foodIndex, e.target.value)} aria-label={`Gramaj ${food.name}`} />
+                              <span className={styles.amountUnit}>{food.unit || 'g'}</span>
+                              <button type="button" className={styles.amountStepBtn} onClick={() => handleFoodAmountChange(mealIndex, foodIndex, (Number(food.amount) || 5) + 5)} aria-label="Crește gramajul">+</button>
+                            </div>
+
                           </div>
                         ) : (
                           <span className={styles.foodAmount}>
@@ -899,11 +943,25 @@ export default function MealPlan({
                   ))}
                 </ul>
 
-                {meal.preparation && (
+                {canEdit && (
+                  <button type="button" className={styles.addFoodBtn} onClick={() => addFood(mealIndex)}>
+                    + Adaugă aliment
+                  </button>
+                )}
+
+                {canEdit ? (
+                  <textarea
+                    className={styles.mealNotesArea}
+                    value={meal.preparation || ''}
+                    onChange={e => changeMealNotes(mealIndex, e.target.value)}
+                    placeholder="Notițe masă (opțional)..."
+                    rows={2}
+                  />
+                ) : meal.preparation ? (
                   <div className={styles.preparation}>
                     {meal.preparation}
                   </div>
-                )}
+                ) : null}
 
                 {meal.mealTotals && (
                   <div className={styles.mealTotals}>

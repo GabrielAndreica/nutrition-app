@@ -1742,8 +1742,53 @@
 
   .mealTotals {
     padding: 10px 16px;
-    gap: 16px;
-    font-size: 13px;
+    gap: 10px;
+    font-size: 12px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  /* Seturi + Pauza (number inputs) */
+  .mealTotals input[type="number"] {
+    min-height: 32px;
+    font-size: 13px !important;
+    padding: 0 2px !important;
+    width: 40px !important;
+  }
+
+  /* Repetari (text input) — wider for values like "10-15" */
+  .mealTotals input:not([type]),
+  .mealTotals input[type="text"] {
+    min-height: 32px;
+    font-size: 13px !important;
+    padding: 0 2px !important;
+    width: 54px !important;
+  }
+
+  /* Bigger tap targets for amountStepper buttons */
+  .amountStepBtn {
+    width: 38px;
+    height: 38px;
+    font-size: 20px;
+  }
+
+  .amountInput {
+    width: 52px;
+    height: 38px;
+    font-size: 14px;
+  }
+
+  /* contentEditable h4 — easier to tap */
+  .mealCardHeader h4[contenteditable] {
+    padding: 4px 0;
+    min-height: 32px;
+  }
+
+  /* Delete ✕ button bigger touch target */
+  .mealCardHeader button[aria-label] {
+    min-width: 36px;
+    min-height: 36px;
+    font-size: 18px !important;
   }
 
   .preparation {

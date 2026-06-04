@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/app/contexts/AuthContext';
 import mealStyles from '@/app/components/MealPlanGenerator/meal-plan.module.css';
@@ -60,6 +60,41 @@ export default function WorkoutPlan({
   const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [dragIndex, setDragIndex] = useState(null);
+  const [dropIndex, setDropIndex] = useState(null);
+  const touchDragRef = useRef(null);
+
+  const canEdit = editableSets && user?.role === 'trainer' && typeof onPlanChange === 'function';
+
+  // Strip any HTML tags injected via contentEditable and enforce max length
+  const sanitizeName = (str) => String(str).replace(/<[^>]*>/g, '').trim().slice(0, 100);
+
+  const handleTouchStart = (index) => (e) => {
+    if (!canEdit) return;
+    touchDragRef.current = index;
+    setDragIndex(index);
+    setDropIndex(index);
+  };
+
+  const handleTouchMove = (e) => {
+    if (!canEdit || touchDragRef.current === null) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const card = el?.closest('[data-exercise-index]');
+    if (card) {
+      const idx = Number(card.dataset.exerciseIndex);
+      if (!isNaN(idx)) setDropIndex(idx);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!canEdit || touchDragRef.current === null) return;
+    reorderExercises(touchDragRef.current, dropIndex ?? touchDragRef.current);
+    touchDragRef.current = null;
+    setDragIndex(null);
+    setDropIndex(null);
+  };
 
   const cooldownDate = progressCooldownUntil ? new Date(progressCooldownUntil) : null;
   const progressInCooldown = !!(cooldownDate && cooldownDate > new Date());
@@ -91,10 +126,9 @@ export default function WorkoutPlan({
     || clientData?.training_split
     || plan.split
     || 'Split personalizat';
-  const canEditSets = editableSets && user?.role === 'trainer' && typeof onPlanChange === 'function';
 
   const changeExerciseSets = (exerciseIndex, rawValue) => {
-    const nextSets = Math.max(1, Math.min(12, Number.parseInt(rawValue, 10) || 1));
+    const nextSets = Math.max(1, Math.min(20, Number.parseInt(rawValue, 10) || 1));
     const nextPlan = JSON.parse(JSON.stringify(plan));
     const exercise = nextPlan.days?.[currentDayEntry.dayIndex]?.exercises?.[exerciseIndex];
     if (!exercise) return;
@@ -106,6 +140,48 @@ export default function WorkoutPlan({
   const stepExerciseSets = (exerciseIndex, delta) => {
     const currentSets = Number(currentDay.exercises?.[exerciseIndex]?.sets) || 3;
     changeExerciseSets(exerciseIndex, currentSets + delta);
+  };
+
+  const changeExerciseProp = (exerciseIndex, prop, value) => {
+    let sanitizedValue = value;
+    if (prop === 'reps') sanitizedValue = String(value).slice(0, 20);
+    else if (prop === 'notes') sanitizedValue = String(value).slice(0, 500);
+    else if (prop === 'restSeconds') sanitizedValue = Math.max(0, Math.min(600, Number(value) || 0));
+    else if (prop === 'name') sanitizedValue = sanitizeName(value);
+    else if (prop === 'muscleGroup') sanitizedValue = String(value).slice(0, 50);
+    const nextPlan = JSON.parse(JSON.stringify(plan));
+    const exercise = nextPlan.days?.[currentDayEntry.dayIndex]?.exercises?.[exerciseIndex];
+    if (!exercise) return;
+    exercise[prop] = sanitizedValue;
+    onPlanChange(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const deleteExercise = (exerciseIndex) => {
+    const nextPlan = JSON.parse(JSON.stringify(plan));
+    nextPlan.days?.[currentDayEntry.dayIndex]?.exercises?.splice(exerciseIndex, 1);
+    onPlanChange(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const addExercise = () => {
+    const nextPlan = JSON.parse(JSON.stringify(plan));
+    const exercises = nextPlan.days?.[currentDayEntry.dayIndex]?.exercises;
+    if (!Array.isArray(exercises)) return;
+    exercises.push({ name: 'Exercițiu nou', sets: 3, reps: '10', restSeconds: 60, muscleGroup: '' });
+    onPlanChange(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const reorderExercises = (fromIndex, toIndex) => {
+    if (fromIndex === toIndex) return;
+    const nextPlan = JSON.parse(JSON.stringify(plan));
+    const exercises = nextPlan.days?.[currentDayEntry.dayIndex]?.exercises;
+    if (!Array.isArray(exercises)) return;
+    const [moved] = exercises.splice(fromIndex, 1);
+    exercises.splice(toIndex, 0, moved);
+    onPlanChange(nextPlan);
+    onPlanDirtyChange?.(true);
   };
 
   const handleDownload = async () => {
@@ -289,61 +365,182 @@ export default function WorkoutPlan({
             </div>
           </div>
         ) : (
+          <>
           <div className={mealStyles.mealsGrid}>
-            {(currentDay.exercises || []).map((exercise, index) => (
-              <div key={index} className={mealStyles.mealCard}>
-                <div className={mealStyles.mealCardHeader}>
-                  <div className={mealStyles.mealCardHeaderText}>
-                    <p className={mealStyles.mealTypeLabel}>{exercise.muscleGroup || 'Exercițiu'}</p>
-                    <h4>{exercise.name || `Exercițiul ${index + 1}`}</h4>
-                    <p className={mealStyles.mealSubtitle}>
-                      Pauză {exercise.restSeconds || 90}s
-                    </p>
-                  </div>
-                  <span className={mealStyles.mealCalories}>
-                    {index + 1}
-                  </span>
-                </div>
-
-                <div className={mealStyles.mealTotals}>
-                  {canEditSets ? (
-                    <div className={styles.setsControl}>
-                      <span>Seturi</span>
-                      <div className={styles.setsStepper}>
+            {(currentDay.exercises || []).map((exercise, index) => (              <div
+                key={index}
+                className={mealStyles.mealCard}
+                data-exercise-index={index}
+                draggable={canEdit}
+                onDragStart={canEdit ? () => { setDragIndex(index); setDropIndex(index); } : undefined}
+                onDragOver={canEdit ? e => { e.preventDefault(); if (dropIndex !== index) setDropIndex(index); } : undefined}
+                onDrop={canEdit ? e => { e.preventDefault(); reorderExercises(dragIndex, index); setDragIndex(null); setDropIndex(null); } : undefined}
+                onDragEnd={canEdit ? () => { setDragIndex(null); setDropIndex(null); } : undefined}
+                style={{
+                  position: 'relative',
+                  ...(canEdit && dragIndex === index ? { opacity: 0.35 } : {}),
+                  ...(canEdit && dropIndex === index && dragIndex !== index ? { outline: '2px solid #b7ff00', outlineOffset: '-2px' } : {}),
+                }}
+              >
+                {canEdit ? (
+                  <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                    {/* Grip lateral stânga */}
+                    <div
+                      title="Trage pentru a schimba ordinea"
+                      onTouchStart={handleTouchStart(index)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={handleTouchEnd}
+                      style={{
+                        cursor: 'grab',
+                        flexShrink: 0,
+                        width: 36,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: '#f9fafb',
+                        borderRight: '1px solid #f3f4f6',
+                        borderRadius: '12px 0 0 12px',
+                        userSelect: 'none',
+                        color: '#9ca3af',
+                        touchAction: 'none',
+                      }}
+                    >
+                      <svg width="12" height="20" viewBox="0 0 12 20" fill="currentColor">
+                        <circle cx="3" cy="4" r="1.5"/><circle cx="9" cy="4" r="1.5"/>
+                        <circle cx="3" cy="10" r="1.5"/><circle cx="9" cy="10" r="1.5"/>
+                        <circle cx="3" cy="16" r="1.5"/><circle cx="9" cy="16" r="1.5"/>
+                      </svg>
+                    </div>
+                    {/* Conținut card */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className={mealStyles.mealCardHeader}>
+                        <div className={mealStyles.mealCardHeaderText}>
+                          <p className={mealStyles.mealTypeLabel}>{exercise.muscleGroup || 'Exercițiu'}</p>
+                          <h4
+                            contentEditable
+                            suppressContentEditableWarning
+                            onBlur={e => {
+                              const val = sanitizeName(e.currentTarget.textContent);
+                              if (val !== (exercise.name || '')) changeExerciseProp(index, 'name', val || exercise.name);
+                            }}
+                            style={{ outline: 'none', cursor: 'text', borderBottom: '1px dashed #d1d5db', minWidth: 40 }}
+                          >
+                            {exercise.name || `Exercițiul ${index + 1}`}
+                          </h4>
+                          <textarea
+                            value={exercise.notes || ''}
+                            onChange={e => changeExerciseProp(index, 'notes', e.target.value)}
+                            onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
+                            placeholder="Notițe exercițiu (opțional)..."
+                            maxLength={500}
+                            rows={1}
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, padding: '2px 0', background: 'transparent', border: 'none', outline: 'none', resize: 'none', overflow: 'hidden', fontSize: 12, color: '#6b7280', fontStyle: 'italic', fontFamily: 'inherit', lineHeight: 1.5 }}
+                          />
+                        </div>
                         <button
                           type="button"
-                          onClick={() => stepExerciseSets(index, -1)}
-                          disabled={(Number(exercise.sets) || 0) <= 1}
-                          aria-label={`Scade numărul de serii pentru ${exercise.name || `exercițiul ${index + 1}`}`}
-                        >
-                          -
-                        </button>
-                        <input
-                          type="number"
-                          min="1"
-                          max="12"
-                          step="1"
-                          value={exercise.sets || 3}
-                          onChange={(event) => changeExerciseSets(index, event.target.value)}
-                          aria-label={`Număr de serii pentru ${exercise.name || `exercițiul ${index + 1}`}`}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => stepExerciseSets(index, 1)}
-                          aria-label={`Crește numărul de serii pentru ${exercise.name || `exercițiul ${index + 1}`}`}
-                        >
-                          +
-                        </button>
+                          onClick={() => deleteExercise(index)}
+                          aria-label="Șterge exercițiu"
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, lineHeight: 1, padding: '0 0 0 8px', flexShrink: 0, alignSelf: 'flex-start' }}
+                        >✕</button>
                       </div>
                     </div>
+                  </div>
+                ) : (
+                  <div className={mealStyles.mealCardHeader}>
+                    <div className={mealStyles.mealCardHeaderText}>
+                      <p className={mealStyles.mealTypeLabel}>{exercise.muscleGroup || 'Exercițiu'}</p>
+                      <h4>{exercise.name || `Exercițiul ${index + 1}`}</h4>
+                      {exercise.notes ? (
+                        <p className={mealStyles.mealSubtitle}>{exercise.notes}</p>
+                      ) : (
+                        <p className={mealStyles.mealSubtitle}>Pauză {exercise.restSeconds || 90}s</p>
+                      )}
+                    </div>
+                    <span className={mealStyles.mealCalories}>{index + 1}</span>
+                  </div>
+                )}
+                <div className={mealStyles.mealTotals}>
+                  {canEdit ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                      Seturi: 
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={exercise.sets || 3}
+                        onChange={e => changeExerciseSets(index, e.target.value)}
+                        style={{ width: 36, background: 'transparent', border: 'none', borderBottom: '1px solid #d1d5db', outline: 'none', fontSize: 'inherit', color: 'inherit', textAlign: 'center', padding: '0 2px', MozAppearance: 'textfield' }}
+                      />
+                    </span>
                   ) : (
                     <span>Seturi: {exercise.sets || 3}</span>
                   )}
-                  <span>Repetări: {exercise.reps || '8-12'}</span>
+                  {canEdit ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                      Repetări: 
+                      <input
+                        value={exercise.reps || ''}
+                        onChange={e => changeExerciseProp(index, 'reps', e.target.value)}
+                        placeholder="ex: 8-12"
+                        maxLength={20}
+                        style={{ width: 52, background: 'transparent', border: 'none', borderBottom: '1px solid #d1d5db', outline: 'none', fontSize: 'inherit', color: 'inherit', textAlign: 'center', padding: '0 2px' }}
+                      />
+                    </span>
+                  ) : (
+                    <span>Repetări: {exercise.reps || '8-12'}</span>
+                  )}
+                  {canEdit ? (
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                      Pauză: 
+                      <input
+                        type="number"
+                        min="0"
+                        step="15"
+                        value={exercise.restSeconds ?? 90}
+                        onChange={e => changeExerciseProp(index, 'restSeconds', Math.max(0, Math.min(600, Number(e.target.value) || 0)))}
+                        style={{ width: 44, background: 'transparent', border: 'none', borderBottom: '1px solid #d1d5db', outline: 'none', fontSize: 'inherit', color: 'inherit', textAlign: 'center', padding: '0 2px', MozAppearance: 'textfield' }}
+                      />
+                      s
+                    </span>
+                  ) : (
+                    <span>Pauză: {exercise.restSeconds || 90}s</span>
+                  )}
                 </div>
               </div>
             ))}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={addExercise}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '20px 16px',
+                  background: 'transparent',
+                  border: '2px dashed #e5e7eb',
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  color: '#9ca3af',
+                  fontSize: 14,
+                  fontWeight: 500,
+                  fontFamily: 'inherit',
+                  transition: 'border-color 0.15s, color 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#b7ff00'; e.currentTarget.style.color = '#374151'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#9ca3af'; }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+                </svg>
+                Adaugă exercițiu
+              </button>
+            )}
           </div>
+          </>
         )}
       </div>
     </div>
