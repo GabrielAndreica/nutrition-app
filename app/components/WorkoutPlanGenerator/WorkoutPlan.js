@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { useAuth } from '@/app/contexts/AuthContext';
 import mealStyles from '@/app/components/MealPlanGenerator/meal-plan.module.css';
 import styles from './workout-plan.module.css';
+import AddExerciseModal from './AddExerciseModal';
 
 // Dynamic import for PDF (uses jsPDF)
 const generateWorkoutPDFModule = () => import('./generateWorkoutPDF');
@@ -62,6 +63,7 @@ export default function WorkoutPlan({
   const [pdfLoading, setPdfLoading] = useState(false);
   const [dragIndex, setDragIndex] = useState(null);
   const [dropIndex, setDropIndex] = useState(null);
+  const [showAddModal, setShowAddModal] = useState(false);
   const touchDragRef = useRef(null);
 
   const canEdit = editableSets && user?.role === 'trainer' && typeof onPlanChange === 'function';
@@ -146,6 +148,7 @@ export default function WorkoutPlan({
     let sanitizedValue = value;
     if (prop === 'reps') sanitizedValue = String(value).slice(0, 20);
     else if (prop === 'notes') sanitizedValue = String(value).slice(0, 500);
+    else if (prop === 'weight') sanitizedValue = String(value).slice(0, 30);
     else if (prop === 'restSeconds') sanitizedValue = Math.max(0, Math.min(600, Number(value) || 0));
     else if (prop === 'name') sanitizedValue = sanitizeName(value);
     else if (prop === 'muscleGroup') sanitizedValue = String(value).slice(0, 50);
@@ -164,11 +167,19 @@ export default function WorkoutPlan({
     onPlanDirtyChange?.(true);
   };
 
-  const addExercise = () => {
+  const addExercise = (exerciseData) => {
     const nextPlan = JSON.parse(JSON.stringify(plan));
     const exercises = nextPlan.days?.[currentDayEntry.dayIndex]?.exercises;
     if (!Array.isArray(exercises)) return;
-    exercises.push({ name: 'Exercițiu nou', sets: 3, reps: '10', restSeconds: 60, muscleGroup: '' });
+    exercises.push({
+      name: exerciseData?.name || 'Exercițiu nou',
+      sets: exerciseData?.sets ?? 3,
+      reps: exerciseData?.reps ?? '10',
+      restSeconds: exerciseData?.restSeconds ?? 60,
+      muscleGroup: exerciseData?.muscleGroup || '',
+      notes: exerciseData?.notes || '',
+      weight: exerciseData?.weight || '',
+    });
     onPlanChange(nextPlan);
     onPlanDirtyChange?.(true);
   };
@@ -214,6 +225,7 @@ export default function WorkoutPlan({
   };
 
   return (
+    <>
     <div className={mealStyles.container}>
       <div className={mealStyles.clientHeader}>
         <div className={mealStyles.clientHeaderLeft}>
@@ -383,7 +395,7 @@ export default function WorkoutPlan({
                 }}
               >
                 {canEdit ? (
-                  <div style={{ display: 'flex', alignItems: 'stretch' }}>
+                  <div style={{ display: 'flex', alignItems: 'stretch', flex: 1 }}>
                     {/* Grip lateral stânga */}
                     <div
                       title="Trage pentru a schimba ordinea"
@@ -412,30 +424,39 @@ export default function WorkoutPlan({
                       </svg>
                     </div>
                     {/* Conținut card */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div className={mealStyles.mealCardHeader}>
+                    <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                      <div className={mealStyles.mealCardHeader} style={{ alignItems: 'flex-start', alignSelf: 'flex-start', width: '100%' }}>
                         <div className={mealStyles.mealCardHeaderText}>
-                          <p className={mealStyles.mealTypeLabel}>{exercise.muscleGroup || 'Exercițiu'}</p>
-                          <h4
-                            contentEditable
-                            suppressContentEditableWarning
-                            onBlur={e => {
-                              const val = sanitizeName(e.currentTarget.textContent);
-                              if (val !== (exercise.name || '')) changeExerciseProp(index, 'name', val || exercise.name);
-                            }}
-                            style={{ outline: 'none', cursor: 'text', borderBottom: '1px dashed #d1d5db', minWidth: 40 }}
-                          >
+                          <p className={mealStyles.mealTypeLabel} style={{ fontSize: 12 }}>{exercise.muscleGroup || 'Exercițiu'}</p>
+                          <h4 style={{ margin: 0, fontSize: 19 }}>
                             {exercise.name || `Exercițiul ${index + 1}`}
                           </h4>
                           <textarea
-                            value={exercise.notes || ''}
+                            value={exercise.notes ?? ''}
                             onChange={e => changeExerciseProp(index, 'notes', e.target.value)}
+                            ref={el => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
                             onInput={e => { e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px'; }}
                             placeholder="Notițe exercițiu (opțional)..."
                             maxLength={500}
                             rows={1}
-                            style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, padding: '2px 0', background: 'transparent', border: 'none', outline: 'none', resize: 'none', overflow: 'hidden', fontSize: 12, color: '#6b7280', fontStyle: 'italic', fontFamily: 'inherit', lineHeight: 1.5 }}
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 4, padding: '2px 0', background: 'transparent', border: 'none', outline: 'none', resize: 'none', overflow: 'hidden', fontSize: 14, color: '#6b7280', fontStyle: 'italic', fontFamily: 'inherit', lineHeight: 1.5 }}
                           />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                            {/* Dumbbell icon */}
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M6 4v16M18 4v16"/>
+                              <rect x="2" y="7" width="4" height="10" rx="1"/>
+                              <rect x="18" y="7" width="4" height="10" rx="1"/>
+                              <line x1="6" y1="12" x2="18" y2="12"/>
+                            </svg>
+                            <input
+                              value={exercise.weight ?? ''}
+                              onChange={e => changeExerciseProp(index, 'weight', e.target.value)}
+                              placeholder="Greutate: ex. 20kg (opțional)"
+                              maxLength={30}
+                              style={{ flex: 1, background: 'transparent', border: 'none', borderBottom: '1px solid #e5e7eb', outline: 'none', fontSize: 14, color: '#374151', fontFamily: 'inherit', padding: '1px 2px' }}
+                            />
+                          </div>
                         </div>
                         <button
                           type="button"
@@ -449,18 +470,21 @@ export default function WorkoutPlan({
                 ) : (
                   <div className={mealStyles.mealCardHeader}>
                     <div className={mealStyles.mealCardHeaderText}>
-                      <p className={mealStyles.mealTypeLabel}>{exercise.muscleGroup || 'Exercițiu'}</p>
-                      <h4>{exercise.name || `Exercițiul ${index + 1}`}</h4>
-                      {exercise.notes ? (
-                        <p className={mealStyles.mealSubtitle}>{exercise.notes}</p>
+                      <p className={mealStyles.mealTypeLabel} style={{ fontSize: 12 }}>{exercise.muscleGroup || 'Exercițiu'}</p>
+                      <h4 style={{ fontSize: 19 }}>{exercise.name || `Exercițiul ${index + 1}`}</h4>
+                      {(exercise.notes || exercise.instructions) ? (
+                        <p className={mealStyles.mealSubtitle} style={{ fontSize: 14 }}>{exercise.notes || exercise.instructions}</p>
                       ) : (
-                        <p className={mealStyles.mealSubtitle}>Pauză {exercise.restSeconds || 90}s</p>
+                        <p className={mealStyles.mealSubtitle} style={{ fontSize: 14 }}>Pauză {exercise.restSeconds || 90}s</p>
                       )}
+                      {exercise.weight ? (
+                        <p className={mealStyles.mealSubtitle} style={{ marginTop: 2, fontSize: 14 }}>⚖️ {exercise.weight}</p>
+                      ) : null}
                     </div>
                     <span className={mealStyles.mealCalories}>{index + 1}</span>
                   </div>
                 )}
-                <div className={mealStyles.mealTotals}>
+                <div className={mealStyles.mealTotals} style={{ fontSize: 14 }}>
                   {canEdit ? (
                     <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                       Seturi: 
@@ -512,7 +536,7 @@ export default function WorkoutPlan({
             {canEdit && (
               <button
                 type="button"
-                onClick={addExercise}
+                onClick={() => setShowAddModal(true)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -544,5 +568,12 @@ export default function WorkoutPlan({
         )}
       </div>
     </div>
+
+    <AddExerciseModal
+      isOpen={showAddModal}
+      onClose={() => setShowAddModal(false)}
+      onAdd={addExercise}
+    />
+    </>
   );
 }

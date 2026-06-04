@@ -1499,14 +1499,14 @@
   }
 
   .clientName {
-    font-size: 13px;
+    font-size: 15px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   .clientSub {
-    font-size: 9px;
+    font-size: 11px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1530,7 +1530,7 @@
   }
 
   .clientStatValue {
-    font-size: 13px;
+    font-size: 15px;
     max-width: 100%;
     line-height: 1.05;
     text-align: center;
@@ -1540,7 +1540,7 @@
   }
 
   .clientStatLabel {
-    font-size: 8px;
+    font-size: 10px;
     line-height: 1.05;
     text-align: center;
     white-space: nowrap;
@@ -1564,19 +1564,19 @@
     }
 
     .clientName {
-      font-size: 12px;
+      font-size: 14px;
     }
 
     .clientSub {
-      font-size: 8px;
+      font-size: 10px;
     }
 
     .clientStatValue {
-      font-size: 12px;
+      font-size: 14px;
     }
 
     .clientStatLabel {
-      font-size: 7.4px;
+      font-size: 9px;
     }
   }
 
