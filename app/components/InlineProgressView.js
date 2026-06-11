@@ -445,12 +445,12 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
     }
   }, [clientId, authHeaders]);
 
-  const handleContinue = async () => {
+  const handleModifyManually = async () => {
     if (lastProgressId) {
       sessionStorage.setItem(getProgressHandledKey(clientId, lastProgressId), 'continue');
     }
     setPlanContinued(true);
-    setShowBanner(true);
+    setSaving(true);
 
     const token = localStorage.getItem('token');
 
@@ -462,28 +462,26 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
         body: JSON.stringify({ has_new_progress: false }),
       });
     } catch (err) {
-      console.error('[handleContinue] PATCH error:', err);
+      console.error('[handleModifyManually] PATCH badge error:', err);
     }
 
-    // Trimite notificare clientului că antrenorul a verificat progresul
-    try {
-      const notifRes = await fetch('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          type: 'plan_continued',
-          title: 'Progres verificat',
-          message: 'Antrenorul tău ți-a verificat progresul. Continuă tot așa!',
-          related_client_id: clientId,
-          related_plan_id: planId || null,
-        }),
-      });
-      if (!notifRes.ok) {
-        const err = await notifRes.json().catch(() => ({}));
-        console.error('[handleContinue] Notification failed:', err);
+    // Setează planul în revizie (pending_review) pentru editare manuală
+    if (planId) {
+      try {
+        await fetch(`/api/meal-plans/${planId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ action: 'set_pending_review' }),
+        });
+      } catch (err) {
+        console.error('[handleModifyManually] set_pending_review error:', err);
       }
-    } catch (err) {
-      console.error('[handleContinue] Notification error:', err);
+
+      setSaving(false);
+      // Navighează la planul alimentar în modul de editare
+      onBack(planId);
+    } else {
+      setSaving(false);
     }
   };
 
@@ -826,8 +824,8 @@ export default function InlineProgressView({ clientId, scrollContainerRef, onBac
                     </button>
                   ) : (
                     <>
-                      <button className={styles.cancelBtn} onClick={handleContinue} disabled={saving}>
-                        Continuă planul
+                      <button className={styles.cancelBtn} onClick={handleModifyManually} disabled={saving}>
+                        {saving ? 'Se pregătește...' : 'Modifică manual'}
                       </button>
                       <button className={styles.saveBtn} onClick={handleGenerate} disabled={saving}>
                         {saving

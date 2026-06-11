@@ -1373,6 +1373,7 @@ function addOrIncreaseFood(meal, foodName, amount, foodsMap) {
       protein: Math.round(nutrition.p * s),
       carbs: Math.round(nutrition.c * s),
       fat: Math.round(nutrition.f * s),
+      _per100g: { calories: nutrition.cal, protein: nutrition.p, carbs: nutrition.c, fat: nutrition.f },
     });
   }
   return true;
@@ -1699,6 +1700,7 @@ function scaleRecipeToTarget(recipe, mealTargetCalories, foodsMap, maxGramsMap) 
       protein:  Math.round((i.finalGrams / 100) * i.p100),
       carbs:    Math.round((i.finalGrams / 100) * i.c100),
       fat:      Math.round((i.finalGrams / 100) * i.f100),
+      _per100g: { calories: i.cal100, protein: i.p100, carbs: i.c100, fat: i.f100 },
     }));
 }
 
@@ -3044,6 +3046,7 @@ async function addFillerFoods(day, targets, dbLimits = {}, dietType = 'omnivore'
           protein:  Math.round(nd.protein_per_100g  * s),
           carbs:    Math.round(nd.carbs_per_100g    * s),
           fat:      Math.round(nd.fat_per_100g      * s),
+          _per100g: { calories: calPer100, protein: nd.protein_per_100g, carbs: nd.carbs_per_100g, fat: nd.fat_per_100g },
         });
         return true;
       }

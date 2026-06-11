@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@/app/contexts/AuthContext';
 import styles from './meal-plan.module.css';
 import cStyles from '../../clients/clients.module.css';
+import AddFoodModal from './AddFoodModal';
+import AddMealModal from './AddMealModal';
 
 const clonePlan = (value) => JSON.parse(JSON.stringify(value || {}));
 const roundMacro = (value) => Math.round((Number(value) || 0) * 10) / 10;
 const roundKcal = (value) => Math.round(Number(value) || 0);
+const sanitizeText = (str) => String(str).replace(/<[^>]*>/g, '').trim();
 
 function recalculateDay(day) {
   if (!day?.meals) return day;
@@ -52,15 +55,36 @@ function updateFoodAmount(plan, dayIndex, mealIndex, foodIndex, nextAmountRaw) {
 
   const oldAmount = Math.max(1, Number(food.amount) || 1);
   const nextAmount = Math.max(5, Math.round((Number(nextAmountRaw) || 5) / 5) * 5);
-  const ratio = nextAmount / oldAmount;
   const unit = food.unit || 'g';
 
+  // Derive and cache per-100g rates on first edit when not already stored.
+  // This ensures consistent recalculation instead of compounding rounding errors.
+  if (!food._per100g && oldAmount > 0) {
+    food._per100g = {
+      calories: (Number(food.calories) || 0) / oldAmount * 100,
+      protein:  (Number(food.protein)  || 0) / oldAmount * 100,
+      carbs:    (Number(food.carbs)    || 0) / oldAmount * 100,
+      fat:      (Number(food.fat)      || 0) / oldAmount * 100,
+    };
+  }
+
+  const s = nextAmount / 100;
   food.amount = nextAmount;
   food.displayAmount = `${nextAmount}${unit}`;
-  food.calories = roundKcal((Number(food.calories) || 0) * ratio);
-  food.protein = roundMacro((Number(food.protein) || 0) * ratio);
-  food.carbs = roundMacro((Number(food.carbs) || 0) * ratio);
-  food.fat = roundMacro((Number(food.fat) || 0) * ratio);
+
+  const p100 = food._per100g;
+  if (p100 && (p100.calories != null || p100.protein != null)) {
+    food.calories = roundKcal((p100.calories || 0) * s);
+    food.protein  = roundMacro((p100.protein  || 0) * s);
+    food.carbs    = roundMacro((p100.carbs    || 0) * s);
+    food.fat      = roundMacro((p100.fat      || 0) * s);
+  } else {
+    const ratio = nextAmount / oldAmount;
+    food.calories = roundKcal((Number(food.calories) || 0) * ratio);
+    food.protein  = roundMacro((Number(food.protein)  || 0) * ratio);
+    food.carbs    = roundMacro((Number(food.carbs)    || 0) * ratio);
+    food.fat      = roundMacro((Number(food.fat)      || 0) * ratio);
+  }
 
   recalculateDay(nextPlan.days[dayIndex]);
   return nextPlan;
@@ -86,6 +110,9 @@ export default function MealPlan({
   const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(0);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [showAddFoodModal, setShowAddFoodModal] = useState(false);
+  const [addFoodTarget, setAddFoodTarget] = useState(null); // mealIndex
+  const [showAddMealModal, setShowAddMealModal] = useState(false);
   const [showProgress, setShowProgress] = useState(!!initialShowProgress);
   const [weightHistory, setWeightHistory] = useState([]);
   const [stagnationWeeks, setStagnationWeeks] = useState(0);
@@ -140,9 +167,15 @@ export default function MealPlan({
     'Snack': { name: 'Gustare' },
     'Snack 1': { name: 'Gustare 1' },
     'Snack 2': { name: 'Gustare 2' },
-    'Mic Dejun': { name: 'Masa 1' },
-    'Prânz': { name: 'Masa 2' },
-    'Cină': { name: 'Masa 3' },
+    'breakfast': { name: 'Mic Dejun' },
+    'lunch': { name: 'Prânz' },
+    'dinner': { name: 'Cină' },
+    'snack': { name: 'Gustare' },
+    'Mic Dejun': { name: 'Mic Dejun' },
+    'Prânz': { name: 'Prânz' },
+    'Cină': { name: 'Cină' },
+    'custom': { name: 'Masă nouă' },
+    'Masă nouă': { name: 'Masă nouă' },
   };
 
   const getMealLabel = (mealType) => {
@@ -339,10 +372,11 @@ export default function MealPlan({
   };
 
   const changeFoodName = (mealIndex, foodIndex, value) => {
+    const sanitized = sanitizeText(value).slice(0, 100);
     const nextPlan = clonePlan(plan);
     const food = nextPlan.days?.[activeDay]?.meals?.[mealIndex]?.foods?.[foodIndex];
     if (!food) return;
-    food.name = value;
+    food.name = sanitized;
     onPlanChange?.(nextPlan);
     onPlanDirtyChange?.(true);
   };
@@ -355,30 +389,99 @@ export default function MealPlan({
     onPlanDirtyChange?.(true);
   };
 
-  const addFood = (mealIndex) => {
+  const deleteMeal = (mealIndex) => {
+    const nextPlan = clonePlan(plan);
+    nextPlan.days?.[activeDay]?.meals?.splice(mealIndex, 1);
+    recalculateDay(nextPlan.days?.[activeDay]);
+    onPlanChange?.(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const addMeal = (resolvedMeal) => {
+    const nextPlan = clonePlan(plan);
+    const meals = nextPlan.days?.[activeDay]?.meals;
+    if (!Array.isArray(meals)) return;
+    meals.push({
+      mealType:    resolvedMeal.mealType || resolvedMeal.name,
+      name:        resolvedMeal.name,
+      foods:       resolvedMeal.foods || [],
+      preparation: resolvedMeal.preparation || '',
+      mealTotals:  resolvedMeal.mealTotals,
+    });
+    recalculateDay(nextPlan.days?.[activeDay]);
+    onPlanChange?.(nextPlan);
+    onPlanDirtyChange?.(true);
+  };
+
+  const addFood = (mealIndex, foodData) => {
     const nextPlan = clonePlan(plan);
     const foods = nextPlan.days?.[activeDay]?.meals?.[mealIndex]?.foods;
     if (!Array.isArray(foods)) return;
-    foods.push({ name: 'Aliment nou', amount: 100, unit: 'g', displayAmount: '100g', calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+    if (foodData) {
+      const normName = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+      const existing = foods.find(f => normName(f.name) === normName(foodData.name));
+
+      if (existing) {
+        // Merge: overwrite _per100g with fresh DB values (fixes stale fallback values),
+        // then recalculate macros for the combined amount.
+        if (foodData._per100g) existing._per100g = foodData._per100g;
+        const newAmount = (Number(existing.amount) || 0) + (Number(foodData.amount) || 100);
+        const s = newAmount / 100;
+        const p100 = existing._per100g;
+        existing.amount = newAmount;
+        existing.displayAmount = `${newAmount}${existing.unit || 'g'}`;
+        if (p100) {
+          existing.calories = roundKcal((p100.calories || 0) * s);
+          existing.protein  = roundMacro((p100.protein  || 0) * s);
+          existing.carbs    = roundMacro((p100.carbs    || 0) * s);
+          existing.fat      = roundMacro((p100.fat      || 0) * s);
+          delete existing.nutritionNote; // now accurate from DB, not approximate
+        } else {
+          existing.calories = roundKcal((Number(existing.calories) || 0) + (Number(foodData.calories) || 0));
+          existing.protein  = roundMacro((Number(existing.protein)  || 0) + (Number(foodData.protein)  || 0));
+          existing.carbs    = roundMacro((Number(existing.carbs)    || 0) + (Number(foodData.carbs)    || 0));
+          existing.fat      = roundMacro((Number(existing.fat)      || 0) + (Number(foodData.fat)      || 0));
+        }
+      } else {
+        foods.push({
+          name:          foodData.name,
+          amount:        foodData.amount,
+          unit:          foodData.unit,
+          displayAmount: foodData.displayAmount,
+          calories:      foodData.calories,
+          protein:       foodData.protein,
+          carbs:         foodData.carbs,
+          fat:           foodData.fat,
+          _per100g:      foodData._per100g,
+        });
+      }
+    } else {
+      foods.push({ name: 'Aliment nou', amount: 100, unit: 'g', displayAmount: '100g', calories: 0, protein: 0, carbs: 0, fat: 0 });
+    }
+
     recalculateDay(nextPlan.days?.[activeDay]);
     onPlanChange?.(nextPlan);
     onPlanDirtyChange?.(true);
   };
 
   const changeMealName = (mealIndex, value) => {
+    // Sanitize HTML tags but do NOT trim — trimming on each keystroke prevents typing spaces
+    const sanitized = String(value).replace(/<[^>]*>/g, '').slice(0, 50);
     const nextPlan = clonePlan(plan);
     const meal = nextPlan.days?.[activeDay]?.meals?.[mealIndex];
     if (!meal) return;
-    meal.name = value;
+    meal.name = sanitized;
     onPlanChange?.(nextPlan);
     onPlanDirtyChange?.(true);
   };
 
   const changeMealNotes = (mealIndex, value) => {
+    const sanitized = String(value).slice(0, 500);
     const nextPlan = clonePlan(plan);
     const meal = nextPlan.days?.[activeDay]?.meals?.[mealIndex];
     if (!meal) return;
-    meal.preparation = value;
+    meal.preparation = sanitized;
     onPlanChange?.(nextPlan);
     onPlanDirtyChange?.(true);
   };
@@ -806,40 +909,44 @@ export default function MealPlan({
           </div>
           {!hideReviewActions && (
           <div className={styles.tabsActions}>
-            {/* Pentru antrenor: onViewProgress deschide pagina de progres client */}
-            {/* Pentru client: onSubmitProgress deschide formularul de trimitere progres */}
-            {(onViewProgress || onRegenerate || onSubmitProgress) && (
+            {onSubmitProgress && (
               <button
-                className={`${styles.updateProgressBtn} ${progressInCooldown && onSubmitProgress ? styles.updateProgressBtnLocked : ''}`}
-                onClick={() => {
-                  if (onViewProgress) {
-                    // Antrenor: deschide pagina de progres a clientului
-                    onViewProgress();
-                  } else if (!progressInCooldown) {
-                    // Client sau regenerare: deschide formularul
-                    handleOpenProgress();
-                  }
-                }}
-                disabled={!!(progressInCooldown && onSubmitProgress)}
-                title={progressInCooldown && onSubmitProgress ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}` : undefined}
+                className={`${styles.updateProgressBtn} ${progressInCooldown ? styles.updateProgressBtnLocked : ''}`}
+                onClick={() => { if (!progressInCooldown) handleOpenProgress(); }}
+                disabled={progressInCooldown}
+                title={progressInCooldown ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}` : undefined}
               >
-                {progressInCooldown && onSubmitProgress ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10"/>
-                    <polyline points="12 6 12 12 16 14"/>
-                  </svg>
+                {progressInCooldown ? (
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    {`Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}`}
+                  </>
                 ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                    <path d="M3 3v5h5"/>
-                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
-                    <path d="M16 16h5v5"/>
-                  </svg>
+                  <>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                      <path d="M3 3v5h5"/>
+                      <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/>
+                      <path d="M16 16h5v5"/>
+                    </svg>
+                    Trimite progres
+                  </>
                 )}
-                {progressInCooldown && onSubmitProgress
-                  ? `Disponibil în ${progressDaysLeft} ${progressDaysLeft === 1 ? 'zi' : 'zile'}`
-                  : onSubmitProgress ? 'Trimite progres' : onViewProgress ? 'PROGRES CLIENT' : 'Actualizează progres'
-                }
+              </button>
+            )}
+            {onViewProgress && (
+              <button
+                className={styles.updateProgressBtn}
+                onClick={() => onViewProgress()}
+                title="Vizualizează progresul trimis de client"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                  <circle cx="12" cy="12" r="3"/>
+                </svg>
+                Vizualizează progres
               </button>
             )}
             <button
@@ -894,15 +1001,24 @@ export default function MealPlan({
                   {canEdit ? (
                     <input
                       className={styles.mealNameInput}
-                      value={meal.name || name}
+                      value={meal.name ?? ''}
                       onChange={e => changeMealName(mealIndex, e.target.value)}
                       placeholder="Nume masă"
+                      maxLength={50}
                     />
                   ) : (
-                    <h4>{meal.name || name}</h4>
+                    <h4>{meal.name || name || 'Masă nouă'}</h4>
                   )}
                   {meal.mealTotals && (
                     <span className={styles.mealCalories}>{meal.mealTotals.calories} kcal</span>
+                  )}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => deleteMeal(mealIndex)}
+                      aria-label="Șterge masa"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, lineHeight: 1, padding: '0 0 0 8px', flexShrink: 0 }}
+                    >✕</button>
                   )}
                 </div>
 
@@ -910,16 +1026,7 @@ export default function MealPlan({
                   {meal.foods.map((food, foodIndex) => (
                     <li key={foodIndex} className={styles.mealItem}>
                       <div className={styles.foodMainRow}>
-                        {canEdit ? (
-                          <input
-                            className={styles.foodNameInput}
-                            value={food.name}
-                            onChange={e => changeFoodName(mealIndex, foodIndex, e.target.value)}
-                            placeholder="Nume aliment"
-                          />
-                        ) : (
-                          <span className={styles.foodName}>{food.name}</span>
-                        )}
+                        <span className={styles.foodName}>{food.name}</span>
                         {canEdit ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
                             <div className={styles.amountStepper} aria-label={`Gramaj ${food.name}`}>
@@ -928,7 +1035,7 @@ export default function MealPlan({
                               <span className={styles.amountUnit}>{food.unit || 'g'}</span>
                               <button type="button" className={styles.amountStepBtn} onClick={() => handleFoodAmountChange(mealIndex, foodIndex, (Number(food.amount) || 5) + 5)} aria-label="Crește gramajul">+</button>
                             </div>
-
+                            <button type="button" className={styles.deleteFoodBtn} onClick={() => deleteFood(mealIndex, foodIndex)} aria-label="Șterge aliment">✕</button>
                           </div>
                         ) : (
                           <span className={styles.foodAmount}>
@@ -944,7 +1051,7 @@ export default function MealPlan({
                 </ul>
 
                 {canEdit && (
-                  <button type="button" className={styles.addFoodBtn} onClick={() => addFood(mealIndex)}>
+                  <button type="button" className={styles.addFoodBtn} onClick={() => { setAddFoodTarget(mealIndex); setShowAddFoodModal(true); }}>
                     + Adaugă aliment
                   </button>
                 )}
@@ -956,6 +1063,7 @@ export default function MealPlan({
                     onChange={e => changeMealNotes(mealIndex, e.target.value)}
                     placeholder="Notițe masă (opțional)..."
                     rows={2}
+                    maxLength={500}
                   />
                 ) : meal.preparation ? (
                   <div className={styles.preparation}>
@@ -973,8 +1081,57 @@ export default function MealPlan({
               </div>
             );
           })}
+
+          {/* Add Meal Card — inside grid, in place of next meal */}
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setShowAddMealModal(true)}
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                minHeight: 120,
+                padding: '24px 16px',
+                background: 'transparent',
+                border: '2px dashed #e5e7eb',
+                borderRadius: 16,
+                cursor: 'pointer',
+                color: '#9ca3af',
+                fontSize: 14,
+                fontWeight: 500,
+                fontFamily: 'inherit',
+                transition: 'border-color 0.15s, color 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = '#b7ff00'; e.currentTarget.style.color = '#374151'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#9ca3af'; }}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+              </svg>
+              Adaugă masă
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Modal Adaugă Aliment */}
+      <AddFoodModal
+        isOpen={showAddFoodModal}
+        onClose={() => { setShowAddFoodModal(false); setAddFoodTarget(null); }}
+        onAdd={(foodData) => {
+          if (addFoodTarget !== null) addFood(addFoodTarget, foodData);
+        }}
+      />
+
+      {/* Modal Adaugă Masă */}
+      <AddMealModal
+        isOpen={showAddMealModal}
+        onClose={() => setShowAddMealModal(false)}
+        onAdd={addMeal}
+      />
 
       {/* Modal Progres */}
       {showProgress && (

@@ -131,7 +131,7 @@ export async function PATCH(request, { params }) {
   }
 
   const action = body?.action;
-  if (!['update', 'approve'].includes(action)) {
+  if (!['update', 'approve', 'set_pending_review'].includes(action)) {
     return NextResponse.json({ error: 'Acțiune invalidă.' }, { status: 400 });
   }
 
@@ -147,6 +147,36 @@ export async function PATCH(request, { params }) {
   }
 
   const { ip, userAgent } = getRequestMeta(request);
+
+  if (action === 'set_pending_review') {
+    const { data: updated, error: updateError } = await supabase
+      .from('meal_plans')
+      .update({
+        approval_status: 'pending_review',
+        approved_at: null,
+        approved_by: null,
+      })
+      .eq('id', id)
+      .eq('trainer_id', auth.userId)
+      .select('id, client_id, plan_data, daily_targets, approval_status')
+      .single();
+
+    if (updateError) {
+      return NextResponse.json({ error: 'Nu am putut seta planul în revizie.' }, { status: 500 });
+    }
+
+    logActivity({
+      action: 'meal_plan.set_pending_review',
+      status: 'success',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: { planId: id, clientId: existing.client_id },
+    });
+
+    return NextResponse.json({ mealPlan: updated });
+  }
 
   if (action === 'update') {
     if (!body.plan_data || typeof body.plan_data !== 'object' || !Array.isArray(body.plan_data.days)) {

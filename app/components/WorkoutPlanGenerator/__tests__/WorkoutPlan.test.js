@@ -389,3 +389,31 @@ describe('empty plan guard', () => {
     expect(screen.getByText('Nu s-a putut genera planul.')).toBeInTheDocument();
   });
 });
+
+// ── read-only mode (editableSets=false) ────────────────────────────────────
+
+describe('read-only mode', () => {
+  it('displays weight text without ⚖️ emoji', () => {
+    const plan = makePlan([makeExercise({ weight: '20kg' })]);
+    renderWorkoutPlan({ plan, editableSets: false });
+    expect(screen.getByText(/20kg/)).toBeInTheDocument();
+    expect(document.body.textContent).not.toContain('⚖️');
+  });
+
+  it('renders exercise name in read-only view', () => {
+    const plan = makePlan([makeExercise({ name: 'Squat' })]);
+    renderWorkoutPlan({ plan, editableSets: false });
+    expect(screen.getByText('Squat')).toBeInTheDocument();
+  });
+
+  it('renders muscle group label in read-only view', () => {
+    const plan = makePlan([makeExercise({ muscleGroup: 'Picioare' })]);
+    renderWorkoutPlan({ plan, editableSets: false });
+    expect(screen.getByText('Picioare')).toBeInTheDocument();
+  });
+
+  it('does not render delete button in read-only mode', () => {
+    renderWorkoutPlan({ editableSets: false });
+    expect(screen.queryByLabelText('Șterge exercițiu')).not.toBeInTheDocument();
+  });
+});

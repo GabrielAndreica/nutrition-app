@@ -351,6 +351,9 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
       }
     }
 
+    // Blochează polling-ul să navigheze la planul vechi înainte de a porni generarea nouă
+    generationJustStartedRef.current = true;
+
     // Citește datele de progres stocate din InlineProgressView
     let storedProgress = null;
     let previousNeeds = null;

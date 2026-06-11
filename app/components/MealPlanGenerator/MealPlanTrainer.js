@@ -51,15 +51,34 @@ function updateFoodAmount(plan, dayIndex, mealIndex, foodIndex, nextAmountRaw) {
 
   const oldAmount = Math.max(1, Number(food.amount) || 1);
   const nextAmount = Math.max(5, Math.round((Number(nextAmountRaw) || 5) / 5) * 5);
-  const ratio = nextAmount / oldAmount;
   const unit = food.unit || 'g';
 
+  if (!food._per100g && oldAmount > 0) {
+    food._per100g = {
+      calories: (Number(food.calories) || 0) / oldAmount * 100,
+      protein:  (Number(food.protein)  || 0) / oldAmount * 100,
+      carbs:    (Number(food.carbs)    || 0) / oldAmount * 100,
+      fat:      (Number(food.fat)      || 0) / oldAmount * 100,
+    };
+  }
+
+  const s = nextAmount / 100;
   food.amount = nextAmount;
   food.displayAmount = `${nextAmount}${unit}`;
-  food.calories = roundKcal((Number(food.calories) || 0) * ratio);
-  food.protein = roundMacro((Number(food.protein) || 0) * ratio);
-  food.carbs = roundMacro((Number(food.carbs) || 0) * ratio);
-  food.fat = roundMacro((Number(food.fat) || 0) * ratio);
+
+  const p100 = food._per100g;
+  if (p100 && (p100.calories != null || p100.protein != null)) {
+    food.calories = roundKcal((p100.calories || 0) * s);
+    food.protein  = roundMacro((p100.protein  || 0) * s);
+    food.carbs    = roundMacro((p100.carbs    || 0) * s);
+    food.fat      = roundMacro((p100.fat      || 0) * s);
+  } else {
+    const ratio = nextAmount / oldAmount;
+    food.calories = roundKcal((Number(food.calories) || 0) * ratio);
+    food.protein  = roundMacro((Number(food.protein)  || 0) * ratio);
+    food.carbs    = roundMacro((Number(food.carbs)    || 0) * ratio);
+    food.fat      = roundMacro((Number(food.fat)      || 0) * ratio);
+  }
 
   recalculateDay(nextPlan.days[dayIndex]);
   return nextPlan;

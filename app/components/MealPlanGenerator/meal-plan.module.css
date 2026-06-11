@@ -1204,6 +1204,7 @@
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .mealCard:hover {
@@ -1387,6 +1388,123 @@
   margin-right: 8px;
 }
 
+/* ── Editing inputs (trainer edit mode) ─────────────────────── */
+
+.mealNameInput {
+  flex: 1;
+  min-width: 0;
+  font-size: 17px;
+  font-weight: 600;
+  color: #1d1d1f;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  outline: none;
+  font-family: inherit;
+  padding: 2px 4px 2px 0;
+  transition: border-color 0.15s;
+}
+.mealNameInput:focus {
+  border-bottom-color: #b7ff00;
+}
+
+.foodNameInput {
+  flex: 1;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+  color: #1d1d1f;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #e5e7eb;
+  outline: none;
+  font-family: inherit;
+  padding: 1px 4px 1px 0;
+  transition: border-color 0.15s;
+}
+.foodNameInput:focus {
+  border-bottom-color: #b7ff00;
+}
+
+.addFoodBtn {
+  display: block;
+  width: 100%;
+  padding: 11px 24px;
+  background: transparent;
+  border: none;
+  border-top: 2px dashed #e5e7eb;
+  cursor: pointer;
+  color: #9ca3af;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  text-align: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.addFoodBtn:hover {
+  background: #f9fafb;
+  color: #374151;
+  border-top-color: #b7ff00;
+}
+
+.mealNotesArea {
+  display: block;
+  width: 100%;
+  padding: 12px 24px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid #f5f5f7;
+  resize: none;
+  font-size: 13px;
+  color: #6b7280;
+  font-family: inherit;
+  outline: none;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+.mealNotesArea:focus {
+  background: rgba(183, 255, 0, 0.03);
+  border-top-color: rgba(183, 255, 0, 0.3);
+}
+.mealNotesArea::placeholder {
+  color: #9ca3af;
+}
+
+.deleteFoodBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #d1d5db;
+  font-size: 14px;
+  padding: 4px 0 4px 6px;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.deleteFoodBtn:hover {
+  color: #ef4444;
+}
+
+.deleteMealBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #d1d5db;
+  padding: 4px 6px;
+  flex-shrink: 0;
+  line-height: 1;
+  border-radius: 8px;
+  transition: color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+}
+.deleteMealBtn:hover {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.08);
+}
+
 /* Meal Totals */
 .mealTotals {
   display: flex;
@@ -1397,6 +1515,7 @@
   font-size: 13px;
   font-weight: 600;
   color: #3c3c43;
+  margin-top: auto;
 }
 
 /* Daily Totals */

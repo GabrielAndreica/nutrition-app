@@ -4,8 +4,8 @@ import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } fro
 import PlanReviewControls from '@/app/components/PlanReviewControls';
 import styles from '@/app/meal-plan/meal-plan-view.module.css';
 
-// Lazy load MealPlanTrainer pentru performanță
-const MealPlanTrainer = lazy(() => import('@/app/components/MealPlanGenerator/MealPlanTrainer'));
+// Lazy load MealPlan pentru performanță
+const MealPlan = lazy(() => import('@/app/components/MealPlanGenerator/MealPlan'));
 
 function SkeletonMealPlan() {
   return (
@@ -521,7 +521,7 @@ export default function InlineMealPlanView({ planId: initialPlanId, clientDataVe
           }}
         />
         <Suspense fallback={<SkeletonMealPlan />}>
-          <MealPlanTrainer
+          <MealPlan
             plan={mealPlan}
             clientData={clientData}
             nutritionalNeeds={nutritionalNeedsMemo}

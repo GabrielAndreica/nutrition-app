@@ -478,10 +478,17 @@ export default function WorkoutPlan({
                         <p className={mealStyles.mealSubtitle} style={{ fontSize: 14 }}>Pauză {exercise.restSeconds || 90}s</p>
                       )}
                       {exercise.weight ? (
-                        <p className={mealStyles.mealSubtitle} style={{ marginTop: 2, fontSize: 14 }}>⚖️ {exercise.weight}</p>
+                        <p className={mealStyles.mealSubtitle} style={{ marginTop: 2, fontSize: 14, display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 4v16M18 4v16"/>
+                            <rect x="2" y="7" width="4" height="10" rx="1"/>
+                            <rect x="18" y="7" width="4" height="10" rx="1"/>
+                            <line x1="6" y1="12" x2="18" y2="12"/>
+                          </svg>
+                          {exercise.weight}
+                        </p>
                       ) : null}
                     </div>
-                    <span className={mealStyles.mealCalories}>{index + 1}</span>
                   </div>
                 )}
                 <div className={mealStyles.mealTotals} style={{ fontSize: 14 }}>
