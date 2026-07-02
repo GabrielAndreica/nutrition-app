@@ -1050,7 +1050,9 @@
 @media (max-width: 768px) {
   .dummyPlanScreen {
     margin: -21px -21px 0;
+    /* 52px topbar + bottom nav (72px safe) */
     height: calc(100dvh - 52px - env(safe-area-inset-top, 0px));
+    overflow: hidden;
     /* On mobile: sit at ~38% from top (golden ratio zone) */
     align-items: flex-start;
     padding-top: 28vh;

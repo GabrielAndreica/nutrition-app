@@ -124,6 +124,11 @@ function ClientDashboardContent() {
   const fetchedRef = useRef(false);
   const startWeeklyPlanRegenerationRef = useRef(null);
 
+  // Skip skeleton on refresh when we already know user has no plan
+  const [knownNoPlan] = useState(() => {
+    try { return localStorage.getItem('noPlanUser') === '1'; } catch { return false; }
+  });
+
   // XP / Nivel
   const [userLevel, setUserLevel] = useState(null); // { level, totalXp, xpInCurrentLevel, xpForNextLevel, progressPct }
   // Confirm finish modal: null | { type: 'meals' | 'workout', dayIndex: number, isRecovery?: boolean }
@@ -467,6 +472,7 @@ function ClientDashboardContent() {
         if (!data.plans || data.plans.length === 0) {
           setError(null);
           setMealPlan(null);
+          try { localStorage.setItem('noPlanUser', '1'); } catch {}
           setLoading(false);
           return;
         }
@@ -487,6 +493,7 @@ function ClientDashboardContent() {
         }
 
         const { plan_data, daily_targets, client_id } = data.mealPlan;
+        try { localStorage.removeItem('noPlanUser'); } catch {}
         setMealPlan(plan_data);
         setNutritionalNeeds(daily_targets);
         
@@ -810,6 +817,40 @@ function ClientDashboardContent() {
   };
 
   if (loading) {
+    if (knownNoPlan) {
+      return (
+        <div className={styles.container}>
+          <div className={styles.mobileTopbar}>
+            <div className={styles.mobileLogo}>
+              <span style={{fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif',fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
+            </div>
+          </div>
+          <div className={styles.pageLayout}>
+            <aside className={styles.sidebar}>
+              <div className={styles.sidebarLogo}>
+                <span style={{fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif',fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
+              </div>
+            </aside>
+            <main className={styles.main}>
+              <div className={styles.dummyPlanScreen}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, maxWidth: 400, width: '90%', textAlign: 'center' }}>
+                  <p style={{ fontSize: 24, fontWeight: 800, color: '#0a0a0a', margin: 0, letterSpacing: '-0.6px' }}>Începe transformarea ta</p>
+                  <p style={{ fontSize: 15, color: '#555', margin: 0, lineHeight: 1.65 }}>Urmează un plan creat pentru tine și fă primul pas chiar azi.</p>
+                  <button
+                    onClick={() => router.push('/generator-plan')}
+                    style={{ background: '#0a0a0a', color: '#b7ff00', border: 'none', borderRadius: 14, padding: '16px 40px', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', letterSpacing: '-0.2px', transition: 'transform 0.15s, box-shadow 0.15s', marginTop: 8 }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.22)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.18)'; }}
+                  >
+                    Începe acum →
+                  </button>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className={styles.container}>
         <div className={styles.mobileTopbar}>
@@ -1116,7 +1157,7 @@ function ClientDashboardContent() {
         </aside>
 
         {/* Main Content */}
-        <main className={styles.main}>
+        <main className={`${styles.main} ${(!mealPlan && !loading && !error) ? styles.mainNoScroll : ''}`}>
           {profileOpen ? (
             <div className={clientStyles.addPage}>
               <div className={clientStyles.addPageShell}>
