@@ -13,19 +13,18 @@ export async function GET(request) {
 
   const supabase = getSupabase();
 
-  // Obține clientId-ul utilizatorului
+  // Obține profilul utilizatorului direct din users
   const { data: clientRow, error: clientError } = await supabase
-    .from('clients')
-    .select('id, name, age, weight, height, gender, fitness_level, available_equipment, workouts_per_week, training_split, fitness_goal, goal, activity_level, diet_type, meals_per_day')
-    .eq('user_id', auth.userId)
-    .is('trainer_id', null)
+    .from('users')
+    .select('name, age, weight, height, gender, fitness_level, available_equipment, workouts_per_week, training_split, fitness_goal, goal, activity_level, diet_type, meals_per_day')
+    .eq('id', auth.userId)
     .maybeSingle();
 
   if (clientError || !clientRow) {
-    return NextResponse.json({ error: 'Profilul nu a fost găsit. Completează onboarding-ul.' }, { status: 404 });
+    return NextResponse.json({ error: 'Profilul nu a fost găsit. Completă onboarding-ul.' }, { status: 404 });
   }
 
-  const clientId = clientRow.id;
+  const clientId = auth.userId;
 
   // Obține cel mai recent plan alimentar
   const { data: mealPlan } = await supabase

@@ -441,6 +441,23 @@ function ClientDashboardContent() {
       .then(data => { if (data?.level) setUserLevel(data); })
       .catch(() => {});
 
+    // Verifică reward pending de la onboarding
+    try {
+      const raw = localStorage.getItem('pendingOnboardingReward');
+      if (raw) {
+        localStorage.removeItem('pendingOnboardingReward');
+        const reward = JSON.parse(raw);
+        setTimeout(() => {
+          fireConfetti();
+          if (reward.type === 'levelUp') {
+            setLevelUpReward({ fromLevel: reward.fromLevel, toLevel: reward.toLevel, levelInfo: reward.levelInfo });
+          } else {
+            setFinishReward({ type: 'onboarding', levelInfo: reward.levelInfo });
+          }
+        }, 600);
+      }
+    } catch { /* ignore */ }
+
     // Fetch lista planuri pentru client
     fetch('/api/meal-plans', {
       headers: { 'Authorization': `Bearer ${token}` },
@@ -683,14 +700,18 @@ function ClientDashboardContent() {
     Object.values(workoutDayStatus || {}).filter(Boolean).length;
   const weeklyCompletionPct = Math.min(100, Math.round((weeklyDoneCount / 14) * 100));
   const finishRewardTitle = finishReward
-    ? (finishReward.type === 'meals'
+    ? (finishReward.type === 'onboarding'
+      ? 'Înregistrare finalizată!'
+      : finishReward.type === 'meals'
       ? 'Mese finalizate'
       : finishReward.isRecovery
       ? 'Recuperare bifată'
       : 'Antrenament finalizat')
     : '';
   const finishRewardMessage = finishReward
-    ? (finishReward.type === 'meals'
+    ? (finishReward.type === 'onboarding'
+      ? 'Bine ai venit! Ai câștigat primii 50 XP pentru că ți-ai completat profilul.'
+      : finishReward.type === 'meals'
       ? 'Bravo, ai închis ziua alimentar cum trebuie. +50 XP pentru consecvență.'
       : finishReward.isRecovery
       ? 'Foarte bine. Recuperarea contează la fel de mult ca efortul. +50 XP adăugați.'
@@ -916,7 +937,7 @@ function ClientDashboardContent() {
           </div>
         )}
         <div className={`${styles.mobileStreakPill} ${streakState === 'warning' ? styles.streakWarning : ''}`}>
-          <span className={styles.mobileLevelText}>🔥 Streak {streakCount}</span>
+          <span className={styles.mobileLevelText}>🔥 Streak {streakCount} Zile</span>
         </div>
         <button 
           className={styles.mobileNotificationBtn}
@@ -1081,7 +1102,7 @@ function ClientDashboardContent() {
             )}
             <div className={`${styles.sidebarStreakBlock} ${streakState === 'warning' ? styles.streakWarning : ''}`}>
               <span>🔥 Streak</span>
-              <strong>{streakCount}</strong>
+              <strong>{streakCount} Zile</strong>
             </div>
             <button className={styles.sidebarLogoutBtn} onClick={handleLogout}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1208,7 +1229,7 @@ function ClientDashboardContent() {
           ) : (
           <>
           {/* Tab navigation */}
-          {!progressFormOpen && (
+          {!progressFormOpen && !(!loading && !mealPlan && !error && activeTab === 'plan') && !(!loading && !workoutPlan && activeTab === 'workout') && (
           <div className={styles.planNavBlock}>
             <div className={styles.weekCompletionInline}>
               <div className={styles.weekCompletionTop}>
@@ -1237,8 +1258,19 @@ function ClientDashboardContent() {
           )}
 
           {!loading && !mealPlan && !error && activeTab === 'plan' && (
-            <div className={styles.noPlanEmpty}>
-              <p>Antrenorul tău nu a făcut un plan alimentar pentru tine.</p>
+            <div className={styles.dummyPlanScreen}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, maxWidth: 400, width: '90%', textAlign: 'center' }}>
+                <p style={{ fontSize: 24, fontWeight: 800, color: '#0a0a0a', margin: 0, letterSpacing: '-0.6px' }}>Începe transformarea ta</p>
+                <p style={{ fontSize: 15, color: '#555', margin: 0, lineHeight: 1.65 }}>Urmează un plan creat pentru tine și fă primul pas chiar azi.</p>
+                <button
+                  onClick={() => router.push('/generator-plan')}
+                  style={{ background: '#0a0a0a', color: '#b7ff00', border: 'none', borderRadius: 14, padding: '16px 40px', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', letterSpacing: '-0.2px', transition: 'transform 0.15s, box-shadow 0.15s', marginTop: 8 }}
+                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.22)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.18)'; }}
+                >
+                  Începe acum →
+                </button>
+              </div>
             </div>
           )}
 
@@ -1296,8 +1328,19 @@ function ClientDashboardContent() {
                 onFinishWorkout={(dayIndex, isRecovery) => setConfirmFinish({ type: 'workout', dayIndex, isRecovery })}
               />
             ) : (
-              <div className={styles.noPlanEmpty}>
-                <p>Antrenorul tău nu a făcut un plan de antrenament pentru tine.</p>
+              <div className={styles.dummyPlanScreen}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, maxWidth: 400, width: '90%', textAlign: 'center' }}>
+                  <p style={{ fontSize: 24, fontWeight: 800, color: '#0a0a0a', margin: 0, letterSpacing: '-0.6px' }}>Începe transformarea ta</p>
+                  <p style={{ fontSize: 15, color: '#555', margin: 0, lineHeight: 1.65 }}>Urmează un plan creat pentru tine și fă primul pas chiar azi.</p>
+                  <button
+                    onClick={() => router.push('/generator-plan')}
+                    style={{ background: '#0a0a0a', color: '#b7ff00', border: 'none', borderRadius: 14, padding: '16px 40px', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', letterSpacing: '-0.2px', transition: 'transform 0.15s, box-shadow 0.15s', marginTop: 8 }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.22)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.18)'; }}
+                  >
+                    Începe acum →
+                  </button>
+                </div>
               </div>
             )
           )}
@@ -1356,7 +1399,7 @@ function ClientDashboardContent() {
         <div className={clientStyles.modalOverlay} onClick={closeFinishReward}>
           <div className={`${clientStyles.confirmModal} ${styles.rewardModal}`} onClick={e => e.stopPropagation()}>
             <div className={styles.rewardIcon}>
-              <span>{finishReward.type === 'meals' ? '💪' : '🔥'}</span>
+              <span>{finishReward.type === 'onboarding' ? '🎉' : finishReward.type === 'meals' ? '💪' : '🔥'}</span>
             </div>
             <div className={styles.rewardXpBadge}>+50 XP</div>
             <h3>{finishRewardTitle}</h3>

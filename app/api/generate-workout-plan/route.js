@@ -1444,17 +1444,14 @@ export async function POST(request) {
 
     let ownedClient = null;
     if (rawClientId) {
-      let clientQuery = supabase
-        .from('clients')
-        .select('id, name, gender, activity_level, training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, goal, injuries_limitations, workout_preferences, user_id')
-        .eq('id', rawClientId)
-        .is('deleted_at', null);
-
-      if (auth.role === 'trainer') {
-        clientQuery = clientQuery.eq('trainer_id', trainerId);
-      } else if (auth.role === 'user') {
-        clientQuery = clientQuery.eq('user_id', auth.userId).is('trainer_id', null);
+      // In B2C: clientId === userId; verifică ownership
+      if ((auth.role === 'user' || auth.role === 'client') && rawClientId !== auth.userId) {
+        return NextResponse.json({ error: 'Clientul nu a fost găsit sau nu îți aparține.' }, { status: 404 });
       }
+      const clientQuery = supabase
+        .from('users')
+        .select('id, name, gender, activity_level, training_split, workouts_per_week, fitness_level, available_equipment, fitness_goal, goal, injuries_limitations, workout_preferences')
+        .eq('id', rawClientId);
 
       const { data, error } = await supabaseQuery(() => clientQuery.single());
 
@@ -1668,7 +1665,6 @@ export async function POST(request) {
               .from('workout_plans')
               .insert({
                 client_id: input.clientId,
-                trainer_id: auth.role === 'trainer' ? trainerId : null,
                 plan_data: plan,
                 approval_status: auth.role === 'user' ? 'approved' : 'pending_review',
               })

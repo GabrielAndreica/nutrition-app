@@ -16,9 +16,8 @@ export async function GET(request) {
 
   const supabase = getSupabase();
   const { data: clientRow, error } = await supabase
-    .from('clients')
+    .from('users')
     .select(`
-      id,
       meals_cooldown_until,
       workout_cooldown_until,
       meals_completed_days,
@@ -35,8 +34,7 @@ export async function GET(request) {
       weekly_plan_generation_started_at,
       weekly_plan_generation_error
     `)
-    .eq('user_id', auth.userId)
-    .is('trainer_id', null)
+    .eq('id', auth.userId)
     .maybeSingle();
 
   if (error) {
@@ -45,12 +43,12 @@ export async function GET(request) {
 
   const now = new Date();
   let dailyState = reconcileDailyPlanProgress(clientRow, now);
-  if (clientRow?.id && dailyState.changed) {
+  if (clientRow && dailyState.changed) {
     const updatePayload = buildDailyProgressUpdate(dailyState);
     const { data: updatedRow } = await supabase
-      .from('clients')
+      .from('users')
       .update(updatePayload)
-      .eq('id', clientRow.id)
+      .eq('id', auth.userId)
       .select(`
         current_plan_day,
         current_plan_day_due_at,

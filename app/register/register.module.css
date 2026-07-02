@@ -49,6 +49,13 @@
   padding: 8px 0;
 }
 
+.successState p {
+  color: #1a1a1a;
+  font-size: 15px;
+  line-height: 1.65;
+  margin: 0 0 4px;
+}
+
 .backLink {
   display: inline-block;
   margin-top: 16px;

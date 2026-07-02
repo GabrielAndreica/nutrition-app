@@ -111,34 +111,20 @@ export async function runWeeklyPlanRegenerationForClient({ clientId, request = n
   const staleIso = new Date(now.getTime() - GENERATION_LOCK_MS).toISOString();
 
   const { data: client, error: clientError } = await supabaseQuery(() => supabase
-    .from('clients')
+    .from('users')
     .select(`
       id,
-      user_id,
       name,
-      trainer_id,
+      email,
       weekly_plan_due_at,
       weekly_plan_generation_started_at
     `)
     .eq('id', clientId)
-    .is('deleted_at', null)
     .maybeSingle());
 
   if (clientError || !client) {
-    throw new Error('Clientul nu a fost găsit pentru regenerarea săptămânală.');
+    throw new Error('Utilizatorul nu a fost găsit pentru regenerarea săptămânală.');
   }
-  if (client.trainer_id !== null) {
-    return { skipped: true, reason: 'trainer_client' };
-  }
-  if (!client.user_id) {
-    return { skipped: true, reason: 'missing_user' };
-  }
-
-  const { data: userRow } = await supabaseQuery(() => supabase
-    .from('users')
-    .select('email')
-    .eq('id', client.user_id)
-    .maybeSingle());
 
   const dueAt = client.weekly_plan_due_at ? new Date(client.weekly_plan_due_at) : null;
   if (!force && (!dueAt || dueAt > now)) {
@@ -153,7 +139,7 @@ export async function runWeeklyPlanRegenerationForClient({ clientId, request = n
   }
 
   const { data: locked, error: lockError } = await supabaseQuery(() => supabase
-    .from('clients')
+    .from('users')
     .update({
       weekly_plan_generation_started_at: nowIso,
       weekly_plan_generation_error: null,
@@ -169,8 +155,8 @@ export async function runWeeklyPlanRegenerationForClient({ clientId, request = n
   try {
     const origin = getAppOrigin(request);
     const token = buildInternalUserToken({
-      ...client,
-      email: userRow?.email || null,
+      id: client.id,
+      email: client.email || null,
     });
 
     const response = await fetch(`${origin}/api/generate-meal-plan`, {
@@ -201,7 +187,7 @@ export async function runWeeklyPlanRegenerationForClient({ clientId, request = n
     }
 
     await supabaseQuery(() => supabase
-      .from('clients')
+      .from('users')
       .update({
         meals_completed_days: 0,
         workout_completed_days: 0,
@@ -221,7 +207,7 @@ export async function runWeeklyPlanRegenerationForClient({ clientId, request = n
     await supabaseQuery(() => supabase
       .from('notifications')
       .insert({
-        user_id: client.user_id,
+        user_id: client.id,
         type: 'weekly_plan_regenerated',
         title: 'Planuri noi generate',
         message: 'Ți-am generat automat un plan alimentar și un plan de antrenament pentru următoarele 7 zile.',
@@ -237,7 +223,7 @@ export async function runWeeklyPlanRegenerationForClient({ clientId, request = n
     };
   } catch (error) {
     await supabaseQuery(() => supabase
-      .from('clients')
+      .from('users')
       .update({
         weekly_plan_generation_started_at: null,
         weekly_plan_generation_error: String(error?.message || 'Generarea automată a eșuat.'),
@@ -252,12 +238,10 @@ export async function runDueWeeklyPlanRegenerations({ request = null, limit = 1 
   const nowIso = new Date().toISOString();
 
   const { data: clients, error } = await supabaseQuery(() => supabase
-    .from('clients')
+    .from('users')
     .select('id, weekly_plan_generation_started_at')
     .not('weekly_plan_due_at', 'is', null)
     .lte('weekly_plan_due_at', nowIso)
-    .is('trainer_id', null)
-    .is('deleted_at', null)
     .order('weekly_plan_due_at', { ascending: true })
     .limit(Math.max(limit * 3, limit)));
 

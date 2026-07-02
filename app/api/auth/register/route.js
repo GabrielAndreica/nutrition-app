@@ -5,8 +5,6 @@ import { Resend } from 'resend';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeEmail, sanitizeName } from '@/app/lib/sanitize';
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 // ── Validation helpers ──────────────────────────────────────────────────────
 
 const validateName = (name) => {
@@ -43,6 +41,7 @@ const validatePhone = (phone) => {
 
 export async function POST(request) {
   const supabase = getSupabase();
+  const resend = new Resend(process.env.RESEND_API_KEY);
   const { ip, userAgent } = getRequestMeta(request);
 
   // Rate limit: max 3 înregistrări per zi per IP
@@ -76,18 +75,15 @@ export async function POST(request) {
 
   // Sanitize
   try {
-    name = sanitizeName(name || '');
     email = sanitizeEmail(email || '');
+    name = name ? sanitizeName(name) : email.split('@')[0];
   } catch (e) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
   password = password || '';
   phone = phone?.trim() || '';
 
-  // Validate
-  const nameErr = validateName(name);
-  if (nameErr) return NextResponse.json({ error: nameErr, field: 'name' }, { status: 400 });
-
+  // Validate — name is derived automatically if not provided, so skip name validation
   const emailErr = validateEmail(email);
   if (emailErr) return NextResponse.json({ error: emailErr, field: 'email' }, { status: 400 });
 

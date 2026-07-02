@@ -37,6 +37,7 @@ export async function POST(request) {
   }
 
   const {
+    name,
     age, height, weight, gender,
     fitnessLevel, workoutsPerWeek, trainingLocation,
     goal, dietType,
@@ -115,91 +116,45 @@ export async function POST(request) {
 
   const supabase = getSupabase();
 
-  // Obține numele utilizatorului din tabelul users
+  // Determină numele: din body sau din users
   const { data: userRow } = await supabase
     .from('users')
     .select('name')
     .eq('id', auth.userId)
     .single();
 
-  const userName = userRow?.name || 'Utilizator';
+  const userName = (name && name.trim().length >= 2) ? name.trim() : (userRow?.name || 'Utilizator');
 
-  // Verifică dacă există deja un rând în clients pentru acest utilizator
-  const { data: existingClient } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('user_id', auth.userId)
-    .is('trainer_id', null)
-    .maybeSingle();
+  // Salvează profilul complet în tabela users
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({
+      name: userName,
+      age: ageNum,
+      weight: weightNum,
+      height: heightNum,
+      gender: genderNorm,
+      fitness_level: fitnessLevel,
+      available_equipment: availableEquipment,
+      workouts_per_week: workoutsNum,
+      training_split: trainingSplit,
+      fitness_goal: goal,
+      goal: goal,
+      activity_level: activityLevel,
+      diet_type: dietTypeSafe,
+      meals_per_day: 5,
+      food_preferences: '',
+      onboarding_completed: true,
+    })
+    .eq('id', auth.userId);
 
-  let clientId;
-
-  if (existingClient) {
-    // Actualizează datele existente
-    const { data: updated, error: updateError } = await supabase
-      .from('clients')
-      .update({
-        name: userName,
-        age: ageNum,
-        weight: weightNum,
-        height: heightNum,
-        gender: genderNorm,
-        fitness_level: fitnessLevel,
-        available_equipment: availableEquipment,
-        workouts_per_week: workoutsNum,
-        training_split: trainingSplit,
-        fitness_goal: goal,
-        goal: goal,
-        activity_level: activityLevel,
-        diet_type: dietTypeSafe,
-        meals_per_day: 5,
-        food_preferences: '',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', existingClient.id)
-      .select('id')
-      .single();
-
-    if (updateError) {
-      console.error('[onboarding] update error:', updateError);
-      return NextResponse.json({ error: 'Eroare la actualizarea profilului.' }, { status: 500 });
-    }
-    clientId = updated.id;
-  } else {
-    // Creează un rând nou în clients
-    const { data: inserted, error: insertError } = await supabase
-      .from('clients')
-      .insert({
-        user_id: auth.userId,
-        trainer_id: null,
-        name: userName,
-        age: ageNum,
-        weight: weightNum,
-        height: heightNum,
-        gender: genderNorm,
-        fitness_level: fitnessLevel,
-        available_equipment: availableEquipment,
-        workouts_per_week: workoutsNum,
-        training_split: trainingSplit,
-        fitness_goal: goal,
-        goal: goal,
-        activity_level: activityLevel,
-        diet_type: dietTypeSafe,
-        meals_per_day: 5,
-        food_preferences: '',
-        created_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
-
-    if (insertError) {
-      console.error('[onboarding] insert error:', insertError);
-      return NextResponse.json({ error: 'Eroare la crearea profilului.' }, { status: 500 });
-    }
-    clientId = inserted.id;
+  if (updateError) {
+    console.error('[onboarding] update error:', updateError);
+    return NextResponse.json({ error: 'Eroare la salvarea profilului.' }, { status: 500 });
   }
 
-  return NextResponse.json({ clientId, success: true });
+  // clientId = userId (pentru compatibilitate cu codul existent)
+  return NextResponse.json({ clientId: auth.userId, success: true });
 }
 
 export async function GET(request) {
@@ -212,12 +167,14 @@ export async function GET(request) {
   }
 
   const supabase = getSupabase();
-  const { data: clientRow } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('user_id', auth.userId)
-    .is('trainer_id', null)
+  const { data: userRow } = await supabase
+    .from('users')
+    .select('onboarding_completed')
+    .eq('id', auth.userId)
     .maybeSingle();
 
-  return NextResponse.json({ onboarding_completed: !!clientRow, clientId: clientRow?.id || null });
+  return NextResponse.json({
+    onboarding_completed: !!userRow?.onboarding_completed,
+    clientId: auth.userId,
+  });
 }

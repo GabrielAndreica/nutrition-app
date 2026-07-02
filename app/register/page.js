@@ -7,11 +7,9 @@ import localStyles from './register.module.css';
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
-    name: '',
     email: '',
     password: '',
     confirmPassword: '',
-    phone: '',
     terms: false,
     privacy: false,
   });
@@ -33,15 +31,10 @@ export default function RegisterPage() {
 
   const validate = () => {
     const errs = {};
-    if (!formData.name.trim() || formData.name.trim().length < 2) errs.name = 'Numele trebuie să aibă cel puțin 2 caractere.';
     if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errs.email = 'Adresă de email invalidă.';
     if (!formData.password || formData.password.length < 8) errs.password = 'Parola trebuie să aibă cel puțin 8 caractere.';
     if (!formData.confirmPassword) errs.confirmPassword = 'Confirmă parola.';
     else if (formData.password !== formData.confirmPassword) errs.confirmPassword = 'Parolele nu se potrivesc.';
-    if (formData.phone) {
-      const digits = formData.phone.replace(/\D/g, '');
-      if (digits.length < 7 || digits.length > 15) errs.phone = 'Număr de telefon invalid.';
-    }
     if (!formData.terms) errs.terms = 'Trebuie să accepți termenii și condițiile.';
     if (!formData.privacy) errs.privacy = 'Trebuie să accepți politica de confidențialitate.';
     return errs;
@@ -60,10 +53,8 @@ export default function RegisterPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: formData.name,
           email: formData.email,
           password: formData.password,
-          phone: formData.phone,
           terms: formData.terms,
           privacy: formData.privacy,
         }),
@@ -127,23 +118,6 @@ export default function RegisterPage() {
               {generalError && <div className={styles.error}>{generalError}</div>}
 
               <form onSubmit={handleSubmit} noValidate>
-                {/* Name */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="name">Nume complet</label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Ion Popescu"
-                    disabled={loading}
-                    autoComplete="name"
-                    maxLength="100"
-                  />
-                  {errors.name && <div className={styles.fieldError}><p>{errors.name}</p></div>}
-                </div>
-
                 {/* Email */}
                 <div className={styles.formGroup}>
                   <label htmlFor="email">Adresă email</label>
@@ -193,25 +167,6 @@ export default function RegisterPage() {
                     maxLength="128"
                   />
                   {errors.confirmPassword && <div className={styles.fieldError}><p>{errors.confirmPassword}</p></div>}
-                </div>
-
-                {/* Phone (optional) */}
-                <div className={styles.formGroup}>
-                  <label htmlFor="phone">
-                    Telefon <span className={localStyles.hint}>(opțional)</span>
-                  </label>
-                  <input
-                    type="tel"
-                    id="phone"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    placeholder="+40 712 345 678"
-                    disabled={loading}
-                    autoComplete="tel"
-                    maxLength="20"
-                  />
-                  {errors.phone && <div className={styles.fieldError}><p>{errors.phone}</p></div>}
                 </div>
 
                 {/* Terms */}

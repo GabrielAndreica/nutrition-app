@@ -33,20 +33,9 @@ export async function GET(request) {
   }
   // Dacă e client, returnează doar planurile sale
   else if (auth.role === 'client' || auth.role === 'user') {
-    // Obține client_id pentru user
-    const { data: client, error: clientError } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('user_id', auth.userId)
-      .single();
-
-    if (clientError || !client) {
-      return NextResponse.json({ error: 'Client negăsit.' }, { status: 404 });
-    }
-
-    query = query.eq('client_id', client.id);
+    query = query.eq('client_id', auth.userId);
     query = query.eq('approval_status', 'approved');
-    if (clientIdFilter && clientIdFilter !== client.id) {
+    if (clientIdFilter && clientIdFilter !== auth.userId) {
       return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
     }
   }

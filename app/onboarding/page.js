@@ -4,7 +4,32 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/contexts/AuthContext';
 import styles from '@/app/auth/auth.module.css';
+import clientStyles from '@/app/clients/clients.module.css';
+import dashStyles from '@/app/client/dashboard/dashboard.module.css';
 import Link from 'next/link';
+
+const fireConfetti = async () => {
+  const confetti = (await import('canvas-confetti')).default;
+  confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 }, colors: ['#b7ff00', '#0a0a0a', '#fff', '#7fc800'] });
+};
+
+function getLevelInfoFromXp(xp) {
+  const totalXp = Math.max(0, Number(xp) || 0);
+  let level = 1;
+  while (((level + 1) * level) / 2 * 100 <= totalXp) level++;
+  const xpStartOfLevel = (level * (level - 1)) / 2 * 100;
+  const xpForNextLevel = level * 100;
+  const xpInCurrentLevel = totalXp - xpStartOfLevel;
+  const progressPct = Math.min(100, Math.round((xpInCurrentLevel / xpForNextLevel) * 100));
+  return { level, totalXp, xpInCurrentLevel, xpForNextLevel, progressPct };
+}
+
+function getLevelUpPayload(previousLevelInfo, nextLevelInfo, xpAdded = 50) {
+  if (!nextLevelInfo?.level) return null;
+  const previous = previousLevelInfo || getLevelInfoFromXp((Number(nextLevelInfo.totalXp) || 0) - xpAdded);
+  if (!previous?.level || nextLevelInfo.level <= previous.level) return null;
+  return { fromLevel: previous.level, toLevel: nextLevelInfo.level, levelInfo: nextLevelInfo };
+}
 
 const TOTAL_STEPS = 3;
 
@@ -23,12 +48,6 @@ const GOALS = [
   { value: 'weight_loss', label: 'Slăbire', desc: 'Ard grăsime și slăbesc' },
   { value: 'muscle_gain', label: 'Masă musculară', desc: 'Cresc masa musculară' },
   { value: 'maintenance', label: 'Menținere', desc: 'Îmi mențin greutatea actuală' },
-];
-
-const DIET_TYPES = [
-  { value: 'omnivore', label: 'Omnivor', desc: 'Carne, pește, lactate, ouă' },
-  { value: 'vegetarian', label: 'Vegetarian', desc: 'Fără carne sau pește' },
-  { value: 'vegan', label: 'Vegan', desc: 'Fără produse animale' },
 ];
 
 const STEP_LABELS = ['Date personale', 'Antrenament', 'Obiectiv'];
@@ -71,11 +90,12 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [error, setError] = useState('');
-  const [generating, setGenerating] = useState(false);
-  const [generationProgress, setGenerationProgress] = useState(0);
-  const [generationMessage, setGenerationMessage] = useState('');
+  const [xpReward, setXpReward] = useState(null);   // { levelInfo }
+  const [levelUpReward, setLevelUpReward] = useState(null); // { fromLevel, toLevel, levelInfo }
+  const [direction, setDirection] = useState(null); // null = no animation on first render
 
   const [form, setForm] = useState({
+    name: '',
     gender: 'M',
     age: '',
     height: '',
@@ -84,14 +104,11 @@ export default function OnboardingPage() {
     workoutsPerWeek: 3,
     trainingLocation: 'gym',
     goal: 'muscle_gain',
-    dietType: 'omnivore',
   });
 
   // Verifică statusul onboarding din BD, nu din localStorage
   useEffect(() => {
     if (authLoading) return;
-    if (generating) return; // Nu redirecționa în timp ce se generează planurile
-
     if (!user) {
       // Nu e autentificat → du-l la login
       router.replace('/auth');
@@ -126,6 +143,8 @@ export default function OnboardingPage() {
 
   const validateStep = () => {
     if (step === 1) {
+      if (!form.name || form.name.trim().length < 2)
+        return 'Introdu un nume de cel puțin 2 caractere.';
       if (!form.age || Number(form.age) < 14 || Number(form.age) > 100)
         return 'Introdu o vârstă validă (14–100 ani).';
       if (!form.height || Number(form.height) < 120 || Number(form.height) > 230)
@@ -140,11 +159,13 @@ export default function OnboardingPage() {
     const err = validateStep();
     if (err) { setError(err); return; }
     setError('');
+    setDirection('forward');
     setStep(s => s + 1);
   };
 
   const handleBack = () => {
     setError('');
+    setDirection('back');
     setStep(s => s - 1);
   };
 
@@ -153,7 +174,7 @@ export default function OnboardingPage() {
     setError('');
 
     try {
-      // Pas 1: Salvează datele de onboarding
+      // Salvează datele de onboarding
       const res = await fetch('/api/user/onboarding', {
         method: 'POST',
         headers: {
@@ -165,85 +186,38 @@ export default function OnboardingPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Eroare la salvarea profilului.');
 
-      const { clientId } = data;
-
-      // Pas 2: Generează planul alimentar (și automat planul de antrenament)
-      setGenerating(true);
-      setGenerationProgress(5);
-      setGenerationMessage('Se inițializează generarea...');
-
-      const activityMap = { 2: 'light', 3: 'moderate', 4: 'moderate', 5: 'very_active', 6: 'very_active' };
-      const mealPayload = {
-        clientId,
-        name: user?.name || 'Utilizator',
-        age: Number(form.age),
-        weight: Number(form.weight),
-        height: Number(form.height),
-        gender: form.gender,
-        goal: form.goal,
-        activityLevel: activityMap[Number(form.workoutsPerWeek)] || 'moderate',
-        dietType: form.dietType,
-        allergies: [],
-        mealsPerDay: 5,
-        foodPreferences: '',
-      };
-
-      const genRes = await fetch('/api/generate-meal-plan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(mealPayload),
-      });
-
-      if (!genRes.ok) {
-        const errData = await genRes.json().catch(() => ({}));
-        throw new Error(errData.error || 'Eroare la generarea planului.');
-      }
-
-      // Citește stream-ul de progres
-      const reader = genRes.body?.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const event = JSON.parse(line);
-              if (event.type === 'progress') {
-                setGenerationProgress(event.progress || 0);
-                setGenerationMessage(event.message || '');
-              } else if (event.type === 'complete') {
-                setGenerationProgress(100);
-                setGenerationMessage('Planurile au fost generate cu succes!');
-              } else if (event.type === 'error') {
-                throw new Error(event.message || 'Eroare la generare.');
-              }
-            } catch (parseErr) {
-              // linie invalidă, ignorăm
-            }
-          }
-        }
-      }
-
-      // Actualizează direct în localStorage fără a schimba starea React (evită re-trigger useEffect)
+      // Marchează onboarding-ul ca finalizat în localStorage
       try {
         const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
         localStorage.setItem('user', JSON.stringify({ ...storedUser, onboarding_completed: true }));
       } catch { /* ignore */ }
-      setTimeout(() => router.push('/client/dashboard'), 800);
+
+      // Acordă 50 XP pentru finalizarea înscrierii
+      try {
+        const xpRes = await fetch('/api/user/xp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ amount: 50 }),
+        });
+        const xpData = await xpRes.json();
+        const levelInfo = xpData?.level ? xpData : getLevelInfoFromXp(50);
+        const levelUp = getLevelUpPayload(getLevelInfoFromXp(0), levelInfo, 50);
+
+        // Salvează reward-ul în localStorage — dashboard-ul îl va afișa după redirect
+        try {
+          if (levelUp) {
+            localStorage.setItem('pendingOnboardingReward', JSON.stringify({ type: 'levelUp', ...levelUp }));
+          } else {
+            localStorage.setItem('pendingOnboardingReward', JSON.stringify({ type: 'xp', levelInfo }));
+          }
+        } catch { /* ignore */ }
+      } catch { /* ignore, redirectam oricum */ }
+
+      // Redirecționează imediat la dashboard
+      router.push('/client/dashboard');
     } catch (err) {
       setError(err.message || 'A apărut o eroare. Încearcă din nou.');
-      setGenerating(false);
+    } finally {
       setLoading(false);
     }
   };
@@ -257,33 +231,8 @@ export default function OnboardingPage() {
     );
   }
 
-  if (generating) {
-    return (
-      <div className={styles.page}>
-        <div className={styles.leftPanel}>
-          <div className={styles.brand}>
-            <Link href="/" className={styles.brandLink}><span className={styles.logoText}>trevano</span></Link>
-          </div>
-          <div className={styles.tagline} style={{ marginTop: 'auto', marginBottom: 'auto' }}>
-            <h1 className={styles.taglineHeading}>Planurile tale<br />sunt gata în curând.</h1>
-            <p className={styles.taglineSub}>AI-ul nostru generează planuri personalizate pentru tine.</p>
-          </div>
-        </div>
-        <div className={styles.rightPanel}>
-          <div className={styles.card} style={{ textAlign: 'center' }}>
-            <h2 className={styles.cardTitle}>Generare planuri</h2>
-            <p className={styles.cardSub} style={{ marginBottom: 28 }}>{generationMessage || 'Se procesează...'}</p>
-            <div style={{ background: '#e8e8e8', borderRadius: 8, height: 8, marginBottom: 12, overflow: 'hidden' }}>
-              <div style={{ height: '100%', borderRadius: 8, background: '#7fc800', width: `${generationProgress}%`, transition: 'width 0.4s ease' }} />
-            </div>
-            <p style={{ fontSize: 13, color: '#aaa' }}>{Math.round(generationProgress)}%</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
+  <>
     <div className={styles.page}>
       <div className={styles.leftPanel}>
         <div className={styles.brand}>
@@ -321,13 +270,31 @@ export default function OnboardingPage() {
           </div>
 
           {/* Conținut pas — se extinde să umple spațiul disponibil */}
-          <div style={{ flex: 1 }}>
+          <div
+            key={step}
+            style={{
+              flex: 1,
+              animation: direction
+                ? `${direction === 'forward' ? 'stepFadeSlideIn' : 'stepFadeSlideInBack'} 0.27s ease both`
+                : 'none',
+            }}
+          >
 
             {/* ── Pasul 1: Date personale ── */}
             {step === 1 && (
               <>
-                <h2 className={styles.cardTitle} style={{ marginBottom: 4 }}>Date personale</h2>
-                <p className={styles.cardSub} style={{ marginBottom: 18 }}>Completează datele pentru calculul caloric.</p>
+                <h2 className={styles.cardTitle} style={{ marginBottom: 4 }}>Hai să te cunoaștem</h2>
+                <p className={styles.cardSub} style={{ marginBottom: 18 }}>Cu cât ești mai sincer, cu atât planul tău e mai precis.</p>
+
+                <div className={styles.formGroup}>
+                  <label htmlFor="name">Cum vrei să te numim?</label>
+                  <input type="text" id="name"
+                    value={form.name} onChange={e => updateForm('name', e.target.value)}
+                    placeholder="Numele tău" maxLength="100"
+                    style={{ width: '100%', padding: '13px', border: '1.5px solid #e5e5e5', borderRadius: 13, fontSize: 15, background: '#fafafa', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+                    onFocus={e => e.target.style.borderColor = '#7fc800'}
+                    onBlur={e => e.target.style.borderColor = '#e5e5e5'} />
+                </div>
 
                 <div className={styles.formGroup}>
                   <label>Gen</label>
@@ -413,8 +380,8 @@ export default function OnboardingPage() {
             {/* ── Pasul 3: Obiectiv și dietă ── */}
             {step === 3 && (
               <>
-                <h2 className={styles.cardTitle} style={{ marginBottom: 4 }}>Obiectiv și dietă</h2>
-                <p className={styles.cardSub} style={{ marginBottom: 20 }}>Ce vrei să obții și cum te alimentezi?</p>
+                <h2 className={styles.cardTitle} style={{ marginBottom: 4 }}>Ce vrei să schimbi?</h2>
+                <p className={styles.cardSub} style={{ marginBottom: 20 }}>Fără judecată. Fără presiune. Doar direcția ta.</p>
 
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', marginBottom: 7, fontSize: 13, fontWeight: 600, color: '#555' }}>Obiectiv principal</label>
@@ -424,15 +391,6 @@ export default function OnboardingPage() {
                       <span style={{ display: 'block', fontSize: 12, color: form.goal === g.value ? '#5a7a00' : '#888', marginTop: 1 }}>{g.desc}</span>
                     </button>
                   ))}
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', marginBottom: 7, fontSize: 13, fontWeight: 600, color: '#555' }}>Tip de dietă</label>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    {DIET_TYPES.map(d => (
-                      <button key={d.value} type="button" onClick={() => updateForm('dietType', d.value)} style={btnToggle(form.dietType === d.value)}>{d.label}</button>
-                    ))}
-                  </div>
                 </div>
               </>
             )}
@@ -457,7 +415,7 @@ export default function OnboardingPage() {
               </button>
             ) : (
               <button type="button" onClick={handleSubmit} disabled={loading} className={styles.submitBtn} style={{ flex: step > 1 ? 2 : 1 }}>
-                {loading ? 'Se procesează...' : 'Generează planul meu'}
+                {loading ? 'Se procesează...' : 'Finalizează înscrierea'}
               </button>
             )}
           </div>
@@ -465,5 +423,68 @@ export default function OnboardingPage() {
         </div>
       </div>
     </div>
+
+    {/* ── Modal XP +50 (fără level up) ── */}
+    {xpReward && !levelUpReward && (
+      <div className={clientStyles.modalOverlay} onClick={() => { setXpReward(null); router.push('/client/dashboard'); }}>
+        <div className={`${clientStyles.confirmModal} ${dashStyles.rewardModal}`} onClick={e => e.stopPropagation()}>
+          <div className={dashStyles.rewardIcon}><span>🎉</span></div>
+          <div className={dashStyles.rewardXpBadge}>+50 XP</div>
+          <h3>Înregistrare finalizată!</h3>
+          <p>Bine ai venit! Ai câștigat primii 50 XP pentru că ți-ai completat profilul.</p>
+          {xpReward.levelInfo && (
+            <div className={dashStyles.rewardLevelLine}>
+              Nivel {xpReward.levelInfo.level}
+              <span>{xpReward.levelInfo.xpInCurrentLevel} / {xpReward.levelInfo.xpForNextLevel} XP</span>
+            </div>
+          )}
+          <div className={clientStyles.confirmActions}>
+            <button
+              className={clientStyles.saveBtn}
+              style={{ background: '#0a0a0a', color: '#b7ff00', width: '100%' }}
+              onClick={() => { setXpReward(null); router.push('/client/dashboard'); }}
+            >
+              Mergi la dashboard →
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Modal Level Up ── */}
+    {levelUpReward && (
+      <div className={clientStyles.modalOverlay} onClick={() => { setLevelUpReward(null); router.push('/client/dashboard'); }}>
+        <div className={`${clientStyles.confirmModal} ${dashStyles.rewardModal} ${dashStyles.levelUpModal}`} onClick={e => e.stopPropagation()}>
+          <div className={dashStyles.rewardIcon}><span>💪</span></div>
+          <div className={dashStyles.rewardXpBadge}>LEVEL UP</div>
+          <h3>Nivel {levelUpReward.toLevel}</h3>
+          <p>Ai trecut de la nivelul {levelUpReward.fromLevel} la nivelul {levelUpReward.toLevel}. Bun început!</p>
+          <div className={dashStyles.rewardLevelLine}>
+            Nivel {levelUpReward.levelInfo.level}
+            <span>{levelUpReward.levelInfo.xpInCurrentLevel} / {levelUpReward.levelInfo.xpForNextLevel} XP</span>
+          </div>
+          <div className={clientStyles.confirmActions}>
+            <button
+              className={clientStyles.saveBtn}
+              style={{ background: '#0a0a0a', color: '#b7ff00', width: '100%' }}
+              onClick={() => { setLevelUpReward(null); router.push('/client/dashboard'); }}
+            >
+              Mergi la dashboard →
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    <style>{`
+      @keyframes stepFadeSlideIn {
+        from { opacity: 0; transform: translateX(16px); }
+        to   { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes stepFadeSlideInBack {
+        from { opacity: 0; transform: translateX(-16px); }
+        to   { opacity: 1; transform: translateX(0); }
+      }
+    `}</style>
+  </>
   );
 }

@@ -44,10 +44,9 @@ export async function GET(request) {
 
   const supabase = getSupabase();
   const { data: clientRow, error } = await supabase
-    .from('clients')
-    .select('id, xp, level')
-    .eq('user_id', auth.userId)
-    .is('trainer_id', null)
+    .from('users')
+    .select('xp, level')
+    .eq('id', auth.userId)
     .maybeSingle();
 
   if (error) {
@@ -61,9 +60,9 @@ export async function GET(request) {
   // Sync level in DB if it drifted
   if (clientRow && clientRow.level !== info.level) {
     await supabase
-      .from('clients')
+      .from('users')
       .update({ level: info.level })
-      .eq('id', clientRow.id);
+      .eq('id', auth.userId);
   }
 
   return NextResponse.json(info);

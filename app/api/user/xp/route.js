@@ -39,9 +39,8 @@ export async function POST(request) {
   const supabase = getSupabase();
 
   const { data: clientRow, error: fetchError } = await supabase
-    .from('clients')
+    .from('users')
     .select(`
-      id,
       xp,
       level,
       meals_cooldown_until,
@@ -58,12 +57,11 @@ export async function POST(request) {
       streak_awarded_day,
       weekly_plan_due_at
     `)
-    .eq('user_id', auth.userId)
-    .is('trainer_id', null)
+    .eq('id', auth.userId)
     .maybeSingle();
 
   if (fetchError || !clientRow) {
-    return NextResponse.json({ error: 'Client negăsit.' }, { status: 404 });
+    return NextResponse.json({ error: 'Utilizator negăsit.' }, { status: 404 });
   }
 
   // Prevent double-claiming: check if already finalized today
@@ -71,9 +69,9 @@ export async function POST(request) {
   let dailyState = reconcileDailyPlanProgress(clientRow, now);
   if (dailyState.changed) {
     await supabase
-      .from('clients')
+      .from('users')
       .update(buildDailyProgressUpdate(dailyState))
-      .eq('id', clientRow.id);
+      .eq('id', auth.userId);
   }
   const midnightIso = dailyState.currentPlanDayDueAt;
 
@@ -119,9 +117,9 @@ export async function POST(request) {
   }
 
   const { error: updateError } = await supabase
-    .from('clients')
+    .from('users')
     .update(updatePayload)
-    .eq('id', clientRow.id);
+    .eq('id', auth.userId);
 
   if (updateError) {
     console.error('[user/xp] update error:', updateError);

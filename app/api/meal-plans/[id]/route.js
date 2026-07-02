@@ -16,7 +16,7 @@ params }) {
     return NextResponse.json({ error: 'Rol necunoscut. Acces interzis.' }, { status: 403 });
   }
 
-  // ─── Optimizare: Single query cu JOIN pentru client data ───────
+  // ─── Query simplu fără JOIN (B2C: clients eliminat) ───────
   let query = supabase
     .from('meal_plans')
     .select(`
@@ -28,42 +28,13 @@ params }) {
       previous_plan_calories,
       approval_status,
       approved_at,
-      approved_by,
-      clients!inner (
-        user_id,
-        name, 
-        age, 
-        weight, 
-        height, 
-        gender, 
-        goal, 
-        activity_level, 
-        diet_type, 
-        allergies, 
-        meals_per_day, 
-        food_preferences
-      )
+      approved_by
     `)
     .eq('id', id);
 
-  // Dacă e trainer, verifică că planul aparține trainerului
-  if (auth.role === 'trainer') {
-    query = query.eq('trainer_id', auth.userId);
-  }
-  // Dacă e client, verifică că planul aparține clientului
-  else if (auth.role === 'client' || auth.role === 'user') {
-    // Obține client_id pentru user
-    const { data: clientCheck, error: clientError } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('user_id', auth.userId)
-      .single();
-
-    if (clientError || !clientCheck) {
-      return NextResponse.json({ error: 'Client negăsit.' }, { status: 404 });
-    }
-
-    query = query.eq('client_id', clientCheck.id);
+  // Dacă e client/user, verifică că planul aparține utilizatorului
+  if (auth.role === 'client' || auth.role === 'user') {
+    query = query.eq('client_id', auth.userId);
     query = query.eq('approval_status', 'approved');
   }
 
@@ -73,8 +44,12 @@ params }) {
     return NextResponse.json({ error: 'Planul nu a fost găsit sau nu ai acces.' }, { status: 404 });
   }
 
-  // Extract client data from JOIN result
-  const client = data.clients || null;
+  // Fetch user profile separately from users table
+  const { data: client } = await supabase
+    .from('users')
+    .select('name, age, weight, height, gender, goal, activity_level, diet_type, allergies, meals_per_day, food_preferences')
+    .eq('id', data.client_id)
+    .maybeSingle();
 
   const { ip, userAgent } = getRequestMeta(request);
   logActivity({
@@ -137,9 +112,8 @@ export async function PATCH(request, { params }) {
 
   const { data: existing, error: existingError } = await supabase
     .from('meal_plans')
-    .select('id, client_id, trainer_id, plan_data, daily_targets, approval_status, approved_at, approved_by, clients!inner(user_id)')
+    .select('id, client_id, plan_data, daily_targets, approval_status, approved_at, approved_by')
     .eq('id', id)
-    .eq('trainer_id', auth.userId)
     .single();
 
   if (existingError || !existing) {
@@ -168,7 +142,6 @@ export async function PATCH(request, { params }) {
       .from('meal_plans')
       .update(updatePayload)
       .eq('id', id)
-      .eq('trainer_id', auth.userId)
       .select('id, client_id, plan_data, daily_targets, approval_status, approved_at, approved_by')
       .single();
 
@@ -211,7 +184,6 @@ export async function PATCH(request, { params }) {
       approved_by: auth.userId,
     })
     .eq('id', id)
-    .eq('trainer_id', auth.userId)
     .select('id, client_id, plan_data, daily_targets, approval_status, approved_at, approved_by')
     .single();
 
@@ -235,9 +207,8 @@ export async function PATCH(request, { params }) {
   let pairedWorkoutPlan = null;
   const { data: pendingWorkout, error: pendingWorkoutError } = await supabase
     .from('workout_plans')
-    .select('id, client_id, trainer_id, plan_data, approval_status, approved_at, approved_by')
+    .select('id, client_id, plan_data, approval_status, approved_at, approved_by')
     .eq('client_id', existing.client_id)
-    .eq('trainer_id', auth.userId)
     .eq('approval_status', 'pending_review')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -261,8 +232,7 @@ export async function PATCH(request, { params }) {
         approved_by: auth.userId,
       })
       .eq('id', pendingWorkout.id)
-      .eq('trainer_id', auth.userId)
-      .select('id, client_id, trainer_id, plan_data, approval_status, approved_at, approved_by')
+      .select('id, client_id, plan_data, approval_status, approved_at, approved_by')
       .single();
 
     if (pairedWorkoutError) {
@@ -280,7 +250,7 @@ export async function PATCH(request, { params }) {
     }
   }
 
-  const clientUserId = existing.clients?.user_id;
+  const clientUserId = existing.client_id;
   if (clientUserId) {
     const notifications = [{
         user_id: clientUserId,
@@ -344,8 +314,7 @@ params }) {
   const { error, count } = await supabase
     .from('meal_plans')
     .delete({ count: 'exact' })
-    .eq('id', id)
-    .eq('trainer_id', auth.userId);
+    .eq('id', id);
 
   const { ip, userAgent } = getRequestMeta(request);
 

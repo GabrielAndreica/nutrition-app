@@ -21,7 +21,7 @@ export async function GET(request) {
     await supabaseQuery(() => supabase
       .from('generation_status')
       .update({ status: 'failed', error_message: 'Timeout - generarea a durat prea mult', completed_at: new Date().toISOString() })
-      .eq('trainer_id', trainerId)
+      .eq('user_id', trainerId)
       .eq('status', 'generating')
       .lt('updated_at', thirtyMinutesAgo));
 
@@ -29,7 +29,7 @@ export async function GET(request) {
     const { data: generations, error } = await supabaseQuery(() => supabase
       .from('generation_status')
       .select('*')
-      .eq('trainer_id', trainerId)
+      .eq('user_id', trainerId)
       .eq('status', 'generating')
       .order('started_at', { ascending: false }));
 
@@ -77,7 +77,7 @@ export async function POST(request) {
     // Upsert (insert sau update)
     const updateData = {
       client_id: clientId,
-      trainer_id: trainerId,
+      user_id: trainerId,
       status,
       current_step: currentStep || 0,
       total_steps: 8,
@@ -92,7 +92,7 @@ export async function POST(request) {
     const { data, error } = await supabaseQuery(() => supabase
       .from('generation_status')
       .upsert(updateData, {
-        onConflict: 'client_id,trainer_id',
+        onConflict: 'client_id',
         returning: 'minimal'
       }));
 
@@ -141,7 +141,7 @@ export async function DELETE(request) {
       .from('generation_status')
       .delete()
       .eq('client_id', clientId)
-      .eq('trainer_id', trainerId));
+      .eq('user_id', trainerId));
 
     if (error) {
       console.error('Error deleting generation status:', error);

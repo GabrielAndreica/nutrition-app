@@ -14,19 +14,6 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
-  const supabase = getSupabase();
-  const { data: clientRow, error } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('user_id', auth.userId)
-    .is('trainer_id', null)
-    .is('deleted_at', null)
-    .maybeSingle();
-
-  if (error || !clientRow) {
-    return NextResponse.json({ error: 'Client negăsit.' }, { status: 404 });
-  }
-
   const encoder = new TextEncoder();
   const responseStream = new ReadableStream({
     async start(controller) {
@@ -49,7 +36,7 @@ export async function POST(request) {
       try {
         send({ type: 'progress', phase: 'setup', progress: 4, message: 'Pregătim planurile noi...' });
         const result = await runWeeklyPlanRegenerationForClient({
-          clientId: clientRow.id,
+          clientId: auth.userId,
           request,
           onEvent: (event) => send(event),
         });

@@ -142,13 +142,12 @@ export async function POST(request) {
     // Check onboarding completion for 'user' role
     let onboardingCompleted = false;
     if (user.role === 'user') {
-      const { data: clientRow } = await supabase
-        .from('clients')
-        .select('id')
-        .eq('user_id', user.id)
-        .is('trainer_id', null)
+      const { data: userRow } = await supabase
+        .from('users')
+        .select('onboarding_completed')
+        .eq('id', user.id)
         .maybeSingle();
-      onboardingCompleted = !!clientRow;
+      onboardingCompleted = !!userRow?.onboarding_completed;
     }
 
     // Successful login

@@ -1771,25 +1771,22 @@ export async function POST(request) {
       );
     }
 
-    // Dacă avem clientId, folosim strict câmpurile de nutriție din tabela clients.
+    // Dacă avem clientId, folosim strict câmpurile de nutriție din tabela users.
     const rawClientId = clientData?.clientId ? String(clientData.clientId).trim() : '';
     if (rawClientId) {
       const supabase = getSupabase();
-      let clientQuery = supabase
-        .from('clients')
-        .select('id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences, user_id')
-        .eq('id', rawClientId)
-        .is('deleted_at', null);
-
-      if (auth.role === 'trainer') {
-        clientQuery = clientQuery.eq('trainer_id', auth.userId);
-      } else if (auth.role === 'client') {
-        clientQuery = clientQuery.eq('user_id', auth.userId);
-      } else if (auth.role === 'user') {
-        clientQuery = clientQuery.eq('user_id', auth.userId).is('trainer_id', null);
+      // In B2C: clientId === userId; verifică ownership
+      if ((auth.role === 'user' || auth.role === 'client') && rawClientId !== auth.userId) {
+        return NextResponse.json(
+          { error: 'Clientul nu a fost găsit sau nu ai acces la el.' },
+          { status: 404 }
+        );
       }
-
-      const { data: dbClient, error: dbClientError } = await clientQuery.single();
+      const { data: dbClient, error: dbClientError } = await supabase
+        .from('users')
+        .select('id, name, age, weight, height, goal, gender, activity_level, diet_type, allergies, meals_per_day, food_preferences')
+        .eq('id', rawClientId)
+        .single();
       if (dbClientError || !dbClient) {
         return NextResponse.json(
           { error: 'Clientul nu a fost găsit sau nu ai acces la el.' },
@@ -1820,7 +1817,7 @@ export async function POST(request) {
         allergies: dbAllergies,
         mealsPerDay: dbClient.meals_per_day,
         foodPreferences: dbClient.food_preferences || '',
-        clientUserId: dbClient.user_id || null,
+        clientUserId: dbClient.id || null,
       };
 
       if (auth.role === 'trainer') {
@@ -2186,7 +2183,7 @@ export async function POST(request) {
             .from('generation_status')
             .update({ current_step: dayNumber, total_steps: 8, updated_at: new Date().toISOString() })
             .eq('client_id', clientData.clientId)
-            .eq('trainer_id', auth.userId)
+            .eq('user_id', auth.userId)
             .eq('status', 'generating');
         } catch {}
       }
@@ -2251,7 +2248,6 @@ export async function POST(request) {
         .from('meal_plans')
         .insert({
           client_id: clientData.clientId,
-          trainer_id: auth.role === 'trainer' ? auth.userId : null,
           plan_data: plan,
           daily_targets: targets,
           approval_status: auth.role === 'user' ? 'approved' : 'pending_review',
@@ -2285,7 +2281,7 @@ export async function POST(request) {
         .from('generation_status')
         .update({ current_step: 8, total_steps: 8, updated_at: new Date().toISOString() })
         .eq('client_id', clientData.clientId)
-        .eq('trainer_id', auth.userId)
+        .eq('user_id', auth.userId)
         .eq('status', 'generating');
 
       const origin = request.nextUrl?.origin;
@@ -2312,7 +2308,7 @@ export async function POST(request) {
           plan_id: savedPlanId,
         })
         .eq('client_id', clientData.clientId)
-        .eq('trainer_id', auth.userId)
+        .eq('user_id', auth.userId)
         .eq('status', 'generating');
 
       // Planul rămâne în revizia antrenorului; notificarea clientului se trimite la aprobare.
@@ -2333,7 +2329,7 @@ export async function POST(request) {
                   updated_at: new Date().toISOString(),
                 })
                 .eq('client_id', clientData.clientId)
-                .eq('trainer_id', auth.userId)
+                .eq('user_id', auth.userId)
                 .eq('status', 'generating');
             } catch {}
           }

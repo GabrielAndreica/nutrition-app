@@ -12,7 +12,7 @@ export async function GET(request, { params }) {
 
   const { data, error } = await supabase
     .from('workout_plans')
-    .select('id, client_id, trainer_id, plan_data, created_at, approval_status, approved_at, approved_by')
+    .select('id, client_id, plan_data, created_at, approval_status, approved_at, approved_by')
     .eq('id', id)
     .single();
 
@@ -20,17 +20,9 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: 'Planul nu a fost găsit.' }, { status: 404 });
   }
 
-  // Auth check — trainer owns it or client owns it
-  if (auth.role === 'trainer' && String(data.trainer_id) !== String(auth.userId)) {
-    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
-  }
+  // Auth check
   if (auth.role === 'client' || auth.role === 'user') {
-    const { data: client } = await supabase
-      .from('clients')
-      .select('id')
-      .eq('user_id', auth.userId)
-      .single();
-    if (!client || client.id !== data.client_id) {
+    if (data.client_id !== auth.userId) {
       return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
     }
     if ((data.approval_status || 'approved') !== 'approved') {
@@ -38,12 +30,12 @@ export async function GET(request, { params }) {
     }
   }
 
-  // Also fetch client profile
+  // Fetch user profile from users table
   const { data: clientRow } = await supabase
-    .from('clients')
+    .from('users')
     .select('name, age, weight, height, gender, goal, activity_level, fitness_level, fitness_goal, training_split, available_equipment, injuries_limitations, workout_preferences')
     .eq('id', data.client_id)
-    .single();
+    .maybeSingle();
 
   return NextResponse.json({ workoutPlan: data, client: clientRow || null });
 }
@@ -73,9 +65,8 @@ export async function PATCH(request, { params }) {
 
   const { data: existing, error: existingError } = await supabase
     .from('workout_plans')
-    .select('id, client_id, trainer_id, plan_data, approval_status, approved_at, approved_by, clients!inner(user_id)')
+    .select('id, client_id, plan_data, approval_status, approved_at, approved_by')
     .eq('id', id)
-    .eq('trainer_id', auth.userId)
     .single();
 
   if (existingError || !existing) {
@@ -99,8 +90,7 @@ export async function PATCH(request, { params }) {
         approved_by: isAlreadyApproved ? existing.approved_by : null,
       })
       .eq('id', id)
-      .eq('trainer_id', auth.userId)
-      .select('id, client_id, trainer_id, plan_data, approval_status, approved_at, approved_by')
+      .select('id, client_id, plan_data, approval_status, approved_at, approved_by')
       .single();
 
     if (updateError) {
@@ -142,8 +132,7 @@ export async function PATCH(request, { params }) {
       approved_by: auth.userId,
     })
     .eq('id', id)
-    .eq('trainer_id', auth.userId)
-    .select('id, client_id, trainer_id, plan_data, approval_status, approved_at, approved_by')
+    .select('id, client_id, plan_data, approval_status, approved_at, approved_by')
     .single();
 
   if (approveError) {
@@ -168,7 +157,6 @@ export async function PATCH(request, { params }) {
     .from('meal_plans')
     .select('id, client_id, plan_data, daily_targets, approval_status, approved_at, approved_by')
     .eq('client_id', existing.client_id)
-    .eq('trainer_id', auth.userId)
     .eq('approval_status', 'pending_review')
     .order('created_at', { ascending: false })
     .limit(1)
@@ -192,7 +180,6 @@ export async function PATCH(request, { params }) {
         approved_by: auth.userId,
       })
       .eq('id', pendingMeal.id)
-      .eq('trainer_id', auth.userId)
       .select('id, client_id, plan_data, daily_targets, approval_status, approved_at, approved_by')
       .single();
 
@@ -211,7 +198,7 @@ export async function PATCH(request, { params }) {
     }
   }
 
-  const clientUserId = existing.clients?.user_id;
+  const clientUserId = existing.client_id;
   if (clientUserId) {
     const notifications = [{
         user_id: clientUserId,

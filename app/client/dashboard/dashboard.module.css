@@ -1029,6 +1029,35 @@
 .noPlanEmpty svg { color: #d1d1d6; }
 .noPlanEmpty p { margin: 0; font-size: 15px; font-weight: 500; }
 
+/* ─── Empty plan screen ─── */
+.dummyPlanScreen {
+  position: relative;
+  /* Bleed into .main padding so gradient fills edge-to-edge */
+  margin: -34px -55px;
+  height: 100dvh;
+  background:
+    radial-gradient(ellipse 42% 32% at 0% 18%, rgba(183, 255, 0, 0.26) 0%, transparent 58%),
+    radial-gradient(ellipse 48% 30% at 100% 58%, rgba(183, 255, 0, 0.16) 0%, transparent 56%),
+    radial-gradient(ellipse 34% 24% at 22% 100%, rgba(183, 255, 0, 0.13) 0%, transparent 54%),
+    #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Shift content up slightly so it sits in the natural eye-level zone */
+  padding-bottom: 10vh;
+}
+
+@media (max-width: 768px) {
+  .dummyPlanScreen {
+    margin: -21px -21px 0;
+    height: calc(100dvh - 52px - env(safe-area-inset-top, 0px));
+    /* On mobile: sit at ~38% from top (golden ratio zone) */
+    align-items: flex-start;
+    padding-top: 28vh;
+    padding-bottom: 0;
+  }
+}
+
 /* ─── Reward Modal ─────────────────────────────────────── */
 .rewardModal {
   position: relative;
