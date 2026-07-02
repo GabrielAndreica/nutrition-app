@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { useAuth } from '@/app/contexts/AuthContext';
 import mealStyles from '@/app/components/MealPlanGenerator/meal-plan.module.css';
 import styles from './workout-plan.module.css';
+import clientStyles from '@/app/clients/clients.module.css';
 import AddExerciseModal from './AddExerciseModal';
 
 // Dynamic import for PDF (uses jsPDF)
@@ -64,6 +65,8 @@ export default function WorkoutPlan({
   const [dragIndex, setDragIndex] = useState(null);
   const [dropIndex, setDropIndex] = useState(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [confirmDeleteDay, setConfirmDeleteDay] = useState(null); // visibleIndex
+  const [confirmDeleteExercise, setConfirmDeleteExercise] = useState(null); // exercise index
   const touchDragRef = useRef(null);
 
   const canEdit = editableSets && user?.role === 'trainer' && typeof onPlanChange === 'function';
@@ -118,10 +121,7 @@ export default function WorkoutPlan({
   const visibleDays = visibleDayEntries.map(({ day }) => day);
   const currentDayEntry = visibleDayEntries[activeDay] || visibleDayEntries[0] || { day: {}, dayIndex: 0 };
   const currentDay = currentDayEntry.day || {};
-  const currentDayName = currentDay.dayName
-    || (typeof currentDay.day === 'number' ? DAY_NAMES_FULL[currentDay.day - 1] : null)
-    || DAY_NAMES_FULL[activeDay]
-    || 'Ziua selectată';
+  const currentDayName = `Ziua ${activeDay + 1}`;
   const exerciseCount = (currentDay.exercises || []).length;
   const totalSets = (currentDay.exercises || []).reduce((sum, exercise) => sum + (Number(exercise.sets) || 0), 0);
   const splitLabel = TRAINING_SPLIT_LABELS[clientData?.training_split || plan.split]
@@ -195,6 +195,36 @@ export default function WorkoutPlan({
     onPlanDirtyChange?.(true);
   };
 
+  const workoutDayCount = visibleDays.length;
+
+  const addDay = () => {
+    if (!canEdit || workoutDayCount >= 6) return;
+    const nextPlan = JSON.parse(JSON.stringify(plan));
+    nextPlan.days.push({
+      day: nextPlan.days.length + 1,
+      dayName: `Ziua ${workoutDayCount + 1}`,
+      sessionName: 'Antrenament',
+      isRestDay: false,
+      estimatedDuration: 60,
+      exercises: [],
+    });
+    onPlanChange(nextPlan);
+    onPlanDirtyChange?.(true);
+    setActiveDay(workoutDayCount);
+  };
+
+  const removeDay = (visibleIndex) => {
+    if (!canEdit || workoutDayCount <= 1) return;
+    const entryToRemove = visibleDayEntries[visibleIndex];
+    if (!entryToRemove) return;
+    const nextPlan = JSON.parse(JSON.stringify(plan));
+    nextPlan.days.splice(entryToRemove.dayIndex, 1);
+    nextPlan.days.forEach((d, i) => { d.day = i + 1; });
+    onPlanChange(nextPlan);
+    onPlanDirtyChange?.(true);
+    setActiveDay(prev => Math.min(prev, workoutDayCount - 2));
+  };
+
   const handleDownload = async () => {
     if (pdfLoading) return;
     setPdfLoading(true);
@@ -260,24 +290,63 @@ export default function WorkoutPlan({
 
       <div className={mealStyles.rightColumn}>
         <div className={mealStyles.tabsRow}>
-          <div className={mealStyles.dayTabs}>
-            {visibleDays.map((day, i) => {
-              const fullDayName = day.dayName
-                || (typeof day.day === 'number' ? DAY_NAMES_FULL[day.day - 1] : null)
-                || DAY_NAMES_FULL[i];
-              const shortDayName = DAY_SHORT_BY_NAME[fullDayName] || DAY_NAMES_SHORT[i] || fullDayName;
-              return (
+          <div className={`${styles.workoutDayTabsContainer} ${styles.workoutDayTabs}`}>
+            {visibleDays.map((day, i) => (
               <button
                 key={i}
-                className={`${mealStyles.dayTab} ${i === activeDay ? mealStyles.dayTabActive : ''}`}
+                className={`${mealStyles.dayTab} ${i === activeDay ? mealStyles.dayTabActive : ''} ${styles.workoutDayTab}`}
                 onClick={() => setActiveDay(i)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 18px', flex: '0 0 auto', minWidth: 0, whiteSpace: 'nowrap' }}
               >
-                <span className={mealStyles.dayFull}>{fullDayName}</span>
-                <span className={mealStyles.dayShort}>{shortDayName}</span>
-              </button>
-            );
-            })}
-          </div>
+                  <span className={mealStyles.dayFull}>{`Ziua ${i + 1}`}</span>
+                  <span className={mealStyles.dayShort}>{i + 1}</span>
+                  {canEdit && workoutDayCount > 1 && i !== activeDay && (
+                    <span
+                      onClick={e => { e.stopPropagation(); setConfirmDeleteDay(i); }}
+                      title={`Elimină Ziua ${i + 1}`}
+                      className={styles.deleteTabBtn}
+                      style={{
+                        color: i === activeDay ? 'rgba(0,0,0,0.4)' : '#bbb',
+                        fontSize: 13,
+                        fontWeight: 700,
+                        lineHeight: 1,
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        userSelect: 'none',
+                        transition: 'color 0.15s',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
+                      onMouseLeave={e => { e.currentTarget.style.color = i === activeDay ? 'rgba(0,0,0,0.4)' : '#bbb'; }}
+                    >✕</span>
+                  )}
+                </button>
+            ))}
+            {canEdit && workoutDayCount < 6 && (
+              <button
+                type="button"
+                className={styles.addDayBtn}
+                onClick={addDay}
+                title="Adaugă zi de antrenament"
+                style={{
+                  width: 36, height: 'auto', minHeight: 38, alignSelf: 'stretch',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: 8,
+                  cursor: 'pointer',
+                  color: '#9ca3af',
+                  fontSize: 20,
+                  lineHeight: 1,
+                  fontFamily: 'inherit',
+                  padding: 0,
+                  flexShrink: 0,
+                  transition: 'border-color 0.15s, color 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = '#374151'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#9ca3af'; }}
+              >+</button>
+            )}
+          </div>{/* dayTabs */}
           {!hideReviewActions && (
           <div className={mealStyles.tabsActions}>
             {onSubmitProgress && (
@@ -348,7 +417,7 @@ export default function WorkoutPlan({
 
         <div className={mealStyles.dayTotalsBar}>
           <span className={mealStyles.dayTotalsLabel}>
-            {currentDayName} · {currentDay.sessionName || 'Antrenament'}
+            {currentDayName}
           </span>
           <div className={mealStyles.dayTotalsValues}>
             <span><strong>{exerciseCount}</strong> exerciții</span>
@@ -460,7 +529,7 @@ export default function WorkoutPlan({
                         </div>
                         <button
                           type="button"
-                          onClick={() => deleteExercise(index)}
+                          onClick={() => setConfirmDeleteExercise(index)}
                           aria-label="Șterge exercițiu"
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, lineHeight: 1, padding: '0 0 0 8px', flexShrink: 0, alignSelf: 'flex-start' }}
                         >✕</button>
@@ -581,6 +650,48 @@ export default function WorkoutPlan({
       onClose={() => setShowAddModal(false)}
       onAdd={addExercise}
     />
+
+    {confirmDeleteExercise !== null && (
+      <div className={clientStyles.modalOverlay} onClick={() => setConfirmDeleteExercise(null)}>
+        <div className={clientStyles.confirmModal} onClick={e => e.stopPropagation()}>
+          <div className={clientStyles.confirmIcon}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+          </div>
+          <h3>Ștergi exercițiul?</h3>
+          <p><strong>{currentDay.exercises?.[confirmDeleteExercise]?.name || `Exercițiul ${confirmDeleteExercise + 1}`}</strong> va fi eliminat din această zi.</p>
+          <div className={clientStyles.confirmActions}>
+            <button className={clientStyles.cancelBtn} onClick={() => setConfirmDeleteExercise(null)}>Anulează</button>
+            <button className={clientStyles.deleteBtnConfirm} onClick={() => { deleteExercise(confirmDeleteExercise); setConfirmDeleteExercise(null); }}>Șterge</button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {confirmDeleteDay !== null && (
+      <div className={clientStyles.modalOverlay} onClick={() => setConfirmDeleteDay(null)}>
+        <div className={clientStyles.confirmModal} onClick={e => e.stopPropagation()}>
+          <div className={clientStyles.confirmIcon}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+              <path d="M10 11v6M14 11v6"/>
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+            </svg>
+          </div>
+          <h3>Ștergi Ziua {confirmDeleteDay + 1}?</h3>
+          <p>Toate exercițiile din această zi vor fi eliminate definitiv.</p>
+          <div className={clientStyles.confirmActions}>
+            <button className={clientStyles.cancelBtn} onClick={() => setConfirmDeleteDay(null)}>Anulează</button>
+            <button className={clientStyles.deleteBtnConfirm} onClick={() => { removeDay(confirmDeleteDay); setConfirmDeleteDay(null); }}>Șterge ziua</button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }

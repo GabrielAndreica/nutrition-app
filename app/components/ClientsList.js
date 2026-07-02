@@ -166,6 +166,7 @@ const ClientsList = forwardRef(function ClientsList({
   const [hasMore,    setHasMore]    = useState(false);
   const sentinelRef = useRef(null);
   const pageRef     = useRef(1);  // ref pentru closures stale
+  const pendingFormCloseRef = useRef(false); // deferează onFormClose când se afișează modal regen
 
   const [page,            setPage]            = useState(1);
   const [search,          setSearch]          = useState('');
@@ -510,7 +511,7 @@ const ClientsList = forwardRef(function ClientsList({
     onAddFormChange?.(true);
   };
 
-  const closeAddForm = () => {
+  const closeAddForm = ({ skipFormClose = false } = {}) => {
     const wasEditing = !!editingClient;
     setShowAddForm(false);
     setForm(EMPTY_FORM);
@@ -520,7 +521,8 @@ const ClientsList = forwardRef(function ClientsList({
     setAddStep(1);
     setEditingClient(null);
     onAddFormChange?.(false);
-    if (wasEditing) onFormClose?.();
+    if (wasEditing && !skipFormClose) onFormClose?.();
+    else if (wasEditing && skipFormClose) pendingFormCloseRef.current = true;
   };
 
   // Apelată din dashboard via ref — deschide direct formularul de editare
@@ -950,8 +952,11 @@ const ClientsList = forwardRef(function ClientsList({
             name: data.client?.name || editingClient.name,
             mealPlan: !!data.requiresRegeneration.mealPlan,
             workoutPlan: !!data.requiresRegeneration.workoutPlan,
+            newForm: { ...form },
           });
-          closeAddForm();
+          // skipFormClose=true: nu restaura planul acum — modalul ar deveni ascuns
+          // deoarece div-ul ClientsList primește display:none când viewingPlanId e setat
+          closeAddForm({ skipFormClose: true });
         } else {
           onClientSaved?.();
           closeAddForm();
@@ -1562,18 +1567,43 @@ const ClientsList = forwardRef(function ClientsList({
             <div className={styles.confirmActions}>
               <button
                 className={styles.cancelBtn}
-                onClick={() => {
-                  setPendingRegenClientIds(prev => new Set([...prev, regenRequiredClient.id]));
+                onClick={async () => {
+                  // Dacă s-au schimbat câmpuri de antrenament, actualizează metadatele planului existent
+                  if (regenRequiredClient.workoutPlan && regenRequiredClient.newForm) {
+                    const wpId = workoutPlanMap[regenRequiredClient.id]?.planId;
+                    if (wpId) {
+                      const f = regenRequiredClient.newForm;
+                      const metadata = {};
+                      if (f.trainingSplit)       metadata.split              = f.trainingSplit;
+                      if (f.workoutsPerWeek)     metadata.workoutsPerWeek    = Number(f.workoutsPerWeek);
+                      if (f.fitnessGoal)         metadata.fitnessGoal        = f.fitnessGoal;
+                      if (f.fitnessLevel)        metadata.fitnessLevel       = f.fitnessLevel;
+                      if (f.availableEquipment)  metadata.availableEquipment = f.availableEquipment;
+                      const token = localStorage.getItem('token');
+                      fetch(`/api/workout-plans/${wpId}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                        body: JSON.stringify({ action: 'patch_metadata', metadata }),
+                      }).catch(err => console.error('[patch_metadata workout]', err));
+                    }
+                  }
                   setRegenRequiredClient(null);
                   onClientSaved?.();
+                  // Restaurează vederea planului dacă editarea a fost pornită din plan view
+                  if (pendingFormCloseRef.current) {
+                    pendingFormCloseRef.current = false;
+                    onFormClose?.();
+                  }
                 }}
               >
-                Mai târziu
+                Modifică manual
               </button>
               <button
                 className={styles.saveBtn}
                 disabled={generating}
                 onClick={async () => {
+                  // Resetează flag-ul — nu mai e nevoie să restaurăm planul, navigăm la generator
+                  pendingFormCloseRef.current = false;
                   if (onGeneratePlan) {
                     setGenerating(true);
                     try {

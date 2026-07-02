@@ -113,6 +113,7 @@ export default function MealPlan({
   const [showAddFoodModal, setShowAddFoodModal] = useState(false);
   const [addFoodTarget, setAddFoodTarget] = useState(null); // mealIndex
   const [showAddMealModal, setShowAddMealModal] = useState(false);
+  const [confirmDeleteMeal, setConfirmDeleteMeal] = useState(null); // mealIndex
   const [showProgress, setShowProgress] = useState(!!initialShowProgress);
   const [weightHistory, setWeightHistory] = useState([]);
   const [stagnationWeeks, setStagnationWeeks] = useState(0);
@@ -140,7 +141,7 @@ export default function MealPlan({
 
   const goalLabels = {
     weight_loss: 'Slăbit',
-    muscle_gain: 'Creștere masă musculară',
+    muscle_gain: 'Masă musculară',
     maintenance: 'Menținere',
     recomposition: 'Recompoziție corporală',
   };
@@ -151,8 +152,8 @@ export default function MealPlan({
     vegan: 'Vegan',
   };
 
-  const dayNames = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
-  const dayNamesShort = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
+  const dayNames = ['Ziua 1', 'Ziua 2', 'Ziua 3', 'Ziua 4', 'Ziua 5', 'Ziua 6', 'Ziua 7'];
+  const dayNamesShort = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7'];
 
   const mealTypeLabels = {
     'Masa 1': { name: 'Masa 1' },
@@ -903,7 +904,7 @@ export default function MealPlan({
                 onClick={() => setActiveDay(index)}
               >
                 <span className={styles.dayFull}>{dayNames[index]}</span>
-                <span className={styles.dayShort}>{dayNamesShort[index]}</span>
+                <span className={styles.dayShort}>{index + 1}</span>
               </button>
             ))}
           </div>
@@ -1015,7 +1016,7 @@ export default function MealPlan({
                   {canEdit && (
                     <button
                       type="button"
-                      onClick={() => deleteMeal(mealIndex)}
+                      onClick={() => setConfirmDeleteMeal(mealIndex)}
                       aria-label="Șterge masa"
                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 16, lineHeight: 1, padding: '0 0 0 8px', flexShrink: 0 }}
                     >✕</button>
@@ -1132,6 +1133,28 @@ export default function MealPlan({
         onClose={() => setShowAddMealModal(false)}
         onAdd={addMeal}
       />
+
+      {/* Modal Confirmare ştergere masă */}
+      {confirmDeleteMeal !== null && (
+        <div className={cStyles.modalOverlay} onClick={() => setConfirmDeleteMeal(null)}>
+          <div className={cStyles.confirmModal} onClick={e => e.stopPropagation()}>
+            <div className={cStyles.confirmIcon}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                <path d="M10 11v6M14 11v6"/>
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+              </svg>
+            </div>
+            <h3>Ștergi masa?</h3>
+            <p><strong>{currentDay.meals?.[confirmDeleteMeal]?.name || currentDay.meals?.[confirmDeleteMeal]?.mealType || `Masa ${confirmDeleteMeal + 1}`}</strong> va fi eliminată din această zi.</p>
+            <div className={cStyles.confirmActions}>
+              <button className={cStyles.cancelBtn} onClick={() => setConfirmDeleteMeal(null)}>Anulează</button>
+              <button className={cStyles.deleteBtnConfirm} onClick={() => { deleteMeal(confirmDeleteMeal); setConfirmDeleteMeal(null); }}>Șterge</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Progres */}
       {showProgress && (

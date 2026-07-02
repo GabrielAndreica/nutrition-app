@@ -140,7 +140,7 @@ export default function ClientForm({ onSubmit, loading }) {
               onChange={handleInputChange}
             >
               <option value="weight_loss">Slăbit</option>
-              <option value="muscle_gain">Creștere masă musculară</option>
+              <option value="muscle_gain">Masă musculară</option>
               <option value="maintenance">Menținere</option>
               <option value="recomposition">Recompoziție corporală</option>
             </select>

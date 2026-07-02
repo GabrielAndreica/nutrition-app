@@ -102,7 +102,7 @@ export default function MealPlanTrainer({
 
   const goalLabels = {
     weight_loss: 'Slăbit',
-    muscle_gain: 'Creștere masă musculară',
+    muscle_gain: 'Masă musculară',
     maintenance: 'Menținere',
     recomposition: 'Recompoziție corporală',
   };
@@ -113,8 +113,8 @@ export default function MealPlanTrainer({
     vegan: 'Vegan',
   };
 
-  const dayNames = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
-  const dayNamesShort = ['Lu', 'Ma', 'Mi', 'Jo', 'Vi', 'Sâ', 'Du'];
+  const dayNames = ['Ziua 1', 'Ziua 2', 'Ziua 3', 'Ziua 4', 'Ziua 5', 'Ziua 6', 'Ziua 7'];
+  const dayNamesShort = ['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7'];
 
   const mealTypeLabels = {
     'Masa 1': { name: 'Masa 1' },
@@ -293,7 +293,7 @@ export default function MealPlanTrainer({
                 onClick={() => setActiveDay(index)}
               >
                 <span className={styles.dayFull}>{dayNames[index]}</span>
-                <span className={styles.dayShort}>{dayNamesShort[index]}</span>
+                <span className={styles.dayShort}>{index + 1}</span>
               </button>
             ))}
           </div>

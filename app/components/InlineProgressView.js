@@ -9,7 +9,7 @@ import viewStyles from '@/app/meal-plan/meal-plan-view.module.css';
 // Label constants
 const goalLabels = {
   weight_loss: 'Slăbit',
-  muscle_gain: 'Creștere masă musculară',
+  muscle_gain: 'Masă musculară',
   maintenance: 'Menținere',
   recomposition: 'Recompoziție corporală',
 };

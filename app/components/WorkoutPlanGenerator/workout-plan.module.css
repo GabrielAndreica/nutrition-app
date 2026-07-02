@@ -5,6 +5,43 @@
   color: var(--text-primary);
 }
 
+/* Container taburi antrenament - standalone, fara dependenta de dayTabs */
+.workoutDayTabsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+  flex: 1;
+  min-width: 0;
+}
+
+.workoutDayTabs {
+  /* nimic extra pe desktop */
+}
+
+.workoutDayTab {
+  /* nimic pe desktop */
+}
+
+@media (max-width: 768px) {
+  .workoutDayTabsContainer {
+    order: 2;
+    gap: 5px;
+    width: 100%;
+    flex-wrap: nowrap; /* nu mai da wrap niciodata */
+  }
+
+  .workoutDayTab {
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+    padding: 9px 6px !important;
+    font-size: 13px !important;
+    min-height: 44px !important;
+    justify-content: center !important;
+  }
+}
+
 .restDayWrapper {
   display: block;
 }

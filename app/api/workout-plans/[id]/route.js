@@ -67,7 +67,7 @@ export async function PATCH(request, { params }) {
   }
 
   const action = body?.action;
-  if (!['update', 'approve'].includes(action)) {
+  if (!['update', 'approve', 'patch_metadata'].includes(action)) {
     return NextResponse.json({ error: 'Acțiune invalidă.' }, { status: 400 });
   }
 
@@ -83,6 +83,37 @@ export async function PATCH(request, { params }) {
   }
 
   const { ip, userAgent } = getRequestMeta(request);
+
+  if (action === 'patch_metadata') {
+    const ALLOWED_META_KEYS = ['split', 'workoutsPerWeek', 'fitnessGoal', 'fitnessLevel', 'availableEquipment', 'clientName'];
+    const meta = {};
+    for (const key of ALLOWED_META_KEYS) {
+      if (body.metadata?.[key] !== undefined) meta[key] = body.metadata[key];
+    }
+    if (Object.keys(meta).length === 0) {
+      return NextResponse.json({ error: 'Niciun câmp de actualizat.' }, { status: 400 });
+    }
+    const { data: updated, error: updateError } = await supabase
+      .from('workout_plans')
+      .update({ plan_data: { ...existing.plan_data, ...meta } })
+      .eq('id', id)
+      .eq('trainer_id', auth.userId)
+      .select('id, client_id, plan_data, approval_status')
+      .single();
+    if (updateError) {
+      return NextResponse.json({ error: 'Nu am putut actualiza metadatele planului.' }, { status: 500 });
+    }
+    logActivity({
+      action: 'workout_plan.patch_metadata',
+      status: 'success',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: { planId: id, clientId: existing.client_id, changedKeys: Object.keys(meta) },
+    });
+    return NextResponse.json({ workoutPlan: updated });
+  }
 
   if (action === 'update') {
     if (!body.plan_data || typeof body.plan_data !== 'object' || !Array.isArray(body.plan_data.days)) {
