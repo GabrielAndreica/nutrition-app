@@ -830,6 +830,41 @@
   flex-shrink: 0;
 }
 
+@keyframes tabPingPulse {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.9;
+  }
+  70% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.planTabPing {
+  position: relative;
+  width: 8px;
+  height: 8px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: #b7ff00;
+  box-shadow: 0 0 0 1px rgba(183, 255, 0, 0.45);
+  flex-shrink: 0;
+}
+
+.planTabPing::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(183, 255, 0, 0.75);
+  animation: tabPingPulse 1.5s ease-out infinite;
+}
+
 /* ─── Hero ─────────────────────────────────────────────── */
 .hero {
   margin-bottom: 24px;
@@ -2063,6 +2098,10 @@
   letter-spacing: -0.4px;
   width: 100%;
   margin-top: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   transition: opacity 0.15s ease, transform 0.12s ease;
 }
 
@@ -2236,22 +2275,55 @@
 .wsExDoneBtn:hover:not(:disabled) { opacity: 0.85; transform: translateY(-1px); }
 .wsExDoneBtn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-/* Abandon text link — secondary action below the exercise card */
 .wsAbandonLink {
   background: none;
   border: none;
-  font-size: 12px;
-  font-weight: 500;
-  color: #aeaeb2;
+  font-size: 13px;
+  font-weight: 600;
+  color: #dc2626;
   cursor: pointer;
-  padding: 10px 0 4px;
+  padding: 0;
   font-family: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  letter-spacing: -0.1px;
   align-self: center;
-  transition: color 0.15s ease;
+  margin-top: 18px;
+  transition: opacity 0.15s ease, color 0.15s ease;
 }
-.wsAbandonLink:hover { color: #86868b; }
+.wsAbandonLink:hover {
+  color: #b91c1c;
+  opacity: 0.82;
+}
+
+.abandonConfirmIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.1);
+  color: #dc2626;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+
+.abandonConfirmBtn {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  border-radius: 12px;
+  padding: 13px 20px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: -0.2px;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+
+.abandonConfirmBtn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
 
 /* Done screen */
 .wsDoneCard {

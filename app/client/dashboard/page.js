@@ -170,16 +170,7 @@ function getWorkoutFocusCopy(focus, exercises = []) {
   };
 }
 
-function WorkoutButtonIcon({ paused = false }) {
-  if (paused) {
-    return (
-      <svg className={styles.buttonIcon} width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
-        <rect x="6" y="4" width="4" height="16" rx="1.5" fill="currentColor" />
-        <rect x="14" y="4" width="4" height="16" rx="1.5" fill="currentColor" />
-      </svg>
-    );
-  }
-
+function WorkoutButtonIcon() {
   return (
     <svg className={styles.buttonIcon} width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" />
@@ -239,6 +230,7 @@ function ClientDashboardContent() {
   const [workoutStartScreen, setWorkoutStartScreen] = useState(null);
   // true when a paused session exists in DB (shows "Continuă" button)
   const [hasActivePausedSession, setHasActivePausedSession] = useState(false);
+  const [confirmAbandonWorkout, setConfirmAbandonWorkout] = useState(false);
   const [xpToast, setXpToast] = useState(null);       // { amount } | null
   const [xpFinishPopup, setXpFinishPopup] = useState(null); // { totalXp, elapsedSeconds, exerciseCount } | null
   // Wall-clock timer: Date.now() at last start/resume
@@ -885,6 +877,7 @@ function ClientDashboardContent() {
       .join(' · ')
     : '';
   const waterDoneToday = hydrationTargetLoaded && waterMl >= hydrationTargetMl;
+  const hasWorkoutInProgress = hasActivePausedSession || workoutSession?.phase === 'active';
   const dayDoneToday = workoutDoneToday && mealsDoneToday && waterDoneToday;
   const todayMissionDoneCount = [workoutDoneToday, mealsDoneToday, waterDoneToday, dayDoneToday].filter(Boolean).length;
   const weeklyDoneCount =
@@ -1012,7 +1005,7 @@ function ClientDashboardContent() {
                   <button className={styles.jCardGenBtn} onClick={openWorkoutPlan}>
                     {hasActivePausedSession ? (
                       <>
-                        <WorkoutButtonIcon paused />
+                        <WorkoutButtonIcon />
                         Continuă
                       </>
                     ) : workoutPlan ? 'Deschide' : (
@@ -1206,7 +1199,10 @@ function ClientDashboardContent() {
   };
 
   const handleAbandonWorkout = () => {
-    if (!window.confirm('Abandonezi antrenamentul? Progresul de azi se va pierde.')) return;
+    setConfirmAbandonWorkout(true);
+  };
+
+  const confirmAbandonCurrentWorkout = () => {
     const token = localStorage.getItem('token');
     if (token) {
       fetch('/api/user/workout-session', {
@@ -1217,6 +1213,8 @@ function ClientDashboardContent() {
     setWorkoutSession(null);
     setWorkoutStartScreen(null);
     setHasActivePausedSession(false);
+    setConfirmAbandonWorkout(false);
+    setActiveTab('home');
     timerStartedAtRef.current = null;
     timerBaseRef.current = 0;
   };
@@ -1663,7 +1661,8 @@ function ClientDashboardContent() {
                   </div>
                 </div>
                 <button className={styles.workoutStartBtn} onClick={handleStartActualSession}>
-                  {'Începe antrenament ->'}
+                  <WorkoutButtonIcon />
+                  Începe antrenament
                 </button>
               </div>
             </div>
@@ -1913,6 +1912,7 @@ function ClientDashboardContent() {
                 onClick={() => handleTabChange('workout')}
               >
                 Plan de antrenament
+                {hasWorkoutInProgress && <span className={styles.planTabPing} aria-hidden="true" />}
               </button>
             </div>
           </div>
@@ -1987,8 +1987,8 @@ function ClientDashboardContent() {
                   onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
                   onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = ''; }}
                 >
-                  <WorkoutButtonIcon paused={hasActivePausedSession} />
-                  {hasActivePausedSession ? 'Continuă antrenamentul →' : 'Începe Antrenament →'}
+                  <WorkoutButtonIcon />
+                  {hasActivePausedSession ? 'Continuă antrenamentul' : 'Începe Antrenament'}
                 </button>
               </div>
               {workoutPlan ? (
@@ -2051,6 +2051,30 @@ function ClientDashboardContent() {
                 }}
               >
                 Da, confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmAbandonWorkout && (
+        <div className={clientStyles.modalOverlay} onClick={() => setConfirmAbandonWorkout(false)}>
+          <div className={clientStyles.confirmModal} onClick={e => e.stopPropagation()}>
+            <div className={styles.abandonConfirmIcon}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </div>
+            <h3>Abandonezi antrenamentul?</h3>
+            <p>Progresul acestei sesiuni va fi șters și te întorci pe dashboard.</p>
+            <div className={clientStyles.confirmActions}>
+              <button className={clientStyles.cancelBtn} onClick={() => setConfirmAbandonWorkout(false)}>
+                Anulează
+              </button>
+              <button className={styles.abandonConfirmBtn} onClick={confirmAbandonCurrentWorkout}>
+                Da, abandonează
               </button>
             </div>
           </div>
