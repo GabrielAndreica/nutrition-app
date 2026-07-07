@@ -58,7 +58,7 @@ function AuthContent() {
       if (user.role === 'client') {
         router.push('/client/dashboard');
       } else if (user.role === 'user') {
-        router.push(user.onboarding_completed ? '/client/dashboard' : '/onboarding');
+        router.push(user.onboarding_completed === false ? '/onboarding' : '/client/dashboard');
       } else {
         router.push('/dashboard');
       }

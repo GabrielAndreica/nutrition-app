@@ -55,6 +55,11 @@ const WorkoutPlan = dynamic(() => import('@/app/components/WorkoutPlanGenerator/
   )
 });
 
+const fireSmallConfetti = async () => {
+  const confetti = (await import('canvas-confetti')).default;
+  confetti({ particleCount: 30, spread: 50, origin: { y: 0.6 }, colors: ['#b7ff00', '#0a0a0a', '#ffffff'], zIndex: 9999 });
+};
+
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 function getLevelInfoFromXp(xp) {
@@ -90,17 +95,111 @@ function getLevelUpPayload(previousLevelInfo, nextLevelInfo, xpAdded = 50) {
   };
 }
 
+const WORKOUT_FOCUS_COPY = {
+  push: {
+    title: 'Push',
+    description: 'Sesiune pentru piept, umeri și triceps, cu accent pe împins controlat, volum eficient și execuții curate.',
+  },
+  pull: {
+    title: 'Pull',
+    description: 'Antrenament construit pentru spate și biceps, cu mișcări de tracțiune care adaugă densitate și control.',
+  },
+  legs: {
+    title: 'Legs',
+    description: 'Zi de picioare completă, gândită pentru forță, stabilitate și volum pe lanțul inferior.',
+  },
+  upper: {
+    title: 'Upper Body',
+    description: 'Focus pe partea superioară a corpului, cu un mix echilibrat de împins, tras și lucru pentru brațe.',
+  },
+  lower: {
+    title: 'Lower Body',
+    description: 'Sesiune pentru picioare și fesieri, cu ritm atent, control postural și volum bine dozat.',
+  },
+  fullBody: {
+    title: 'Full Body',
+    description: 'Antrenament complet, compact și echilibrat, care atinge principalele grupe musculare într-o singură sesiune.',
+  },
+  chest: {
+    title: 'Piept',
+    description: 'Sesiune dedicată pieptului, cu exerciții alese pentru tensiune bună, amplitudine și progres vizibil.',
+  },
+  back: {
+    title: 'Spate',
+    description: 'Antrenament pentru spate, orientat spre tracțiuni, ramat și control scapular.',
+  },
+  shoulders: {
+    title: 'Umeri',
+    description: 'Sesiune concentrată pe umeri, cu accent pe deltoizi, stabilitate și linii curate ale execuției.',
+  },
+  arms: {
+    title: 'Brațe',
+    description: 'Antrenament pentru biceps și triceps, cu volum direct și pauze potrivite pentru pompare controlată.',
+  },
+  core: {
+    title: 'Core',
+    description: 'Sesiune pentru abdomen și stabilitate, cu mișcări care susțin postura și controlul întregului corp.',
+  },
+};
+
+function getWorkoutFocusCopy(focus, exercises = []) {
+  if (WORKOUT_FOCUS_COPY[focus]) return WORKOUT_FOCUS_COPY[focus];
+
+  const muscles = exercises
+    .map(ex => ex.muscleGroup || ex.muscle)
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index);
+
+  if (muscles.length === 1) {
+    return {
+      title: muscles[0],
+      description: `Sesiune dedicată pentru ${muscles[0].toLowerCase()}, cu exerciții alese pentru volum, control și progres constant.`,
+    };
+  }
+
+  if (muscles.length > 1) {
+    return {
+      title: muscles.slice(0, 2).join(' + '),
+      description: `Antrenament echilibrat pentru ${muscles.slice(0, 3).join(', ').toLowerCase()}, construit ca să lucrezi eficient grupele importante ale zilei.`,
+    };
+  }
+
+  return {
+    title: 'Sesiunea de azi',
+    description: 'Antrenament calibrat pentru planul tău curent, cu exerciții selectate pentru o sesiune clară și eficientă.',
+  };
+}
+
+function WorkoutButtonIcon({ paused = false }) {
+  if (paused) {
+    return (
+      <svg className={styles.buttonIcon} width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+        <rect x="6" y="4" width="4" height="16" rx="1.5" fill="currentColor" />
+        <rect x="14" y="4" width="4" height="16" rx="1.5" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className={styles.buttonIcon} width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor" />
+    </svg>
+  );
+}
+
 function ClientDashboardContent() {
   const router = useRouter();
   const { logout, user, login } = useAuth();
   const [loading, setLoading] = useState(true);
   const [mealPlan, setMealPlan] = useState(null);
+  const [confirmedNoMealPlan, setConfirmedNoMealPlan] = useState(false);
+  const [confirmedNoWorkoutPlan, setConfirmedNoWorkoutPlan] = useState(false);
   const [clientData, setClientData] = useState(null);
   const [nutritionalNeeds, setNutritionalNeeds] = useState(null);
   const [workoutPlan, setWorkoutPlan] = useState(null);
   const [workoutClientData, setWorkoutClientData] = useState(null);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('plan');
+  const [activeTab, setActiveTab] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [mealsCooldownUntil, setMealsCooldownUntil] = useState(null);
   const [workoutCooldownUntil, setWorkoutCooldownUntil] = useState(null);
@@ -109,6 +208,14 @@ function ClientDashboardContent() {
   const [currentPlanDay, setCurrentPlanDay] = useState(0);
   const [mealDayStatus, setMealDayStatus] = useState({});
   const [workoutDayStatus, setWorkoutDayStatus] = useState({});
+  const [waterMl, setWaterMl] = useState(() => {
+    try {
+      const key = `trevano_water_ml_${new Date().toISOString().slice(0, 10)}`;
+      return Math.max(0, Number(localStorage.getItem(key)) || 0);
+    } catch {
+      return 0;
+    }
+  });
   const [streakCount, setStreakCount] = useState(0);
   const [streakState, setStreakState] = useState('normal');
   const [weeklyPlanRegenerating, setWeeklyPlanRegenerating] = useState(false);
@@ -124,15 +231,26 @@ function ClientDashboardContent() {
   const fetchedRef = useRef(false);
   const startWeeklyPlanRegenerationRef = useRef(null);
 
-  // Skip skeleton on refresh when we already know user has no plan
-  const [knownNoPlan] = useState(() => {
-    try { return localStorage.getItem('noPlanUser') === '1'; } catch { return false; }
-  });
+  // ── Workout Session SPA ──────────────────────────────────────────────────
+  // null | {phase:'loading'} | {phase:'active', focus, exercises, currentIndex, xpEarned, elapsedSeconds, startedAt}
+  // | {phase:'done', focus, totalXp, elapsedSeconds, exerciseCount}
+  const [workoutSession, setWorkoutSession] = useState(null);
+  // null | { exercises, focus } — shown before timer starts (pre-flight)
+  const [workoutStartScreen, setWorkoutStartScreen] = useState(null);
+  // true when a paused session exists in DB (shows "Continuă" button)
+  const [hasActivePausedSession, setHasActivePausedSession] = useState(false);
+  const [xpToast, setXpToast] = useState(null);       // { amount } | null
+  const [xpFinishPopup, setXpFinishPopup] = useState(null); // { totalXp, elapsedSeconds, exerciseCount } | null
+  // Wall-clock timer: Date.now() at last start/resume
+  const timerStartedAtRef = useRef(null);
+  // Accumulated seconds before current segment
+  const timerBaseRef = useRef(0);
 
   // XP / Nivel
   const [userLevel, setUserLevel] = useState(null); // { level, totalXp, xpInCurrentLevel, xpForNextLevel, progressPct }
   // Confirm finish modal: null | { type: 'meals' | 'workout', dayIndex: number, isRecovery?: boolean }
   const [confirmFinish, setConfirmFinish] = useState(null);
+
   const [finishReward, setFinishReward] = useState(null);
   const [pendingLevelUp, setPendingLevelUp] = useState(null);
   const [levelUpReward, setLevelUpReward] = useState(null);
@@ -383,6 +501,7 @@ function ClientDashboardContent() {
           dietType: c.diet_type,
           allergies: c.allergies,
           mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
+          hydrationTargetMl: c.hydration_target_ml,
           foodPreferences: c.food_preferences || '',
         });
       }
@@ -407,6 +526,7 @@ function ClientDashboardContent() {
         if (!plansData.plans || plansData.plans.length === 0) {
           setWorkoutPlan(null);
           setWorkoutClientData(null);
+          setConfirmedNoWorkoutPlan(true);
           return;
         }
         latestId = plansData.plans[0].id;
@@ -418,6 +538,7 @@ function ClientDashboardContent() {
       if (!planRes.ok) return;
       const planData = await planRes.json();
       if (planData.workoutPlan) {
+        setConfirmedNoWorkoutPlan(false);
         setWorkoutPlan(planData.workoutPlan.plan_data || planData.workoutPlan);
         setWorkoutClientData(planData.client || null);
       }
@@ -446,6 +567,12 @@ function ClientDashboardContent() {
       .then(data => { if (data?.level) setUserLevel(data); })
       .catch(() => {});
 
+    // Check for active/paused workout session in DB — only show Continuă button
+    fetch('/api/user/workout-session', { headers: { 'Authorization': `Bearer ${tok2}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data?.activeSession) setHasActivePausedSession(true); })
+      .catch(() => {});
+
     // Verifică reward pending de la onboarding
     try {
       const raw = localStorage.getItem('pendingOnboardingReward');
@@ -472,7 +599,29 @@ function ClientDashboardContent() {
         if (!data.plans || data.plans.length === 0) {
           setError(null);
           setMealPlan(null);
-          try { localStorage.setItem('noPlanUser', '1'); } catch {}
+          setConfirmedNoMealPlan(true);
+          fetch('/api/user/plans', {
+            headers: { 'Authorization': `Bearer ${token}` },
+          })
+            .then(r => r.ok ? r.json() : null)
+            .then(profileData => {
+              if (!profileData?.client) return;
+              const c = profileData.client;
+              setClientData({
+                clientId: c.id,
+                name: c.name || 'Tu',
+                age: c.age ? String(c.age) : undefined,
+                weight: c.weight ? String(c.weight) : undefined,
+                height: c.height ? String(c.height) : undefined,
+                gender: c.gender,
+                goal: c.goal,
+                activityLevel: c.activity_level,
+                dietType: c.diet_type,
+                mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
+                hydrationTargetMl: c.hydration_target_ml,
+              });
+            })
+            .catch(() => {});
           setLoading(false);
           return;
         }
@@ -493,7 +642,7 @@ function ClientDashboardContent() {
         }
 
         const { plan_data, daily_targets, client_id } = data.mealPlan;
-        try { localStorage.removeItem('noPlanUser'); } catch {}
+        setConfirmedNoMealPlan(false);
         setMealPlan(plan_data);
         setNutritionalNeeds(daily_targets);
         
@@ -510,6 +659,7 @@ function ClientDashboardContent() {
           dietType: c.diet_type,
           allergies: c.allergies,
           mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
+          hydrationTargetMl: c.hydration_target_ml,
           foodPreferences: c.food_preferences || '',
         });
 
@@ -592,6 +742,19 @@ function ClientDashboardContent() {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [notificationsOpen]);
+
+  // ── Wall-clock workout timer ─────────────────────────────────────────────
+  useEffect(() => {
+    if (workoutSession?.phase !== 'active') return;
+    const tick = () => {
+      if (!timerStartedAtRef.current) return;
+      const live = timerBaseRef.current + Math.floor((Date.now() - timerStartedAtRef.current) / 1000);
+      setWorkoutSession(prev => prev?.phase === 'active' ? { ...prev, elapsedSeconds: live } : prev);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [workoutSession?.phase]);
 
   const handleProgressSubmit = async (progressData) => {
     const token = localStorage.getItem('token');
@@ -702,6 +865,28 @@ function ClientDashboardContent() {
   };
 
   const firstName = user?.name?.split(' ')[0] || user?.name || '';
+  const todayKey = String(currentPlanDay);
+  const mealsDoneToday = mealDayStatus?.[todayKey] === true;
+  const workoutDoneToday = workoutDayStatus?.[todayKey] === true;
+  const hydrationTargetMl = Number(clientData?.hydrationTargetMl) || null;
+  const hydrationTargetLoaded = Number.isFinite(hydrationTargetMl) && hydrationTargetMl > 0;
+  const hydrationTargetLiters = hydrationTargetLoaded ? (hydrationTargetMl / 1000).toLocaleString('ro-RO', {
+    maximumFractionDigits: 2,
+  }) : null;
+  const workoutStartCopy = workoutStartScreen
+    ? getWorkoutFocusCopy(workoutStartScreen.focus, workoutStartScreen.exercises)
+    : null;
+  const workoutStartMuscles = workoutStartScreen
+    ? workoutStartScreen.exercises
+      .map(ex => ex.muscleGroup || ex.muscle)
+      .filter(Boolean)
+      .filter((value, index, array) => array.indexOf(value) === index)
+      .slice(0, 4)
+      .join(' · ')
+    : '';
+  const waterDoneToday = hydrationTargetLoaded && waterMl >= hydrationTargetMl;
+  const dayDoneToday = workoutDoneToday && mealsDoneToday && waterDoneToday;
+  const todayMissionDoneCount = [workoutDoneToday, mealsDoneToday, waterDoneToday, dayDoneToday].filter(Boolean).length;
   const weeklyDoneCount =
     Object.values(mealDayStatus || {}).filter(Boolean).length +
     Object.values(workoutDayStatus || {}).filter(Boolean).length;
@@ -735,6 +920,314 @@ function ClientDashboardContent() {
 
   const handleLogout = () => { logout(); router.push('/'); };
   const handleTabChange = (tab) => { setActiveTab(tab); setSidebarOpen(false); };
+  const handleAddWater = () => {
+    if (!hydrationTargetLoaded) return;
+    setWaterMl(prev => {
+      const next = Math.min(hydrationTargetMl, prev + 250);
+      try {
+        const key = `trevano_water_ml_${new Date().toISOString().slice(0, 10)}`;
+        localStorage.setItem(key, String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const openMealPlan = () => {
+    if (!mealPlan) {
+      router.push('/generator-plan');
+      return;
+    }
+    handleTabChange('plan');
+  };
+
+  const openWorkoutPlan = () => {
+    if (hasActivePausedSession) {
+      handleStartWorkoutSession();
+      return;
+    }
+    if (workoutPlan) {
+      handleTabChange('workout');
+      return;
+    }
+    handleStartWorkoutSession();
+  };
+
+  const renderMissionBullet = (done) => (
+    <span className={`${styles.journeyBullet} ${done ? styles.journeyBulletDone : ''}`}>
+      {done ? (
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+      ) : null}
+    </span>
+  );
+
+  const renderJourneyDashboard = () => (
+    <div className={`${styles.dummyPlanScreen} ${styles.dummyPlanScreenDash}`}>
+      <div className={styles.journeyLayout}>
+        <section className={styles.journeyPanel}>
+          <div className={styles.journeyPanelHead}>
+            <span className={styles.journeyPanelLabel}>Misiunile de azi</span>
+            <span className={styles.journeyPanelCount}>{todayMissionDoneCount}<small>/4</small></span>
+          </div>
+          <div className={styles.journeyMissionRows}>
+            <div className={styles.journeyMissionRow}>
+              {renderMissionBullet(workoutDoneToday)}
+              <span className={`${styles.journeyMissionText} ${workoutDoneToday ? styles.journeyMissionTextDone : ''}`}>
+                Finalizează antrenamentul
+              </span>
+            </div>
+            <div className={styles.journeyMissionRow}>
+              {renderMissionBullet(mealsDoneToday)}
+              <span className={`${styles.journeyMissionText} ${mealsDoneToday ? styles.journeyMissionTextDone : ''}`}>
+                Respectă mesele zilei
+              </span>
+            </div>
+            <div className={styles.journeyMissionRow}>
+              {renderMissionBullet(waterDoneToday)}
+              <span className={`${styles.journeyMissionText} ${waterDoneToday ? styles.journeyMissionTextDone : ''}`}>
+                {hydrationTargetLoaded ? `Bea ${hydrationTargetLiters} L apă` : 'Încarcă targetul de apă'}
+              </span>
+            </div>
+            <div className={styles.journeyMissionRow}>
+              {renderMissionBullet(dayDoneToday)}
+              <span className={`${styles.journeyMissionText} ${dayDoneToday ? styles.journeyMissionTextDone : ''}`}>
+                Finalizează ziua
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div className={styles.journeyCards}>
+            <article className={`${styles.jCard} ${workoutDoneToday ? styles.jCardDone : ''}`}>
+              <h2 className={styles.jCardTitle}>Antrenament</h2>
+              <p className={styles.jCardSub}>
+                {workoutDoneToday ? 'Antrenamentul de azi este bifat.' : hasActivePausedSession ? 'Ai un antrenament început.' : 'Pornește sesiunea de azi.'}
+              </p>
+              <div className={styles.jCardFoot}>
+                {workoutDoneToday ? (
+                  <span className={styles.jCardStatusDone}>✓ Finalizat</span>
+                ) : (
+                  <button className={styles.jCardGenBtn} onClick={openWorkoutPlan}>
+                    {hasActivePausedSession ? (
+                      <>
+                        <WorkoutButtonIcon paused />
+                        Continuă
+                      </>
+                    ) : workoutPlan ? 'Deschide' : (
+                      <>
+                        <WorkoutButtonIcon />
+                        Începe
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            </article>
+
+            <article className={`${styles.jCard} ${mealsDoneToday ? styles.jCardDone : ''}`}>
+              <h2 className={styles.jCardTitle}>Mese</h2>
+              <p className={styles.jCardSub}>
+                {mealsDoneToday ? 'Ai închis ziua alimentar.' : mealPlan ? 'Vezi mesele și bifează ziua.' : 'Generează primul plan alimentar.'}
+              </p>
+              <div className={styles.jCardFoot}>
+                {mealsDoneToday ? (
+                  <span className={styles.jCardStatusDone}>✓ Finalizat</span>
+                ) : (
+                  <button className={styles.jCardGenBtn} onClick={openMealPlan}>
+                    {mealPlan ? 'Deschide' : 'Generează'}
+                  </button>
+                )}
+              </div>
+            </article>
+
+            <article className={`${styles.jCard} ${waterDoneToday ? styles.jCardDone : ''}`}>
+              <h2 className={styles.jCardTitle}>Apă</h2>
+              <p className={styles.jCardSub}>
+                {hydrationTargetLoaded ? `${waterMl} / ${hydrationTargetMl} ml azi` : 'Se încarcă targetul din profil...'}
+              </p>
+              <div className={styles.jCardFoot}>
+                <div className={styles.jCardWaterRow}>
+                  <div className={styles.jCardWaterTrack}>
+                    <div
+                      className={`${styles.jCardWaterFill} ${waterDoneToday ? styles.jCardWaterFillDone : ''}`}
+                      style={{ width: `${hydrationTargetLoaded ? Math.min(100, Math.round((waterMl / hydrationTargetMl) * 100)) : 0}%` }}
+                    />
+                  </div>
+                  <button className={styles.jCardWaterBtn} onClick={handleAddWater} disabled={!hydrationTargetLoaded || waterDoneToday}>
+                    +250ml
+                  </button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+
+  // ── Workout Session handlers ─────────────────────────────────────────────
+  const handleStartWorkoutSession = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    setWorkoutSession({ phase: 'loading' });
+    try {
+      // Check for existing paused session in DB
+      const sessionRes = await fetch('/api/user/workout-session', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (sessionRes.ok) {
+        const sessionData = await sessionRes.json().catch(() => null);
+        if (sessionData?.activeSession) {
+          const s = sessionData.activeSession;
+          timerBaseRef.current = s.elapsedSeconds || 0;
+          timerStartedAtRef.current = Date.now();
+          setHasActivePausedSession(false);
+          setWorkoutSession({
+            phase: 'active',
+            focus: s.focus,
+            exercises: s.exercises,
+            currentIndex: s.currentIndex || 0,
+            xpEarned: s.xpEarned || 0,
+            elapsedSeconds: s.elapsedSeconds || 0,
+            startedAt: s.startedAt,
+          });
+          return;
+        }
+      }
+      // No existing session — generate exercises for today's focus
+      const focusRes = await fetch('/api/user/workout-session?focus=auto', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!focusRes.ok) { setWorkoutSession(null); return; }
+      const focusData = await focusRes.json().catch(() => null);
+      if (!focusData?.exercises?.length) { setWorkoutSession(null); return; }
+      // Show pre-flight start screen
+      setWorkoutSession(null);
+      setWorkoutStartScreen({ exercises: focusData.exercises, focus: focusData.focus });
+    } catch {
+      setWorkoutSession(null);
+    }
+  };
+
+  const handleStartActualSession = () => {
+    if (!workoutStartScreen) return;
+    const { exercises, focus } = workoutStartScreen;
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('/api/user/workout-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ exercises, focus }),
+      }).catch(() => {});
+    }
+    timerBaseRef.current = 0;
+    timerStartedAtRef.current = Date.now();
+    setWorkoutStartScreen(null);
+    setHasActivePausedSession(false);
+    setWorkoutSession({
+      phase: 'active',
+      focus,
+      exercises,
+      currentIndex: 0,
+      xpEarned: 0,
+      elapsedSeconds: 0,
+      startedAt: new Date().toISOString(),
+    });
+  };
+
+  const handleExerciseDone = () => {
+    const token = localStorage.getItem('token');
+    const liveElapsed = timerBaseRef.current +
+      Math.floor((Date.now() - (timerStartedAtRef.current || Date.now())) / 1000);
+
+    setWorkoutSession(prev => {
+      if (!prev || prev.phase !== 'active') return prev;
+      const nextIndex = prev.currentIndex + 1;
+      const newXp = (prev.xpEarned || 0) + 15;
+      if (token) {
+        fetch('/api/user/workout-session', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ currentIndex: nextIndex, xpEarned: newXp, elapsedSeconds: liveElapsed }),
+        }).catch(() => {});
+      }
+      if (nextIndex >= prev.exercises.length) {
+        return { phase: 'done', focus: prev.focus, totalXp: newXp, elapsedSeconds: liveElapsed, exerciseCount: prev.exercises.length };
+      }
+      return { ...prev, currentIndex: nextIndex, xpEarned: newXp, elapsedSeconds: liveElapsed };
+    });
+
+    setXpToast({ amount: 15 });
+    setTimeout(() => setXpToast(null), 1800);
+    fireSmallConfetti();
+
+    if (token) {
+      fetch('/api/user/xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ amount: 15, type: 'exercise' }),
+      }).then(r => r.json()).then(data => { if (data?.level) setUserLevel(data); }).catch(() => {});
+    }
+  };
+
+  const handleFinalizeWorkout = () => {
+    if (workoutSession?.phase !== 'done') return;
+    const token = localStorage.getItem('token');
+    const { totalXp, elapsedSeconds, exerciseCount } = workoutSession;
+
+    if (token) {
+      fetch('/api/user/workout-session', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).catch(() => {});
+    }
+
+    setWorkoutSession(null);
+    setHasActivePausedSession(false);
+    setXpFinishPopup({ totalXp, elapsedSeconds, exerciseCount });
+    fireConfetti();
+
+    if (token) {
+      const previousLevelInfo = userLevel;
+      fetch('/api/user/xp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ amount: 50, type: 'workout_complete' }),
+      }).then(r => r.json()).then(data => {
+        if (data?.level) {
+          setUserLevel(data);
+          const levelUp = getLevelUpPayload(previousLevelInfo, data, 50);
+          if (levelUp) setPendingLevelUp(levelUp);
+        }
+      }).catch(() => {});
+    }
+  };
+
+  const handleAbandonWorkout = () => {
+    if (!window.confirm('Abandonezi antrenamentul? Progresul de azi se va pierde.')) return;
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetch('/api/user/workout-session', {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).catch(() => {});
+    }
+    setWorkoutSession(null);
+    setWorkoutStartScreen(null);
+    setHasActivePausedSession(false);
+    timerStartedAtRef.current = null;
+    timerBaseRef.current = 0;
+  };
+
+  // Format seconds as MM:SS
+  const fmtTime = (secs) => {
+    const s = Math.max(0, Math.floor(secs || 0));
+    const m = Math.floor(s / 60);
+    const ss = s % 60;
+    return `${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  };
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', email: '', currentPassword: '', newPassword: '' });
@@ -817,40 +1310,6 @@ function ClientDashboardContent() {
   };
 
   if (loading) {
-    if (knownNoPlan) {
-      return (
-        <div className={styles.container}>
-          <div className={styles.mobileTopbar}>
-            <div className={styles.mobileLogo}>
-              <span style={{fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif',fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
-            </div>
-          </div>
-          <div className={styles.pageLayout}>
-            <aside className={styles.sidebar}>
-              <div className={styles.sidebarLogo}>
-                <span style={{fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif',fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
-              </div>
-            </aside>
-            <main className={styles.main}>
-              <div className={styles.dummyPlanScreen}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, maxWidth: 400, width: '90%', textAlign: 'center' }}>
-                  <p style={{ fontSize: 24, fontWeight: 800, color: '#0a0a0a', margin: 0, letterSpacing: '-0.6px' }}>Începe transformarea ta</p>
-                  <p style={{ fontSize: 15, color: '#555', margin: 0, lineHeight: 1.65 }}>Urmează un plan creat pentru tine și fă primul pas chiar azi.</p>
-                  <button
-                    onClick={() => router.push('/generator-plan')}
-                    style={{ background: '#0a0a0a', color: '#b7ff00', border: 'none', borderRadius: 14, padding: '16px 40px', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', letterSpacing: '-0.2px', transition: 'transform 0.15s, box-shadow 0.15s', marginTop: 8 }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.22)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.18)'; }}
-                  >
-                    Începe acum →
-                  </button>
-                </div>
-              </div>
-            </main>
-          </div>
-        </div>
-      );
-    }
     return (
       <div className={styles.container}>
         <div className={styles.mobileTopbar}>
@@ -960,6 +1419,7 @@ function ClientDashboardContent() {
   }
 
   return (
+    <>
     <div className={styles.container}>
       <div className={styles.mobileTopbar}>
         <button className={styles.hamburger} onClick={() => setSidebarOpen(v => !v)} aria-label="Meniu">
@@ -1158,7 +1618,165 @@ function ClientDashboardContent() {
 
         {/* Main Content */}
         <main className={`${styles.main} ${(!mealPlan && !loading && !error) ? styles.mainNoScroll : ''}`}>
-          {profileOpen ? (
+
+          {/* ── Workout Loading ───────────────────────────────────── */}
+          {workoutSession?.phase === 'loading' && (
+            <div className={styles.wsWrap}>
+              <div className={styles.wsLoading}>
+                <div className={styles.loadingSpinner} />
+                <p>Se pregătește antrenamentul...</p>
+              </div>
+            </div>
+          )}
+
+          {/* ── Workout Start Screen (pre-flight) ─────────────────── */}
+          {workoutStartScreen && !workoutSession && (
+            <div className={styles.workoutStartWrap}>
+              <button className={styles.workoutStartBack} onClick={() => setWorkoutStartScreen(null)}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="15 18 9 12 15 6"/>
+                </svg>
+                Înapoi
+              </button>
+              <div className={styles.workoutStartCard}>
+                <h2 className={styles.workoutStartTitle}>{workoutStartCopy?.title}</h2>
+                {workoutStartMuscles && (
+                  <p className={styles.workoutStartMuscles}>{workoutStartMuscles}</p>
+                )}
+                <p className={styles.workoutStartDesc}>
+                  {workoutStartCopy?.description}
+                </p>
+                <div className={styles.workoutStartMeta}>
+                  <div className={styles.workoutStartMetaItem}>
+                    <span className={styles.workoutStartMetaVal}>{workoutStartScreen.exercises.length}</span>
+                    <span className={styles.workoutStartMetaLbl}>Exerciții</span>
+                  </div>
+                  <div className={styles.workoutStartMetaDivider} />
+                  <div className={styles.workoutStartMetaItem}>
+                    <span className={styles.workoutStartMetaVal}>+{workoutStartScreen.exercises.length * 15}</span>
+                    <span className={styles.workoutStartMetaLbl}>XP posibil</span>
+                  </div>
+                  <div className={styles.workoutStartMetaDivider} />
+                  <div className={styles.workoutStartMetaItem}>
+                    <span className={styles.workoutStartMetaVal}>~{Math.round(workoutStartScreen.exercises.length * 4)}</span>
+                    <span className={styles.workoutStartMetaLbl}>Min</span>
+                  </div>
+                </div>
+                <button className={styles.workoutStartBtn} onClick={handleStartActualSession}>
+                  {'Începe antrenament ->'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Active Workout Session ─────────────────────────────── */}
+          {workoutSession?.phase === 'active' && (() => {
+            const ex = workoutSession.exercises[workoutSession.currentIndex];
+            const progressPct = Math.round((workoutSession.currentIndex / workoutSession.exercises.length) * 100);
+            return (
+              <div className={styles.wsWrap}>
+                <div className={styles.wsHeader}>
+                  <button className={styles.wsBackBtn} onClick={() => {
+                    // Save elapsed to DB before hiding UI
+                    const liveElapsed = timerBaseRef.current +
+                      Math.floor((Date.now() - (timerStartedAtRef.current || Date.now())) / 1000);
+                    const tokPause = localStorage.getItem('token');
+                    if (tokPause) {
+                      fetch('/api/user/workout-session', {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tokPause}` },
+                        body: JSON.stringify({
+                          currentIndex: workoutSession.currentIndex,
+                          xpEarned: workoutSession.xpEarned ?? 0,
+                          elapsedSeconds: liveElapsed,
+                        }),
+                      }).catch(() => {});
+                    }
+                    timerStartedAtRef.current = null;
+                    timerBaseRef.current = liveElapsed;
+                    setHasActivePausedSession(true);
+                    setWorkoutSession(null);
+                  }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6"/>
+                    </svg>
+                    Înapoi
+                  </button>
+                  <span className={styles.wsTimer}>{fmtTime(workoutSession.elapsedSeconds)}</span>
+                  <span className={styles.wsXpBadge}>+{workoutSession.xpEarned} XP</span>
+                </div>
+                <div className={styles.wsProgressOuter}>
+                  <div className={styles.wsProgressInner} style={{ width: `${progressPct}%` }} />
+                </div>
+                <p className={styles.wsCounter}>
+                  Exercițiu <strong>{workoutSession.currentIndex + 1}</strong> din <strong>{workoutSession.exercises.length}</strong>
+                </p>
+                <div className={styles.wsCard}>
+                  <span className={styles.wsMuscle}>{ex?.muscleGroup || ex?.muscle || ''}</span>
+                  <h2 className={styles.wsExName}>{ex?.name || ''}</h2>
+                  <div className={styles.wsStats}>
+                    <div className={styles.wsStat}>
+                      <span className={styles.wsStatVal}>{ex?.sets || '—'}</span>
+                      <span className={styles.wsStatLbl}>Seturi</span>
+                    </div>
+                    <div className={styles.wsStatDiv} />
+                    <div className={styles.wsStat}>
+                      <span className={styles.wsStatVal}>{ex?.reps || '—'}</span>
+                      <span className={styles.wsStatLbl}>Repetări</span>
+                    </div>
+                    <div className={styles.wsStatDiv} />
+                    <div className={styles.wsStat}>
+                      <span className={styles.wsStatVal}>{ex?.restSeconds ? `${ex.restSeconds}s` : '—'}</span>
+                      <span className={styles.wsStatLbl}>Pauză</span>
+                    </div>
+                  </div>
+                  <div style={{ position: 'relative' }}>
+                    {xpToast && <span className={styles.wsXpToast}>+{xpToast.amount} XP 🏆</span>}
+                    <button className={styles.wsExDoneBtn} onClick={handleExerciseDone}>
+                      Am terminat exercițiul ✓
+                    </button>
+                  </div>
+                </div>
+                <button className={styles.wsAbandonLink} onClick={handleAbandonWorkout}>
+                  Abandonează antrenamentul
+                </button>
+              </div>
+            );
+          })()}
+
+          {/* ── Done Screen ───────────────────────────────────────── */}
+          {workoutSession?.phase === 'done' && (
+            <div className={styles.wsWrap}>
+              <div className={styles.wsDoneCard}>
+                <div className={styles.wsDoneEmoji}>🔥</div>
+                <h2 className={styles.wsDoneTitle}>Antrenament complet!</h2>
+                <p className={styles.wsDoneSub}>Ai terminat toate exercițiile. Felicitări!</p>
+                <div className={styles.wsDoneMeta}>
+                  <div className={styles.wsDoneMetaItem}>
+                    <span className={styles.wsDoneMetaVal}>{workoutSession.exerciseCount}</span>
+                    <span className={styles.wsDoneMetaLbl}>Exerciții</span>
+                  </div>
+                  <div className={styles.wsDoneMetaDivider} />
+                  <div className={styles.wsDoneMetaItem}>
+                    <span className={styles.wsDoneMetaVal}>{fmtTime(workoutSession.elapsedSeconds)}</span>
+                    <span className={styles.wsDoneMetaLbl}>Timp</span>
+                  </div>
+                  <div className={styles.wsDoneMetaDivider} />
+                  <div className={styles.wsDoneMetaItem}>
+                    <span className={styles.wsDoneMetaVal}>+{workoutSession.totalXp}</span>
+                    <span className={styles.wsDoneMetaLbl}>XP câștigat</span>
+                  </div>
+                </div>
+                <button className={styles.wsFinishBtn} onClick={handleFinalizeWorkout}>
+                  Finalizare antrenament →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Regular Content (hidden when workout session active) ── */}
+          {!workoutSession && !workoutStartScreen && (
+          profileOpen ? (
             <div className={clientStyles.addPage}>
               <div className={clientStyles.addPageShell}>
                 <div className={clientStyles.addPageNav}>
@@ -1267,10 +1885,12 @@ function ClientDashboardContent() {
                 </form>
               </div>
             </div>
+          ) : activeTab === 'home' ? (
+            renderJourneyDashboard()
           ) : (
           <>
           {/* Tab navigation */}
-          {!progressFormOpen && !(!loading && !mealPlan && !error && activeTab === 'plan') && !(!loading && !workoutPlan && activeTab === 'workout') && (
+          {!progressFormOpen && !(!loading && !mealPlan && !error && confirmedNoMealPlan && activeTab === 'plan') && !(!loading && !workoutPlan && confirmedNoWorkoutPlan && activeTab === 'workout') && (
           <div className={styles.planNavBlock}>
             <div className={styles.weekCompletionInline}>
               <div className={styles.weekCompletionTop}>
@@ -1296,23 +1916,6 @@ function ClientDashboardContent() {
               </button>
             </div>
           </div>
-          )}
-
-          {!loading && !mealPlan && !error && activeTab === 'plan' && (
-            <div className={styles.dummyPlanScreen}>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, maxWidth: 400, width: '90%', textAlign: 'center' }}>
-                <p style={{ fontSize: 24, fontWeight: 800, color: '#0a0a0a', margin: 0, letterSpacing: '-0.6px' }}>Începe transformarea ta</p>
-                <p style={{ fontSize: 15, color: '#555', margin: 0, lineHeight: 1.65 }}>Urmează un plan creat pentru tine și fă primul pas chiar azi.</p>
-                <button
-                  onClick={() => router.push('/generator-plan')}
-                  style={{ background: '#0a0a0a', color: '#b7ff00', border: 'none', borderRadius: 14, padding: '16px 40px', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', letterSpacing: '-0.2px', transition: 'transform 0.15s, box-shadow 0.15s', marginTop: 8 }}
-                  onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.22)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.18)'; }}
-                >
-                  Începe acum →
-                </button>
-              </div>
-            </div>
           )}
 
           {activeTab === 'plan' && (
@@ -1357,7 +1960,38 @@ function ClientDashboardContent() {
           )}
 
           {activeTab === 'workout' && !progressFormOpen && (
-            workoutPlan ? (
+            <>
+              {/* Workout Session Start Card */}
+              <div style={{ marginBottom: 16 }}>
+                <button
+                  style={{
+                    background: hasActivePausedSession ? '#0a0a0a' : '#0a0a0a',
+                    color: '#b7ff00',
+                    border: 'none',
+                    borderRadius: 14,
+                    padding: '14px 24px',
+                    fontSize: 15,
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    letterSpacing: '-0.3px',
+                    transition: 'opacity 0.15s ease, transform 0.12s ease',
+                    width: '100%',
+                    maxWidth: 500,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                  onClick={handleStartWorkoutSession}
+                  onMouseEnter={e => { e.currentTarget.style.opacity = '0.85'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = ''; }}
+                >
+                  <WorkoutButtonIcon paused={hasActivePausedSession} />
+                  {hasActivePausedSession ? 'Continuă antrenamentul →' : 'Începe Antrenament →'}
+                </button>
+              </div>
+              {workoutPlan ? (
               <WorkoutPlan
                 plan={workoutPlan}
                 clientData={workoutClientData}
@@ -1368,24 +2002,11 @@ function ClientDashboardContent() {
                 dayStatus={workoutDayStatus}
                 onFinishWorkout={(dayIndex, isRecovery) => setConfirmFinish({ type: 'workout', dayIndex, isRecovery })}
               />
-            ) : (
-              <div className={styles.dummyPlanScreen}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, maxWidth: 400, width: '90%', textAlign: 'center' }}>
-                  <p style={{ fontSize: 24, fontWeight: 800, color: '#0a0a0a', margin: 0, letterSpacing: '-0.6px' }}>Începe transformarea ta</p>
-                  <p style={{ fontSize: 15, color: '#555', margin: 0, lineHeight: 1.65 }}>Urmează un plan creat pentru tine și fă primul pas chiar azi.</p>
-                  <button
-                    onClick={() => router.push('/generator-plan')}
-                    style={{ background: '#0a0a0a', color: '#b7ff00', border: 'none', borderRadius: 14, padding: '16px 40px', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 4px 24px rgba(0,0,0,0.18)', letterSpacing: '-0.2px', transition: 'transform 0.15s, box-shadow 0.15s', marginTop: 8 }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.22)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = ''; e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.18)'; }}
-                  >
-                    Începe acum →
-                  </button>
-                </div>
-              </div>
-            )
+            ) : null}
+          </>
           )}
           </>
+          )
           )}
         </main>
       </div>
@@ -1490,6 +2111,60 @@ function ClientDashboardContent() {
         </div>
       )}
     </div>
+
+    {/* ── XP Finish Popup (after workout finalize) ─────────────── */}
+    {xpFinishPopup && (
+      <div className={styles.xpPopupOverlay} onClick={() => {
+        setXpFinishPopup(null);
+        if (pendingLevelUp) {
+          setLevelUpReward(pendingLevelUp);
+          setPendingLevelUp(null);
+          fireConfetti();
+        }
+      }}>
+        <div className={styles.xpPopupCard} onClick={e => e.stopPropagation()}>
+          <div className={styles.xpPopupEmoji}>🔥</div>
+          <div className={styles.xpPopupBadge}>+{xpFinishPopup.totalXp + 50} XP</div>
+          <h3 className={styles.xpPopupTitle}>Antrenament finalizat!</h3>
+          <p className={styles.xpPopupSub}>
+            Ai terminat {xpFinishPopup.exerciseCount} exerciții în {fmtTime(xpFinishPopup.elapsedSeconds)}. Bravo!
+          </p>
+          <div className={styles.xpPopupMeta}>
+            <div className={styles.xpPopupMetaItem}>
+              <span className={styles.xpPopupMetaVal}>{xpFinishPopup.exerciseCount}</span>
+              <span className={styles.xpPopupMetaLbl}>Exerciții</span>
+            </div>
+            <div className={styles.xpPopupMetaDivider} />
+            <div className={styles.xpPopupMetaItem}>
+              <span className={styles.xpPopupMetaVal}>{fmtTime(xpFinishPopup.elapsedSeconds)}</span>
+              <span className={styles.xpPopupMetaLbl}>Timp</span>
+            </div>
+            <div className={styles.xpPopupMetaDivider} />
+            <div className={styles.xpPopupMetaItem}>
+              <span className={styles.xpPopupMetaVal}>+{xpFinishPopup.totalXp + 50}</span>
+              <span className={styles.xpPopupMetaLbl}>XP total</span>
+            </div>
+          </div>
+          {userLevel && (
+            <div className={styles.rewardLevelLine}>
+              Nivel {userLevel.level}
+              <span>{userLevel.xpInCurrentLevel} / {userLevel.xpForNextLevel} XP</span>
+            </div>
+          )}
+          <button className={styles.xpPopupBtn} onClick={() => {
+            setXpFinishPopup(null);
+            if (pendingLevelUp) {
+              setLevelUpReward(pendingLevelUp);
+              setPendingLevelUp(null);
+              fireConfetti();
+            }
+          }}>
+            Super, merg mai departe
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

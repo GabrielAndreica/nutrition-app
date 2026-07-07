@@ -1,0 +1,120 @@
+.page {
+  min-height: 100dvh;
+  background: #f5f5f7;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 28px 20px 60px;
+}
+
+.backBtn {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1c1c1e;
+  cursor: pointer;
+  padding: 8px 4px;
+  font-family: inherit;
+  margin-bottom: 36px;
+  letter-spacing: -0.1px;
+  transition: opacity 0.15s ease;
+}
+
+.backBtn:hover {
+  opacity: 0.6;
+}
+
+.card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 36px 32px 32px;
+  max-width: 440px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #e8e8ed;
+  box-shadow: 0 2px 24px rgba(0, 0, 0, 0.055);
+}
+
+.badge {
+  display: inline-block;
+  background: #b7ff00;
+  color: #0a0a0a;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 4px 12px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  width: fit-content;
+  margin-bottom: 4px;
+}
+
+.title {
+  font-size: 38px;
+  font-weight: 900;
+  color: #0a0a0a;
+  letter-spacing: -1.5px;
+  line-height: 1.08;
+  margin: 0;
+}
+
+.muscles {
+  font-size: 13px;
+  font-weight: 600;
+  color: #86868b;
+  letter-spacing: -0.2px;
+  margin: 2px 0 0;
+}
+
+.desc {
+  font-size: 15px;
+  font-weight: 400;
+  color: #3c3c43;
+  line-height: 1.65;
+  margin: 8px 0 20px;
+}
+
+.startBtn {
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 12px;
+  padding: 16px 24px;
+  font-size: 17px;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: -0.4px;
+  width: 100%;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+
+.startBtn:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 20px 16px 40px;
+  }
+
+  .card {
+    padding: 28px 20px 24px;
+  }
+
+  .title {
+    font-size: 30px;
+  }
+
+  .backBtn {
+    margin-bottom: 24px;
+  }
+}

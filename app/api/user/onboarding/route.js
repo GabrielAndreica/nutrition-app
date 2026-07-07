@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
+import { resolveUserOnboardingCompletion } from '@/app/lib/onboardingStatus';
+import { calculateHydrationTargetMl } from '@/app/lib/hydrationTarget';
 
 // Allowed enum values
 const ALLOWED_FITNESS_LEVELS = ['beginner', 'intermediate', 'advanced'];
@@ -96,13 +98,16 @@ export async function POST(request) {
   };
   const availableEquipment = equipmentMap[trainingLocation] || 'full gym';
 
-  // Mapare nivel fitness → training split recomandat
-  const splitMap = {
-    beginner: 'Full Body',
-    intermediate: 'Push/Pull/Legs',
-    advanced: 'Push/Pull/Legs',
+  // Mapare nivel fitness + antrenamente/săptămână → training split recomandat
+  const computeTrainingSplit = (level, workouts) => {
+    if (level === 'beginner') return 'Full Body';
+    if (workouts <= 2) return 'Full Body';
+    if (workouts === 3) return 'Push/Pull/Legs';
+    if (workouts === 4) return 'Upper/Lower';
+    if (workouts === 5) return 'Upper/Lower/Push/Pull/Legs';
+    return 'Bro Split'; // 6+
   };
-  const trainingSplit = splitMap[fitnessLevel] || 'Full Body';
+  const trainingSplit = computeTrainingSplit(fitnessLevel, workoutsNum);
 
   // Mapare antrenamente/săptămână → nivel activitate
   const activityMap = {
@@ -113,6 +118,11 @@ export async function POST(request) {
     6: 'very_active',
   };
   const activityLevel = activityMap[workoutsNum] || 'moderate';
+  const hydrationTargetMl = calculateHydrationTargetMl({
+    weight: weightNum,
+    activityLevel,
+    goal,
+  });
 
   const supabase = getSupabase();
 
@@ -143,6 +153,7 @@ export async function POST(request) {
       activity_level: activityLevel,
       diet_type: dietTypeSafe,
       meals_per_day: 5,
+      hydration_target_ml: hydrationTargetMl,
       food_preferences: '',
       onboarding_completed: true,
     })
@@ -167,14 +178,10 @@ export async function GET(request) {
   }
 
   const supabase = getSupabase();
-  const { data: userRow } = await supabase
-    .from('users')
-    .select('onboarding_completed')
-    .eq('id', auth.userId)
-    .maybeSingle();
+  const onboardingCompleted = await resolveUserOnboardingCompletion(supabase, auth.userId);
 
   return NextResponse.json({
-    onboarding_completed: !!userRow?.onboarding_completed,
+    onboarding_completed: onboardingCompleted,
     clientId: auth.userId,
   });
 }

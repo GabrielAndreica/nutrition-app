@@ -149,6 +149,35 @@ ALTER TABLE workout_plans
   ADD COLUMN IF NOT EXISTS approval_status text NOT NULL DEFAULT 'approved';
 
 -- ── users ──────────────────────────────────────────────────
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS hydration_target_ml integer;
+
+UPDATE users
+SET hydration_target_ml = LEAST(
+  5000,
+  GREATEST(
+    1500,
+    (ROUND((
+      (COALESCE(weight, 70) * 35)
+      + CASE activity_level
+          WHEN 'light' THEN 250
+          WHEN 'moderate' THEN 500
+          WHEN 'active' THEN 750
+          WHEN 'very_active' THEN 1000
+          ELSE 0
+        END
+      + CASE goal
+          WHEN 'weight_loss' THEN 250
+          WHEN 'muscle_gain' THEN 250
+          WHEN 'endurance' THEN 500
+          ELSE 0
+        END
+    ) / 250.0) * 250)::integer
+  )
+)
+WHERE hydration_target_ml IS NULL
+  AND weight IS NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_users_email
   ON users(email);
 

@@ -1,0 +1,816 @@
+import { NextResponse } from 'next/server';
+import { getSupabase, supabaseQuery } from '@/app/lib/supabase';
+import { verifyToken } from '@/app/lib/verifyToken';
+
+// Romanian labels for muscle_group DB values
+const MUSCLE_GROUP_RO = {
+  chest:        'Piept',
+  back:         'Spate',
+  shoulders:    'Umeri',
+  triceps:      'Triceps',
+  biceps:       'Biceps',
+  arms:         'Brațe',
+  rear_delts:   'Umeri posteriori',
+  lats:         'Dorsali',
+  traps:        'Trapeze',
+  legs:         'Picioare',
+  quads:        'Cvadriceps',
+  hamstrings:   'Femurali',
+  glutes:       'Fesieri',
+  calves:       'Gambe',
+  core:         'Core',
+  abs:          'Abdomen',
+  forearms:     'Antebrațe',
+  neck:         'Gât',
+};
+
+function muscleRo(group) {
+  if (!group) return '';
+  return MUSCLE_GROUP_RO[group.toLowerCase()] || group;
+}
+
+// Equipment pools per profile
+// For 'full gym': no positive filter, but resistance bands are explicitly excluded below.
+const EQUIPMENT_FILTER = {
+  'no equipment':   ['bodyweight'],
+  'dumbbells only': ['dumbbell', 'bodyweight'],
+  'full gym':       null, // all equipment allowed except bands (filtered separately)
+};
+
+// Equipment types considered "band-only" — excluded for full-gym clients
+const BAND_EQUIPMENT = ['band', 'resistance_band', 'resistance band', 'elastic_band'];
+
+// Muscle groups targeted per focus
+const FOCUS_GROUPS = {
+  push:      ['chest', 'shoulders', 'triceps', 'arms'],
+  pull:      ['back', 'biceps', 'rear_delts', 'arms'],
+  legs:      ['legs', 'quads', 'hamstrings', 'glutes', 'calves', 'core'],
+  upper:     ['chest', 'back', 'shoulders', 'arms', 'core'],
+  lower:     ['legs', 'quads', 'hamstrings', 'glutes', 'calves', 'core'],
+  fullBody:  null,
+  chest:     ['chest'],
+  back:      ['back'],
+  shoulders: ['shoulders'],
+  arms:      ['arms', 'biceps', 'triceps'],
+  core:      ['core'],
+};
+
+// Base exercise counts at 1× frequency (Bro Split baseline)
+const FOCUS_COUNTS_BASE = {
+  push: 6, pull: 6, legs: 7, upper: 7, lower: 6,
+  fullBody: 6, chest: 7, back: 7, shoulders: 6, arms: 6, core: 5,
+};
+
+/**
+ * How many times per week the given focus is trained for a split.
+ * Used to scale per-session volume: more frequent = fewer sets/exercises per session.
+ */
+function getSessionFrequency(focus, trainingSplit) {
+  switch (trainingSplit) {
+    case 'Full Body':
+      return 3; // All muscles trained every session, ~3×/week
+    case 'Push/Pull/Legs':
+      return 2; // Push 2×, Pull 2×, Legs 2× (6 sessions)
+    case 'Upper/Lower':
+      return 2; // Upper 2×, Lower 2×
+    case 'Upper/Lower/Push/Pull/Legs':
+      return 2; // Muscles overlap between Upper and Push/Pull → ~2×/week
+    case 'Bro Split':
+      return 1; // Each muscle group once per week
+    default:
+      return 2;
+  }
+}
+
+/**
+ * Number of exercises to select for a session, scaled by training frequency.
+ * High frequency → fewer exercises per session (total weekly volume stays sane).
+ */
+function getFocusCount(focus, frequency) {
+  const base = FOCUS_COUNTS_BASE[focus] || 6;
+  if (frequency >= 3) return Math.max(4, Math.round(base * 0.67)); // 3×/week → ~4 exercises
+  if (frequency === 1) return base;                                  // 1×/week → full list
+  return Math.max(5, Math.round(base * 0.83));                      // 2×/week → ~5 exercises
+}
+
+function getSessionFocuses(trainingSplit, workoutsPerWeek = 3) {
+  const workouts = Math.max(2, Math.min(6, Number(workoutsPerWeek) || 3));
+
+  if (trainingSplit === 'Upper/Lower/Push/Pull/Legs') {
+    return ['upper', 'lower', 'push', 'pull', 'legs'].slice(0, workouts);
+  }
+
+  if (trainingSplit === 'Push/Pull/Legs') {
+    const patterns = {
+      2: ['push', 'pull'],
+      3: ['push', 'pull', 'legs'],
+      4: ['push', 'pull', 'legs', 'upper'],
+      5: ['push', 'pull', 'legs', 'push', 'pull'],
+      6: ['push', 'pull', 'legs', 'push', 'pull', 'legs'],
+    };
+    return patterns[workouts] || patterns[3];
+  }
+
+  if (trainingSplit === 'Upper/Lower') {
+    const patterns = {
+      2: ['upper', 'lower'],
+      3: ['upper', 'lower', 'upper'],
+      4: ['upper', 'lower', 'upper', 'lower'],
+      5: ['upper', 'lower', 'upper', 'lower', 'upper'],
+      6: ['upper', 'lower', 'upper', 'lower', 'upper', 'lower'],
+    };
+    return patterns[workouts] || patterns[4];
+  }
+
+  if (trainingSplit === 'Bro Split') {
+    const patterns = {
+      2: ['chest', 'back'],
+      3: ['chest', 'back', 'legs'],
+      4: ['chest', 'back', 'shoulders', 'legs'],
+      5: ['chest', 'back', 'shoulders', 'arms', 'legs'],
+      6: ['chest', 'back', 'shoulders', 'arms', 'legs', 'core'],
+    };
+    return patterns[workouts] || patterns[5];
+  }
+
+  if (trainingSplit === 'Full Body') {
+    return Array.from({ length: workouts }, () => 'fullBody');
+  }
+
+  return Array.from({ length: workouts }, (_, idx) => (idx % 2 === 0 ? 'upper' : 'lower'));
+}
+
+function resolveAutoFocus(trainingSplit, currentPlanDay = 0, workoutsPerWeek = 3) {
+  const dayIndex = Math.max(0, Number(currentPlanDay) || 0);
+  const focuses = getSessionFocuses(trainingSplit, workoutsPerWeek);
+  return focuses[dayIndex % focuses.length] || focuses[0] || 'fullBody';
+}
+
+/**
+ * Prescribe sets/reps/rest for a single exercise.
+ *
+ * Sets are scaled down when weekly frequency is high to prevent excessive volume.
+ * Example: back trained 2×/week on PPL → 3 sets/exercise × 3 back exercises × 2 sessions = 18 sets/week
+ * vs 5 sets × 5 back exercises × 2 sessions = 50 sets — way too much.
+ */
+function prescribe(row, fitnessLevel, fitnessGoal, weeklyFrequency, isPaired = false) {
+  const compound = row.is_compound !== false;
+
+  // Base sets before frequency scaling
+  const baseSets =
+    fitnessLevel === 'beginner'  ? (compound ? 3 : 2) :
+    fitnessLevel === 'advanced'  ? (compound ? 5 : 4) :
+                                   (compound ? 4 : 3); // intermediate
+
+  // Scale sets by weekly training frequency
+  const freqMult =
+    weeklyFrequency >= 3 ? 0.67 :
+    weeklyFrequency === 1 ? 1.0  : 0.8;
+
+  let sets = Math.max(2, Math.round(baseSets * freqMult));
+
+  // When pairing 2 exercises per muscle group, halve sets per exercise
+  if (isPaired) sets = Math.max(2, Math.ceil(sets / 2));
+
+  let reps, restSeconds;
+
+  if (fitnessGoal === 'strength') {
+    reps        = compound ? '3-5'   : '6-8';
+    restSeconds = compound ? 180     : 120;
+  } else if (fitnessGoal === 'weight_loss' || fitnessGoal === 'endurance') {
+    reps        = compound ? '12-15' : '15-20';
+    restSeconds = compound ? 60      : 45;
+    sets        = Math.max(2, sets - 1);
+  } else {
+    // Hypertrophy / muscle_gain
+    reps        = row.default_reps || (compound ? '8-12' : '10-15');
+    restSeconds = Number(row.default_rest_seconds) || (compound ? 90 : 60);
+  }
+
+  return { sets, reps, restSeconds };
+}
+
+/**
+ * FOCUS_STRUCTURE: focus → array of muscle-group blocks.
+ * Each block:
+ *   group   – identifier
+ *   large   – if true: pick 2 exercises (1 compound pattern + 1 isolation pattern),
+ *             each prescribe()d with isPaired=true → sets halved.
+ *             if false: pick 1 exercise, full sets.
+ *   patterns – { patternKey: [[name, muscleRo, reps, restSec, isCompound], ...] }
+ * Each session one option is chosen RANDOMLY from within each pattern.
+ */
+const FOCUS_STRUCTURE = {
+  push: [
+    { group: 'chest', large: true, patterns: {
+      press_plat: [
+        ['Flotări', 'Piept', '8-15', 60, true],
+        ['Împins cu gantere pe bancă', 'Piept', '8-12', 90, true],
+        ['Împins cu bara pe bancă', 'Piept', '6-10', 120, true],
+      ],
+      press_inclinat: [
+        ['Împins inclinat cu gantere', 'Piept superior', '8-12', 90, true],
+        ['Flotări cu picioarele ridicate', 'Piept superior', '8-12', 75, true],
+      ],
+      fluturare: [
+        ['Fluturări cu gantere', 'Piept', '10-15', 60, false],
+        ['Crossover la cablu', 'Piept', '12-15', 45, false],
+        ['Pec deck', 'Piept', '12-15', 45, false],
+      ],
+    }},
+    { group: 'shoulders', large: true, patterns: {
+      press: [
+        ['Presă umeri cu gantere', 'Umeri', '8-12', 90, true],
+        ['Presă Arnold', 'Umeri', '8-12', 90, true],
+        ['Presă militară cu bara', 'Umeri', '6-10', 120, true],
+      ],
+      laterale: [
+        ['Ridicări laterale cu gantere', 'Umeri', '12-15', 60, false],
+        ['Ridicări laterale la cablu', 'Umeri', '12-15', 60, false],
+      ],
+    }},
+    { group: 'triceps', large: false, patterns: {
+      extensii: [
+        ['Extensii triceps la cablu', 'Triceps', '10-15', 60, false],
+        ['Skull crushers', 'Triceps', '10-12', 75, false],
+        ['Dips', 'Triceps', '8-12', 90, true],
+        ['Extensii triceps cu gantera', 'Triceps', '10-15', 60, false],
+      ],
+    }},
+  ],
+  pull: [
+    { group: 'back', large: true, patterns: {
+      vertical: [
+        ['Tracțiuni asistate la aparat', 'Spate', '6-10', 120, true],
+        ['Pulldown la cablu', 'Spate', '10-12', 75, true],
+        ['Pulldown cu priză îngustă', 'Spate', '10-12', 75, true],
+      ],
+      orizontal: [
+        ['Ramat cu gantera', 'Spate', '8-12', 90, true],
+        ['Ramat cu bara aplecat', 'Spate', '6-10', 120, true],
+        ['Ramat la cablu', 'Spate', '10-12', 75, true],
+      ],
+      izolatie: [
+        ['Pullover cu gantera', 'Spate', '10-12', 75, false],
+        ['Pullover la cablu', 'Spate', '10-12', 75, false],
+      ],
+    }},
+    { group: 'biceps', large: false, patterns: {
+      flexii: [
+        ['Flexii biceps cu gantere', 'Biceps', '10-12', 60, false],
+        ['Flexii hammer', 'Biceps', '10-12', 60, false],
+        ['Flexii cu bara', 'Biceps', '8-12', 75, false],
+        ['Flexii concentrate', 'Biceps', '10-12', 60, false],
+      ],
+    }},
+    { group: 'rear_delts', large: false, patterns: {
+      posteriori: [
+        ['Face pull la cablu', 'Umeri posteriori', '12-15', 60, false],
+        ['Fluturări aplecate cu gantere', 'Umeri posteriori', '12-15', 60, false],
+      ],
+    }},
+  ],
+  legs: [
+    { group: 'quads', large: true, patterns: {
+      squat: [
+        ['Genuflexiuni cu bara', 'Cvadriceps', '6-10', 120, true],
+        ['Genuflexiuni cu gantere', 'Cvadriceps', '10-12', 90, true],
+        ['Goblet squat', 'Cvadriceps', '10-12', 75, true],
+        ['Leg press', 'Cvadriceps', '10-12', 90, true],
+      ],
+      unilateral: [
+        ['Fandări cu gantere', 'Picioare', '8-10/picior', 90, true],
+        ['Fandări bulgărești', 'Cvadriceps', '8-10/picior', 90, true],
+        ['Step-up pe bancă', 'Picioare', '10-12/picior', 75, true],
+      ],
+    }},
+    { group: 'posterior', large: true, patterns: {
+      hip_hinge: [
+        ['Hip thrust cu bara', 'Fesieri', '8-10', 90, true],
+        ['Hip thrust cu gantera', 'Fesieri', '10-12', 90, true],
+        ['Deadlift românesc', 'Femurali', '8-10', 120, true],
+      ],
+      izolatie: [
+        ['Flexii femurali la aparat', 'Femurali', '10-15', 75, false],
+        ['Flexii femurali culcat', 'Femurali', '10-12', 60, false],
+      ],
+    }},
+    { group: 'calves', large: false, patterns: {
+      gambe: [
+        ['Ridicări pe vârfuri în picioare', 'Gambe', '15-20', 45, false],
+        ['Ridicări pe vârfuri cu gantera', 'Gambe', '15-20', 45, false],
+      ],
+    }},
+  ],
+  upper: [
+    { group: 'chest', large: true, patterns: {
+      press: [
+        ['Flotări', 'Piept', '8-15', 60, true],
+        ['Împins cu gantere pe bancă', 'Piept', '8-12', 90, true],
+        ['Împins inclinat cu gantere', 'Piept superior', '8-12', 90, true],
+      ],
+      fluturare: [
+        ['Fluturări cu gantere', 'Piept', '10-15', 60, false],
+        ['Crossover la cablu', 'Piept', '12-15', 45, false],
+        ['Pec deck', 'Piept', '12-15', 45, false],
+      ],
+    }},
+    { group: 'back', large: true, patterns: {
+      vertical: [
+        ['Pulldown la cablu', 'Spate', '10-12', 75, true],
+        ['Tracțiuni asistate la aparat', 'Spate', '6-10', 120, true],
+      ],
+      orizontal: [
+        ['Ramat cu gantera', 'Spate', '8-12', 90, true],
+        ['Ramat la cablu', 'Spate', '10-12', 75, true],
+        ['Ramat cu bara aplecat', 'Spate', '6-10', 120, true],
+      ],
+    }},
+    { group: 'shoulders', large: false, patterns: {
+      press_sau_laterale: [
+        ['Presă umeri cu gantere', 'Umeri', '8-12', 90, true],
+        ['Presă Arnold', 'Umeri', '8-12', 90, true],
+        ['Ridicări laterale cu gantere', 'Umeri', '12-15', 60, false],
+      ],
+    }},
+    { group: 'biceps', large: false, patterns: {
+      flexii: [
+        ['Flexii biceps cu gantere', 'Biceps', '10-12', 60, false],
+        ['Flexii hammer', 'Biceps', '10-12', 60, false],
+        ['Flexii cu bara', 'Biceps', '8-12', 75, false],
+      ],
+    }},
+    { group: 'triceps', large: false, patterns: {
+      extensii: [
+        ['Extensii triceps la cablu', 'Triceps', '10-15', 60, false],
+        ['Dips', 'Triceps', '8-12', 90, true],
+        ['Skull crushers', 'Triceps', '10-12', 75, false],
+      ],
+    }},
+  ],
+  lower: [
+    { group: 'quads', large: true, patterns: {
+      squat: [
+        ['Genuflexiuni cu bara', 'Cvadriceps', '6-10', 120, true],
+        ['Goblet squat', 'Cvadriceps', '10-12', 75, true],
+        ['Leg press', 'Cvadriceps', '10-12', 90, true],
+      ],
+      unilateral: [
+        ['Fandări cu gantere', 'Picioare', '8-10/picior', 90, true],
+        ['Fandări bulgărești', 'Cvadriceps', '8-10/picior', 90, true],
+      ],
+    }},
+    { group: 'posterior', large: true, patterns: {
+      hip_hinge: [
+        ['Hip thrust cu bara', 'Fesieri', '8-10', 90, true],
+        ['Deadlift românesc', 'Femurali', '8-10', 120, true],
+        ['Hip thrust cu gantera', 'Fesieri', '10-12', 90, true],
+      ],
+      izolatie: [
+        ['Flexii femurali la aparat', 'Femurali', '10-15', 75, false],
+        ['Flexii femurali culcat', 'Femurali', '10-12', 60, false],
+      ],
+    }},
+    { group: 'calves', large: false, patterns: {
+      gambe: [
+        ['Ridicări pe vârfuri în picioare', 'Gambe', '15-20', 45, false],
+        ['Ridicări pe vârfuri cu gantera', 'Gambe', '15-20', 45, false],
+      ],
+    }},
+  ],
+  fullBody: [
+    { group: 'chest', large: false, patterns: {
+      press: [
+        ['Flotări', 'Piept', '8-15', 60, true],
+        ['Împins cu gantere pe bancă', 'Piept', '8-12', 90, true],
+      ],
+    }},
+    { group: 'back', large: false, patterns: {
+      ramat: [
+        ['Ramat cu gantera', 'Spate', '8-12', 90, true],
+        ['Pulldown la cablu', 'Spate', '10-12', 75, true],
+        ['Ramat cu bara aplecat', 'Spate', '6-10', 120, true],
+      ],
+    }},
+    { group: 'quads', large: false, patterns: {
+      squat: [
+        ['Genuflexiuni cu bara', 'Cvadriceps', '6-10', 120, true],
+        ['Goblet squat', 'Cvadriceps', '10-12', 75, true],
+        ['Leg press', 'Cvadriceps', '10-12', 90, true],
+      ],
+    }},
+    { group: 'posterior', large: false, patterns: {
+      hip_hinge: [
+        ['Hip thrust cu bara', 'Fesieri', '8-10', 90, true],
+        ['Deadlift românesc', 'Femurali', '8-10', 120, true],
+        ['Hip thrust cu gantera', 'Fesieri', '10-12', 90, true],
+      ],
+    }},
+    { group: 'shoulders', large: false, patterns: {
+      press_sau_laterale: [
+        ['Presă umeri cu gantere', 'Umeri', '8-12', 90, true],
+        ['Ridicări laterale cu gantere', 'Umeri', '12-15', 60, false],
+      ],
+    }},
+    { group: 'core', large: false, patterns: {
+      core: [
+        ['Plank', 'Core', '30-45s', 45, false],
+        ['Mountain climbers', 'Core', '20', 30, false],
+        ['Dead bug', 'Core', '10/parte', 45, false],
+      ],
+    }},
+  ],
+  chest: [
+    { group: 'chest', large: true, patterns: {
+      press_plat: [
+        ['Flotări', 'Piept', '8-15', 60, true],
+        ['Împins cu gantere pe bancă', 'Piept', '8-12', 90, true],
+        ['Împins cu bara pe bancă', 'Piept', '6-10', 120, true],
+      ],
+      press_inclinat: [
+        ['Împins inclinat cu gantere', 'Piept superior', '8-12', 90, true],
+        ['Flotări cu picioarele ridicate', 'Piept superior', '8-12', 75, true],
+      ],
+      fluturare: [
+        ['Fluturări cu gantere', 'Piept', '10-15', 60, false],
+        ['Crossover la cablu', 'Piept', '12-15', 45, false],
+        ['Pec deck', 'Piept', '12-15', 45, false],
+      ],
+    }},
+    { group: 'triceps', large: false, patterns: {
+      extensii: [
+        ['Dips', 'Triceps', '8-12', 90, true],
+        ['Extensii triceps la cablu', 'Triceps', '10-15', 60, false],
+      ],
+    }},
+  ],
+  back: [
+    { group: 'back', large: true, patterns: {
+      vertical: [
+        ['Tracțiuni asistate la aparat', 'Spate', '6-10', 120, true],
+        ['Pulldown la cablu', 'Spate', '10-12', 75, true],
+        ['Pulldown cu priză îngustă', 'Spate', '10-12', 75, true],
+      ],
+      orizontal: [
+        ['Ramat cu gantera', 'Spate', '8-12', 90, true],
+        ['Ramat cu bara aplecat', 'Spate', '6-10', 120, true],
+        ['Ramat la cablu', 'Spate', '10-12', 75, true],
+      ],
+      izolatie: [
+        ['Pullover cu gantera', 'Spate', '10-12', 75, false],
+        ['Face pull la cablu', 'Umeri posteriori', '12-15', 60, false],
+      ],
+    }},
+    { group: 'biceps', large: false, patterns: {
+      flexii: [
+        ['Flexii biceps cu gantere', 'Biceps', '10-12', 60, false],
+        ['Flexii hammer', 'Biceps', '10-12', 60, false],
+        ['Flexii cu bara', 'Biceps', '8-12', 75, false],
+      ],
+    }},
+  ],
+  shoulders: [
+    { group: 'shoulders', large: true, patterns: {
+      press: [
+        ['Presă umeri cu gantere', 'Umeri', '8-12', 90, true],
+        ['Presă Arnold', 'Umeri', '8-12', 90, true],
+        ['Presă militară cu bara', 'Umeri', '6-10', 120, true],
+      ],
+      laterale: [
+        ['Ridicări laterale cu gantere', 'Umeri', '12-15', 60, false],
+        ['Ridicări laterale la cablu', 'Umeri', '12-15', 60, false],
+      ],
+      fata: [
+        ['Ridicări față cu gantere', 'Umeri anteriori', '10-12', 60, false],
+        ['Ridicări față la cablu', 'Umeri anteriori', '10-12', 60, false],
+      ],
+      posteriori: [
+        ['Face pull la cablu', 'Umeri posteriori', '12-15', 60, false],
+        ['Fluturări aplecate cu gantere', 'Umeri posteriori', '12-15', 60, false],
+      ],
+    }},
+  ],
+  arms: [
+    { group: 'biceps', large: true, patterns: {
+      flexii: [
+        ['Flexii biceps cu gantere', 'Biceps', '10-12', 60, false],
+        ['Flexii cu bara', 'Biceps', '8-12', 75, false],
+      ],
+      hammer: [
+        ['Flexii hammer', 'Biceps', '10-12', 60, false],
+        ['Flexii concentrate', 'Biceps', '10-12', 60, false],
+      ],
+    }},
+    { group: 'triceps', large: true, patterns: {
+      compound: [
+        ['Dips', 'Triceps', '8-12', 90, true],
+        ['Skull crushers', 'Triceps', '10-12', 75, false],
+      ],
+      extensii: [
+        ['Extensii triceps la cablu', 'Triceps', '10-15', 60, false],
+        ['Extensii triceps cu gantera', 'Triceps', '10-15', 60, false],
+        ['Kickbacks triceps', 'Triceps', '12-15', 45, false],
+      ],
+    }},
+  ],
+  core: [
+    { group: 'core', large: true, patterns: {
+      static: [
+        ['Plank', 'Core', '30-45s', 45, false],
+        ['Plank lateral', 'Core', '30s/parte', 45, false],
+      ],
+      dinamic: [
+        ['Mountain climbers', 'Core', '20', 30, false],
+        ['Dead bug', 'Core', '10/parte', 45, false],
+        ['Bicycle crunch', 'Abdomen', '15-20', 30, false],
+      ],
+      crunch: [
+        ['Crunch', 'Abdomen', '15-20', 30, false],
+        ['Reverse crunch', 'Abdomen', '15-20', 30, false],
+        ['Crunch la cablu', 'Abdomen', '15-20', 30, false],
+      ],
+    }},
+  ],
+};
+
+// Muscle groups considered "large" per focus for DB-path selection (pick 2 exercises: 1 compound + 1 isolation)
+const LARGE_MUSCLE_GROUPS = {
+  push:     new Set(['chest', 'shoulders']),
+  pull:     new Set(['back']),
+  legs:     new Set(['quads', 'legs', 'hamstrings', 'glutes']),
+  upper:    new Set(['chest', 'back']),
+  lower:    new Set(['quads', 'legs', 'hamstrings', 'glutes']),
+  fullBody: new Set(),
+  chest:    new Set(['chest']),
+  back:     new Set(['back']),
+  shoulders: new Set(['shoulders']),
+  arms:     new Set(['biceps', 'triceps']),
+  core:     new Set(),
+};
+
+/**
+ * Pick exercises from FOCUS_STRUCTURE fallback:
+ * - Large muscle groups: pick 1 compound pattern + 1 isolation pattern (isPaired=true → sets halved).
+ * - Small muscle groups: pick 1 random pattern (isPaired=false → full sets).
+ */
+function pickFromStructure(structure, targetCount) {
+  const allPicked = [];
+  for (const { large, patterns } of structure) {
+    const patternKeys = Object.keys(patterns);
+    if (large) {
+      // Separate compound-dominant patterns from isolation-dominant ones
+      const compoundKeys = shuffle(patternKeys.filter(k => patterns[k].some(o => o[4] === true)));
+      const isoKeys      = shuffle(patternKeys.filter(k => patterns[k].every(o => o[4] === false)));
+      // Pick 1 compound + 1 iso; if one side is missing, pick 2 from what's available
+      const ordered = [...compoundKeys, ...isoKeys];
+      for (const key of ordered.slice(0, 2)) {
+        const opts = shuffle(patterns[key]);
+        allPicked.push({ ex: opts[0], isPaired: true });
+      }
+    } else {
+      const key = shuffle(patternKeys)[0];
+      const opts = shuffle(patterns[key]);
+      allPicked.push({ ex: opts[0], isPaired: false });
+    }
+  }
+  // Trim to targetCount
+  return allPicked.slice(0, targetCount);
+}
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * GET /api/user/workout-session          → check for active (persisted) session
+ * GET /api/user/workout-session?focus=push → generate exercises (checks active first)
+ */
+export async function GET(request) {
+  const auth = verifyToken(request);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (auth.role !== 'user') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+
+  const { searchParams } = new URL(request.url);
+  const requestedFocus = searchParams.get('focus');
+
+  const supabase = getSupabase();
+
+  // ── No focus param: just return the persisted active session (if any) ──
+  if (!requestedFocus) {
+    const { data: sessionRow } = await supabase
+      .from('users')
+      .select('active_workout_session')
+      .eq('id', auth.userId)
+      .maybeSingle();
+
+    const session = sessionRow?.active_workout_session;
+    if (session) {
+      // Return stored elapsedSeconds — timer continues from last saved checkpoint
+      return NextResponse.json({ activeSession: session });
+    }
+    return NextResponse.json({ activeSession: null });
+  }
+
+  // ── focus provided: fetch user profile + generate exercises ──
+  const { data: userRow } = await supabase
+    .from('users')
+    .select('fitness_level, available_equipment, fitness_goal, training_split, workouts_per_week, current_plan_day')
+    .eq('id', auth.userId)
+    .maybeSingle();
+
+  const fitnessLevel       = userRow?.fitness_level       || 'beginner';
+  const availableEquipment = userRow?.available_equipment || 'full gym';
+  const fitnessGoal        = userRow?.fitness_goal        || 'muscle_gain';
+  const trainingSplit      = userRow?.training_split      || 'Push/Pull/Legs';
+  const workoutsPerWeek    = Number(userRow?.workouts_per_week) || 3;
+  const focus              = requestedFocus === 'auto'
+    ? resolveAutoFocus(trainingSplit, userRow?.current_plan_day, workoutsPerWeek)
+    : requestedFocus;
+
+  // Compute per-session volume parameters
+  const frequency   = getSessionFrequency(focus, trainingSplit);
+  const targetCount = getFocusCount(focus, frequency);
+
+  const equipmentFilter = EQUIPMENT_FILTER[availableEquipment] || null;
+  const muscleGroups    = FOCUS_GROUPS[focus] || null;
+
+  // Build DB query
+  let query = supabase
+    .from('exercises')
+    .select('name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment, difficulty_level')
+    .eq('active', true);
+
+  if (equipmentFilter) {
+    // Specific equipment list (no equipment / dumbbells only)
+    query = query.in('equipment', equipmentFilter);
+  } else {
+    // Full gym: exclude resistance band exercises
+    query = query.not('equipment', 'in', `(${BAND_EQUIPMENT.map(e => `"${e}"`).join(',')})`);
+  }
+  if (muscleGroups) query = query.in('muscle_group', muscleGroups);
+
+  const { data: rawRows, error } = await supabaseQuery(() => query);
+
+  // Filter by difficulty level — beginners only see beginner/untagged exercises,
+  // intermediate see beginner+intermediate, advanced see everything.
+  let rows = rawRows;
+  if (rows && rows.length > 0) {
+    const levelOrder = { beginner: 0, intermediate: 1, advanced: 2 };
+    const userLevelNum = levelOrder[fitnessLevel] ?? 1;
+    rows = rows.filter(r => {
+      if (!r.difficulty_level) return true; // untagged → available to all
+      const rowLevelNum = levelOrder[r.difficulty_level] ?? 0;
+      return rowLevelNum <= userLevelNum;
+    });
+    // If filtering left too few, fall back to all fetched rows
+    if (rows.length < 4) rows = rawRows;
+  }
+
+  // If DB empty or errored, use FOCUS_STRUCTURE fallback (random per pattern, paired for large groups)
+  if (error || !rows || rows.length === 0) {
+    const structure = FOCUS_STRUCTURE[focus] || FOCUS_STRUCTURE.fullBody;
+    const picked = pickFromStructure(structure, targetCount);
+    const exercises = picked.map(({ ex, isPaired }, i) => {
+      const dummyRow = { is_compound: ex[4], default_reps: ex[2], default_rest_seconds: ex[3] };
+      const { sets, reps, restSeconds } = prescribe(dummyRow, fitnessLevel, fitnessGoal, frequency, isPaired);
+      return { id: i + 1, name: ex[0], muscleGroup: ex[1], sets, reps, restSeconds };
+    });
+    return NextResponse.json({ exercises, focus, trainingSplit });
+  }
+
+  // Group rows by muscle_group; for large groups pick 1 compound + 1 isolation (isPaired=true),
+  // for small groups pick 1 exercise (isPaired=false).
+  const largeGroups = LARGE_MUSCLE_GROUPS[focus] || new Set();
+  const byMuscle = {};
+  for (const r of rows) {
+    const mg = r.muscle_group || 'other';
+    if (!byMuscle[mg]) byMuscle[mg] = [];
+    byMuscle[mg].push(r);
+  }
+  for (const mg of Object.keys(byMuscle)) byMuscle[mg] = shuffle(byMuscle[mg]);
+
+  const selected = []; // { row, isPaired }
+  for (const mg of shuffle(Object.keys(byMuscle))) {
+    if (selected.length >= targetCount) break;
+    const grp = byMuscle[mg];
+    if (largeGroups.has(mg)) {
+      const compound = grp.find(r => r.is_compound !== false);
+      const iso      = grp.find(r => r.is_compound === false);
+      if (compound) selected.push({ row: compound, isPaired: true });
+      if (iso)      selected.push({ row: iso,      isPaired: true });
+      // If no isolation available, take a second compound
+      if (!iso && grp.length > 1 && compound) {
+        const second = grp.find(r => r !== compound);
+        if (second) selected.push({ row: second, isPaired: true });
+      }
+    } else {
+      if (grp.length > 0) selected.push({ row: grp[0], isPaired: false });
+    }
+  }
+
+  // Pad to at least 4 if short
+  if (selected.length < 4) {
+    const usedNames = new Set(selected.map(s => s.row.name));
+    const rest = shuffle(rows.filter(r => !usedNames.has(r.name)));
+    for (const r of rest) {
+      if (selected.length >= 4) break;
+      selected.push({ row: r, isPaired: false });
+    }
+  }
+
+  const exercises = selected.slice(0, targetCount).map(({ row, isPaired }, i) => {
+    const { sets, reps, restSeconds } = prescribe(row, fitnessLevel, fitnessGoal, frequency, isPaired);
+    return {
+      id: i + 1,
+      name: row.name_ro || row.name,
+      muscleGroup: muscleRo(row.muscle_group),
+      sets,
+      reps,
+      restSeconds,
+    };
+  });
+
+  return NextResponse.json({ exercises, focus, trainingSplit });
+}
+
+/**
+ * POST /api/user/workout-session
+ * Body: { focus, exercises }
+ * Saves a new workout session to DB (overwrites any existing one).
+ */
+export async function POST(request) {
+  const auth = verifyToken(request);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (auth.role !== 'user') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+
+  let body;
+  try { body = await request.json(); } catch { return NextResponse.json({ error: 'Body invalid.' }, { status: 400 }); }
+  const { exercises, focus } = body;
+  if (!exercises?.length) return NextResponse.json({ error: 'Exerciții lipsă.' }, { status: 400 });
+
+  const session = {
+    focus: focus || 'fullBody',
+    exercises,
+    currentIndex: 0,
+    xpEarned: 0,
+    startedAt: new Date().toISOString(),
+  };
+
+  const supabase = getSupabase();
+  await supabase.from('users').update({ active_workout_session: session }).eq('id', auth.userId);
+  return NextResponse.json({ ok: true });
+}
+
+/**
+ * PATCH /api/user/workout-session
+ * Body: { currentIndex, xpEarned }
+ * Updates progress of the active session (called after each exercise done).
+ */
+export async function PATCH(request) {
+  const auth = verifyToken(request);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (auth.role !== 'user') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+
+  let body;
+  try { body = await request.json(); } catch { return NextResponse.json({ error: 'Body invalid.' }, { status: 400 }); }
+  const { currentIndex, xpEarned, elapsedSeconds } = body;
+
+  const supabase = getSupabase();
+  const { data } = await supabase
+    .from('users')
+    .select('active_workout_session')
+    .eq('id', auth.userId)
+    .maybeSingle();
+
+  if (!data?.active_workout_session) {
+    return NextResponse.json({ ok: false, error: 'Nicio sesiune activă.' }, { status: 404 });
+  }
+
+  const updated = {
+    ...data.active_workout_session,
+    currentIndex,
+    xpEarned,
+    ...(elapsedSeconds !== undefined ? { elapsedSeconds } : {}),
+  };
+  await supabase.from('users').update({ active_workout_session: updated }).eq('id', auth.userId);
+  return NextResponse.json({ ok: true });
+}
+
+/**
+ * DELETE /api/user/workout-session
+ * Clears the active session (on finalize or abandon).
+ */
+export async function DELETE(request) {
+  const auth = verifyToken(request);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (auth.role !== 'user') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+
+  const supabase = getSupabase();
+  await supabase.from('users').update({ active_workout_session: null }).eq('id', auth.userId);
+  return NextResponse.json({ ok: true });
+}

@@ -43,6 +43,7 @@ const EQUIPMENT_LABELS = {
 
 const TRAINING_SPLIT_LABELS = {
   'Push/Pull/Legs': 'PPL',
+  'Upper/Lower/Push/Pull/Legs': 'ULPPL',
 };
 
 // ─── Main WorkoutPlan component ───────────────────────────────────────────────

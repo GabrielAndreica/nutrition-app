@@ -47,7 +47,7 @@ params }) {
   // Fetch user profile separately from users table
   const { data: client } = await supabase
     .from('users')
-    .select('name, age, weight, height, gender, goal, activity_level, diet_type, allergies, meals_per_day, food_preferences')
+    .select('name, age, weight, height, gender, goal, activity_level, diet_type, allergies, meals_per_day, hydration_target_ml, food_preferences')
     .eq('id', data.client_id)
     .maybeSingle();
 

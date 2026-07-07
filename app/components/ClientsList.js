@@ -46,6 +46,7 @@ const trainingSplitLabels = {
   'Push/Pull/Legs': 'PPL',
   'Upper/Lower': 'Upper/Lower',
   'Bro Split': 'Bro Split',
+  'Upper/Lower/Push/Pull/Legs': 'ULPPL',
 };
 
 const applyActivityLevel = (prev, activityLevel) => {
@@ -1228,7 +1229,7 @@ const ClientsList = forwardRef(function ClientsList({
               <div className={styles.addField}>
                 <label>Split antrenament</label>
                 <div className={`${styles.seg} ${styles.splitSeg}`}>
-                  {['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Bro Split'].map(v => (
+                  {['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Bro Split', 'Upper/Lower/Push/Pull/Legs'].map(v => (
                     <button key={v} type="button"
                       className={`${styles.segBtn} ${form.trainingSplit === v ? styles.segOn : ''}`}
                       onClick={() => setForm(p => ({ ...p, trainingSplit: v }))}>

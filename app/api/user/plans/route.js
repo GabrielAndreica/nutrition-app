@@ -16,7 +16,7 @@ export async function GET(request) {
   // Obține profilul utilizatorului direct din users
   const { data: clientRow, error: clientError } = await supabase
     .from('users')
-    .select('name, age, weight, height, gender, fitness_level, available_equipment, workouts_per_week, training_split, fitness_goal, goal, activity_level, diet_type, meals_per_day')
+    .select('id, name, age, weight, height, gender, fitness_level, available_equipment, workouts_per_week, training_split, fitness_goal, goal, activity_level, diet_type, meals_per_day, hydration_target_ml')
     .eq('id', auth.userId)
     .maybeSingle();
 

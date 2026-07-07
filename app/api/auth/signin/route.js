@@ -5,6 +5,7 @@ import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeEmail } from '@/app/lib/sanitize';
 import { getJwtSecret } from '@/app/lib/jwtSecret';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
+import { resolveUserOnboardingCompletion } from '@/app/lib/onboardingStatus';
 
 const validateEmail = (email) => {
   if (!email) return 'Adresa de email este obligatorie';
@@ -142,12 +143,7 @@ export async function POST(request) {
     // Check onboarding completion for 'user' role
     let onboardingCompleted = false;
     if (user.role === 'user') {
-      const { data: userRow } = await supabase
-        .from('users')
-        .select('onboarding_completed')
-        .eq('id', user.id)
-        .maybeSingle();
-      onboardingCompleted = !!userRow?.onboarding_completed;
+      onboardingCompleted = await resolveUserOnboardingCompletion(supabase, user.id);
     }
 
     // Successful login

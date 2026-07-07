@@ -15,6 +15,7 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS activity_level text,
   ADD COLUMN IF NOT EXISTS diet_type text DEFAULT 'omnivore',
   ADD COLUMN IF NOT EXISTS meals_per_day integer DEFAULT 5,
+  ADD COLUMN IF NOT EXISTS hydration_target_ml integer,
   ADD COLUMN IF NOT EXISTS food_preferences text,
   ADD COLUMN IF NOT EXISTS allergies text,
   ADD COLUMN IF NOT EXISTS available_equipment text,
@@ -49,6 +50,32 @@ ALTER TABLE users
 -- 4. Adauga coloana onboarding_completed
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS onboarding_completed boolean DEFAULT false;
+
+UPDATE users
+SET hydration_target_ml = LEAST(
+  5000,
+  GREATEST(
+    1500,
+    (ROUND((
+      (COALESCE(weight, 70) * 35)
+      + CASE activity_level
+          WHEN 'light' THEN 250
+          WHEN 'moderate' THEN 500
+          WHEN 'active' THEN 750
+          WHEN 'very_active' THEN 1000
+          ELSE 0
+        END
+      + CASE goal
+          WHEN 'weight_loss' THEN 250
+          WHEN 'muscle_gain' THEN 250
+          WHEN 'endurance' THEN 500
+          ELSE 0
+        END
+    ) / 250.0) * 250)::integer
+  )
+)
+WHERE hydration_target_ml IS NULL
+  AND weight IS NOT NULL;
 
 -- 5. Sterge total_clients_created din users (nu mai e necesar in B2C)
 ALTER TABLE users

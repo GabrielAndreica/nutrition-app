@@ -76,13 +76,6 @@ export function AuthProvider({ children }) {
 
         // ── Verificare onboarding status pentru role 'user' ──────────────
         if (!isPublicPath(pathname) && parsedUser?.role === 'user') {
-          // Dacă localStorage nu are onboarding_completed, setează-l false pending verificare
-          // astfel ProtectedRoute știe să aștepte (nu va fi undefined)
-          if (parsedUser.onboarding_completed === undefined) {
-            const pending = { ...parsedUser, onboarding_completed: false };
-            setUser(pending);
-            localStorage.setItem('user', JSON.stringify(pending));
-          }
           isValidatingSession = true;
           fetch('/api/user/onboarding', {
             headers: { Authorization: `Bearer ${tokenData}` },

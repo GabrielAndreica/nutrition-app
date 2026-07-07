@@ -10,7 +10,7 @@ import { reserveMonthlyClientUsage } from '@/app/lib/clientUsage';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const ALLOWED_SPLITS = new Set(['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Bro Split']);
+const ALLOWED_SPLITS = new Set(['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Bro Split', 'Upper/Lower/Push/Pull/Legs']);
 const ALLOWED_LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
 const ALLOWED_EQUIPMENT = new Set(['no equipment', 'dumbbells only', 'full gym']);
 const ALLOWED_GOALS = new Set(['muscle gain', 'weight loss', 'maintenance', 'strength', 'endurance']);
@@ -87,6 +87,21 @@ const WEEKLY_GROUP_TARGET_BASE = {
       posterior: [3, 5],
       calves: [3, 5],
       abs: [2, 5],
+    },
+  },
+  'Upper/Lower/Push/Pull/Legs': {
+    baseWorkouts: 5,
+    fixedForFiveOrMore: true,
+    targets: {
+      chest: [3, 5],
+      back: [4, 6],
+      shoulders: [3, 5],
+      biceps: [2, 4],
+      triceps: [2, 4],
+      quads: [4, 6],
+      posterior: [4, 6],
+      calves: [3, 5],
+      abs: [3, 5],
     },
   },
 };
@@ -206,6 +221,12 @@ function normalizeTrainingSplit(split) {
     ['bro split', 'bro-split', 'bro_split', 'brosplit'].includes(value)
     || compact === 'brosplit'
   ) return 'Bro Split';
+
+  if (
+    ['upper/lower/push/pull/legs', 'upper lower push pull legs', 'ulppl', 'ul/ppl'].includes(value)
+    || compact === 'upperlowerpushpulllegs'
+    || compact === 'ulppl'
+  ) return 'Upper/Lower/Push/Pull/Legs';
 
   return raw;
 }
@@ -434,7 +455,7 @@ function buildGenderRuleSection(gender, trainingSplit) {
       '- Piept și brațe: volum REDUS — 1-2 exerciții per sesiune relevantă, fără să domine programul.',
       '- Evită exerciții de piept ca exerciții principale/primare — folosește-le ca accesorii.',
     ];
-    if (trainingSplit === 'Push/Pull/Legs' || trainingSplit === 'Upper/Lower') {
+    if (trainingSplit === 'Push/Pull/Legs' || trainingSplit === 'Upper/Lower' || trainingSplit === 'Upper/Lower/Push/Pull/Legs') {
       lowerFocus.push('- Sesiunile de picioare (Legs/Lower): minim 4 exerciții pentru tren inferior, fără exerciții de brațe izolate.');
     }
     if (trainingSplit === 'Full Body') {
@@ -912,7 +933,9 @@ function buildWorkoutPrompt(data, catalogPrompt, weeklyTargets = null, previousE
   const genderSection = buildGenderRuleSection(gender || 'M', trainingSplit);
   const schedule = DAY_SCHEDULES[workoutsPerWeek] || DAY_SCHEDULES[3];
   const volume = getVolumeTargets(fitnessLevel, fitnessGoal, trainingSplit);
-  const splitStructure = trainingSplit === 'Push/Pull/Legs' && workoutsPerWeek === 4
+  const splitStructure = trainingSplit === 'Upper/Lower/Push/Pull/Legs'
+    ? '- STRUCTURĂ ULPPL 5 ZILE OBLIGATORIU: Ziua 1 Upper (piept+spate+umeri+brațe), Ziua 2 Lower (cvadriceps+femurali+fesieri+gambe), Ziua 3 Push (piept+umeri+triceps), Ziua 4 Pull (spate+biceps), Ziua 5 Legs (cvadriceps+femurali+fesieri+gambe). Fiecare sesiune cu focus clar pe grupele respective.'
+    : trainingSplit === 'Push/Pull/Legs' && workoutsPerWeek === 4
     ? '- STRUCTURĂ PPL 4 ZILE: Push, Pull, Legs, Upper/Push-Pull accesorii. Nu inventa 7 zile și nu repeta Legs imediat.'
     : trainingSplit === 'Push/Pull/Legs' && workoutsPerWeek === 5
       ? '- STRUCTURĂ PPL 5 ZILE OBLIGATORIU: Ziua 1 Push, Ziua 2 Pull, Ziua 3 Legs, Ziua 4 Push, Ziua 5 Pull. INTERZIS Full Body.'
@@ -1037,6 +1060,7 @@ function buildWorkoutProgressPrompt(data, catalogPrompt, weeklyTargets = null, p
     'Push/Pull/Legs': 'SPLIT: PPL. Sesiuni separate pentru Piept+Umeri+Triceps / Spate+Biceps / Picioare.',
     'Upper/Lower': 'SPLIT: UPPER/LOWER. Alternă Upper Body și Lower Body.',
     'Bro Split': 'SPLIT: BRO SPLIT. Fiecare sesiune — o singură grupă musculară.',
+    'Upper/Lower/Push/Pull/Legs': 'SPLIT: ULPPL. Ziua 1 Upper, Ziua 2 Lower, Ziua 3 Push, Ziua 4 Pull, Ziua 5 Legs.',
   }[trainingSplit] || '';
 
   const weeklyTargetsSection = weeklyTargets && Object.keys(weeklyTargets).length > 0
@@ -1252,6 +1276,10 @@ const FALLBACK_EXERCISES = {
 };
 
 function getSessionFocuses(split, workoutsPerWeek) {
+  if (split === 'Upper/Lower/Push/Pull/Legs') {
+    // 5-day: Upper, Lower, Push, Pull, Legs
+    return ['upper', 'legs', 'push', 'pull', 'legs'];
+  }
   if (split === 'Push/Pull/Legs') {
     const patterns = {
       2: ['push', 'pull'],
@@ -1336,6 +1364,16 @@ function buildFallbackWorkoutPlan(input) {
 }
 
 function getSessionName(split, focus, idx) {
+  if (split === 'Upper/Lower/Push/Pull/Legs') {
+    const ulpplNames = [
+      'Upper - partea superioară completă',
+      'Lower - picioare și core',
+      'Push - piept, umeri, triceps',
+      'Pull - spate și biceps',
+      'Legs - picioare și fesieri',
+    ];
+    return ulpplNames[idx] || `Sesiunea ${idx + 1}`;
+  }
   if (split === 'Push/Pull/Legs') {
     return {
       push: 'Push - piept, umeri, triceps',
