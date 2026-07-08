@@ -2250,7 +2250,6 @@ export async function POST(request) {
           client_id: clientData.clientId,
           plan_data: plan,
           daily_targets: targets,
-          approval_status: auth.role === 'user' ? 'approved' : 'pending_review',
         })
         .select('id')
         .single();

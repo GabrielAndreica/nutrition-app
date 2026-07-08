@@ -1704,7 +1704,6 @@ export async function POST(request) {
               .insert({
                 client_id: input.clientId,
                 plan_data: plan,
-                approval_status: auth.role === 'user' ? 'approved' : 'pending_review',
               })
               .select('id')
               .single());

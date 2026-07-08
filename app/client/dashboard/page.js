@@ -178,6 +178,11 @@ function WorkoutButtonIcon() {
   );
 }
 
+function getDailyWaterStorageKey(ownerId) {
+  const safeOwnerId = ownerId || 'anonymous';
+  return `trevano_water_ml_${safeOwnerId}_${new Date().toISOString().slice(0, 10)}`;
+}
+
 function ClientDashboardContent() {
   const router = useRouter();
   const { logout, user, login } = useAuth();
@@ -199,14 +204,7 @@ function ClientDashboardContent() {
   const [currentPlanDay, setCurrentPlanDay] = useState(0);
   const [mealDayStatus, setMealDayStatus] = useState({});
   const [workoutDayStatus, setWorkoutDayStatus] = useState({});
-  const [waterMl, setWaterMl] = useState(() => {
-    try {
-      const key = `trevano_water_ml_${new Date().toISOString().slice(0, 10)}`;
-      return Math.max(0, Number(localStorage.getItem(key)) || 0);
-    } catch {
-      return 0;
-    }
-  });
+  const [waterMl, setWaterMl] = useState(0);
   const [streakCount, setStreakCount] = useState(0);
   const [streakState, setStreakState] = useState('normal');
   const [weeklyPlanRegenerating, setWeeklyPlanRegenerating] = useState(false);
@@ -246,6 +244,46 @@ function ClientDashboardContent() {
   const [finishReward, setFinishReward] = useState(null);
   const [pendingLevelUp, setPendingLevelUp] = useState(null);
   const [levelUpReward, setLevelUpReward] = useState(null);
+
+  const applyUserPlansSnapshot = (profileData) => {
+    if (!profileData?.client) return false;
+
+    const c = profileData.client;
+    if (profileData.mealPlan?.plan_data) {
+      setConfirmedNoMealPlan(false);
+      setMealPlan(profileData.mealPlan.plan_data);
+      setNutritionalNeeds(profileData.mealPlan.daily_targets || null);
+    }
+    if (profileData.workoutPlan?.plan_data) {
+      setConfirmedNoWorkoutPlan(false);
+      setWorkoutPlan(profileData.workoutPlan.plan_data);
+    }
+
+    setClientData({
+      clientId: c.id,
+      name: c.name || 'Tu',
+      age: c.age ? String(c.age) : undefined,
+      weight: c.weight ? String(c.weight) : undefined,
+      height: c.height ? String(c.height) : undefined,
+      gender: c.gender,
+      goal: c.goal,
+      activityLevel: c.activity_level,
+      dietType: c.diet_type,
+      allergies: c.allergies,
+      mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
+      hydrationTargetMl: c.hydration_target_ml,
+      foodPreferences: c.food_preferences || '',
+    });
+    return true;
+  };
+
+  const fetchUserPlansSnapshot = async (token) => {
+    const response = await fetch('/api/user/plans', {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    return response.json();
+  };
 
   useEffect(() => {
     if (!weeklyPlanRegenerating) return;
@@ -453,6 +491,9 @@ function ClientDashboardContent() {
     }
 
     try {
+      const profileData = await fetchUserPlansSnapshot(token);
+      const profileApplied = applyUserPlansSnapshot(profileData);
+
       // Fetch lista planuri pentru client
       const plansRes = await fetch('/api/meal-plans', {
         headers: { 'Authorization': `Bearer ${token}` },
@@ -460,7 +501,8 @@ function ClientDashboardContent() {
       const plansData = await plansRes.json();
       
       if (!plansData.plans || plansData.plans.length === 0) {
-        setMealPlan(null);
+        if (!profileApplied) setMealPlan(null);
+        setConfirmedNoMealPlan(!profileData?.mealPlan);
         setLoading(false);
         return;
       }
@@ -582,6 +624,15 @@ function ClientDashboardContent() {
       }
     } catch { /* ignore */ }
 
+    const profilePromise = fetchUserPlansSnapshot(token)
+      .then(profileData => {
+        if (applyUserPlansSnapshot(profileData)) {
+          setError(null);
+        }
+        return profileData;
+      })
+      .catch(() => null);
+
     // Fetch lista planuri pentru client
     fetch('/api/meal-plans', {
       headers: { 'Authorization': `Bearer ${token}` },
@@ -592,29 +643,11 @@ function ClientDashboardContent() {
           setError(null);
           setMealPlan(null);
           setConfirmedNoMealPlan(true);
-          fetch('/api/user/plans', {
-            headers: { 'Authorization': `Bearer ${token}` },
-          })
-            .then(r => r.ok ? r.json() : null)
+          profilePromise
             .then(profileData => {
-              if (!profileData?.client) return;
-              const c = profileData.client;
-              setClientData({
-                clientId: c.id,
-                name: c.name || 'Tu',
-                age: c.age ? String(c.age) : undefined,
-                weight: c.weight ? String(c.weight) : undefined,
-                height: c.height ? String(c.height) : undefined,
-                gender: c.gender,
-                goal: c.goal,
-                activityLevel: c.activity_level,
-                dietType: c.diet_type,
-                mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
-                hydrationTargetMl: c.hydration_target_ml,
-              });
+              if (profileData?.mealPlan) setConfirmedNoMealPlan(false);
             })
-            .catch(() => {});
-          setLoading(false);
+            .finally(() => setLoading(false));
           return;
         }
 
@@ -629,7 +662,7 @@ function ClientDashboardContent() {
       .then(res => res ? res.json() : null)
       .then(data => {
         if (!data || !data.mealPlan) {
-          setLoading(false);
+          profilePromise.finally(() => setLoading(false));
           return;
         }
 
@@ -865,6 +898,7 @@ function ClientDashboardContent() {
   const hydrationTargetLiters = hydrationTargetLoaded ? (hydrationTargetMl / 1000).toLocaleString('ro-RO', {
     maximumFractionDigits: 2,
   }) : null;
+  const waterOwnerId = String(clientData?.clientId || user?.id || user?.email || 'anonymous');
   const workoutStartCopy = workoutStartScreen
     ? getWorkoutFocusCopy(workoutStartScreen.focus, workoutStartScreen.exercises)
     : null;
@@ -902,6 +936,15 @@ function ClientDashboardContent() {
       ? 'Foarte bine. Recuperarea contează la fel de mult ca efortul. +50 XP adăugați.'
       : 'Excelent. Ai dus antrenamentul până la capăt și ai câștigat +50 XP.')
     : '';
+
+  useEffect(() => {
+    try {
+      const key = getDailyWaterStorageKey(waterOwnerId);
+      setWaterMl(Math.max(0, Number(localStorage.getItem(key)) || 0));
+    } catch {
+      setWaterMl(0);
+    }
+  }, [waterOwnerId]);
   const closeFinishReward = () => {
     setFinishReward(null);
     if (pendingLevelUp) {
@@ -918,7 +961,7 @@ function ClientDashboardContent() {
     setWaterMl(prev => {
       const next = Math.min(hydrationTargetMl, prev + 250);
       try {
-        const key = `trevano_water_ml_${new Date().toISOString().slice(0, 10)}`;
+        const key = getDailyWaterStorageKey(waterOwnerId);
         localStorage.setItem(key, String(next));
       } catch {}
       return next;
@@ -1022,14 +1065,14 @@ function ClientDashboardContent() {
             <article className={`${styles.jCard} ${mealsDoneToday ? styles.jCardDone : ''}`}>
               <h2 className={styles.jCardTitle}>Mese</h2>
               <p className={styles.jCardSub}>
-                {mealsDoneToday ? 'Ai închis ziua alimentar.' : mealPlan ? 'Vezi mesele și bifează ziua.' : 'Generează primul plan alimentar.'}
+                {mealsDoneToday ? 'Ai închis ziua alimentar.' : 'Vezi mesele zilei.'}
               </p>
               <div className={styles.jCardFoot}>
                 {mealsDoneToday ? (
                   <span className={styles.jCardStatusDone}>✓ Finalizat</span>
                 ) : (
                   <button className={styles.jCardGenBtn} onClick={openMealPlan}>
-                    {mealPlan ? 'Deschide' : 'Generează'}
+                    Vezi mesele
                   </button>
                 )}
               </div>
@@ -1064,6 +1107,7 @@ function ClientDashboardContent() {
   const handleStartWorkoutSession = async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
+    setError(null);
     setWorkoutSession({ phase: 'loading' });
     try {
       // Check for existing paused session in DB
@@ -1093,9 +1137,18 @@ function ClientDashboardContent() {
       const focusRes = await fetch('/api/user/workout-session?focus=auto', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
-      if (!focusRes.ok) { setWorkoutSession(null); return; }
+      if (!focusRes.ok) {
+        const focusError = await focusRes.json().catch(() => null);
+        setError(focusError?.error || 'Nu am putut pregăti antrenamentul.');
+        setWorkoutSession(null);
+        return;
+      }
       const focusData = await focusRes.json().catch(() => null);
-      if (!focusData?.exercises?.length) { setWorkoutSession(null); return; }
+      if (!focusData?.exercises?.length) {
+        setError('Nu există exerciții disponibile pentru antrenamentul de azi.');
+        setWorkoutSession(null);
+        return;
+      }
       // Show pre-flight start screen
       setWorkoutSession(null);
       setWorkoutStartScreen({ exercises: focusData.exercises, focus: focusData.focus });
@@ -1104,16 +1157,23 @@ function ClientDashboardContent() {
     }
   };
 
-  const handleStartActualSession = () => {
+  const handleStartActualSession = async () => {
     if (!workoutStartScreen) return;
     const { exercises, focus } = workoutStartScreen;
     const token = localStorage.getItem('token');
     if (token) {
-      fetch('/api/user/workout-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ exercises, focus }),
-      }).catch(() => {});
+      const response = await fetch('/api/user/workout-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ exercises, focus }),
+        })
+        .catch(() => null);
+      if (!response?.ok) {
+        const data = await response?.json().catch(() => null);
+        setError(data?.error || 'Nu am putut porni antrenamentul.');
+        setWorkoutStartScreen(null);
+        return;
+      }
     }
     timerBaseRef.current = 0;
     timerStartedAtRef.current = Date.now();
@@ -1711,6 +1771,20 @@ function ClientDashboardContent() {
                   Exercițiu <strong>{workoutSession.currentIndex + 1}</strong> din <strong>{workoutSession.exercises.length}</strong>
                 </p>
                 <div className={styles.wsCard}>
+                  {ex?.videoUrl && (
+                    <div className={styles.wsVideoFrame}>
+                      <video
+                        key={ex.videoUrl}
+                        className={styles.wsVideo}
+                        src={ex.videoUrl}
+                        autoPlay
+                        muted
+                        loop
+                        playsInline
+                        preload="auto"
+                      />
+                    </div>
+                  )}
                   <span className={styles.wsMuscle}>{ex?.muscleGroup || ex?.muscle || ''}</span>
                   <h2 className={styles.wsExName}>{ex?.name || ''}</h2>
                   <div className={styles.wsStats}>

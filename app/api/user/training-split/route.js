@@ -39,7 +39,7 @@ export async function PATCH(request) {
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
-  if (auth.role !== 'user') {
+  if (auth.role !== 'user' && auth.role !== 'client') {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
@@ -89,7 +89,7 @@ export async function GET(request) {
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
-  if (auth.role !== 'user') {
+  if (auth.role !== 'user' && auth.role !== 'client') {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 

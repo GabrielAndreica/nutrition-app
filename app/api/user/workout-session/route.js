@@ -586,6 +586,120 @@ function shuffle(arr) {
   return a;
 }
 
+const EXERCISE_SELECT_BASE = 'name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment';
+const EXERCISE_SELECT_WITH_DIFFICULTY = `${EXERCISE_SELECT_BASE}, difficulty_level`;
+const EXERCISE_SELECT_WITH_VIDEO = `${EXERCISE_SELECT_WITH_DIFFICULTY}, video_url, video_storage_bucket, video_storage_path`;
+const EXERCISE_SELECT_WITH_VIDEO_NO_DIFFICULTY = `${EXERCISE_SELECT_BASE}, video_url, video_storage_bucket, video_storage_path`;
+const DEFAULT_EXERCISE_VIDEO_BUCKET = 'video-exercitii';
+
+function normalizeExerciseVideoBucket(bucket) {
+  return bucket === 'vide-exercitii'
+    ? DEFAULT_EXERCISE_VIDEO_BUCKET
+    : (bucket || DEFAULT_EXERCISE_VIDEO_BUCKET);
+}
+
+async function resolveExerciseVideoUrl(supabase, row) {
+  if (!row?.video_storage_path) {
+    return row?.video_url
+      ? row.video_url.replace('/vide-exercitii/', '/video-exercitii/')
+      : null;
+  }
+
+  const bucket = normalizeExerciseVideoBucket(row.video_storage_bucket);
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .createSignedUrl(row.video_storage_path, 60 * 60 * 4);
+
+  if (!error && data?.signedUrl) return data.signedUrl;
+
+  console.error('Workout exercise signed video URL failed:', {
+    bucket,
+    path: row.video_storage_path,
+    error,
+  });
+  const { data: publicData } = supabase.storage
+    .from(bucket)
+    .getPublicUrl(row.video_storage_path);
+
+  return publicData?.publicUrl || null;
+}
+
+function hasExerciseVideo(row) {
+  return Boolean(row?.videoUrl || row?.video_url || row?.video_storage_path);
+}
+
+function hasLegacyVideoBucket(row) {
+  return typeof row?.videoUrl === 'string' && row.videoUrl.includes('/vide-exercitii/');
+}
+
+function exerciseKey(value) {
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[ăâ]/gi, 'a')
+    .replace(/[î]/gi, 'i')
+    .replace(/[șş]/gi, 's')
+    .replace(/[țţ]/gi, 't')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function getSessionExerciseKey(ex) {
+  return exerciseKey(ex?.sourceName || ex?.name);
+}
+
+async function getDbVideoExerciseRows(supabase) {
+  const { data, error } = await supabaseQuery(() => supabase
+    .from('exercises')
+    .select('name, name_ro, video_url, video_storage_bucket, video_storage_path')
+    .eq('active', true));
+
+  if (error) {
+    console.error('Workout video validation query failed:', error);
+    return null;
+  }
+
+  return (data || []).filter(hasExerciseVideo);
+}
+
+function buildDbVideoExerciseMap(rows) {
+  const map = new Map();
+  for (const row of rows || []) {
+    const keys = [exerciseKey(row.name), exerciseKey(row.name_ro)].filter(Boolean);
+    for (const key of keys) map.set(key, row);
+  }
+  return map;
+}
+
+async function hydrateExercisesWithDbVideos(supabase, exercises, dbVideoRows = null) {
+  if (!Array.isArray(exercises) || exercises.length === 0) return null;
+
+  const rows = dbVideoRows || await getDbVideoExerciseRows(supabase);
+  if (!rows) return null;
+
+  const dbMap = buildDbVideoExerciseMap(rows);
+  const hydrated = [];
+  for (const ex of exercises) {
+    if (hasLegacyVideoBucket(ex)) return null;
+
+    const row = dbMap.get(getSessionExerciseKey(ex));
+    if (!row) return null;
+
+    const videoUrl = await resolveExerciseVideoUrl(supabase, row);
+    if (!videoUrl) return null;
+
+    hydrated.push({
+      ...ex,
+      sourceName: row.name,
+      name: ex.name || row.name_ro || row.name,
+      videoUrl,
+    });
+  }
+
+  return hydrated;
+}
+
 /**
  * GET /api/user/workout-session          → check for active (persisted) session
  * GET /api/user/workout-session?focus=push → generate exercises (checks active first)
@@ -593,7 +707,7 @@ function shuffle(arr) {
 export async function GET(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
-  if (auth.role !== 'user') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  if (auth.role !== 'user' && auth.role !== 'client') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
   const requestedFocus = searchParams.get('focus');
@@ -610,8 +724,18 @@ export async function GET(request) {
 
     const session = sessionRow?.active_workout_session;
     if (session) {
+      const hydratedExercises = await hydrateExercisesWithDbVideos(supabase, session.exercises);
+      if (!hydratedExercises) {
+        await supabase.from('users').update({ active_workout_session: null }).eq('id', auth.userId);
+        return NextResponse.json({ activeSession: null });
+      }
       // Return stored elapsedSeconds — timer continues from last saved checkpoint
-      return NextResponse.json({ activeSession: session });
+      return NextResponse.json({
+        activeSession: {
+          ...session,
+          exercises: hydratedExercises,
+        },
+      });
     }
     return NextResponse.json({ activeSession: null });
   }
@@ -640,25 +764,53 @@ export async function GET(request) {
   const muscleGroups    = FOCUS_GROUPS[focus] || null;
 
   // Build DB query
-  let query = supabase
-    .from('exercises')
-    .select('name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment, difficulty_level')
-    .eq('active', true);
+  const buildExerciseQuery = (selectClause) => {
+    let q = supabase
+      .from('exercises')
+      .select(selectClause)
+      .eq('active', true);
 
-  if (equipmentFilter) {
-    // Specific equipment list (no equipment / dumbbells only)
-    query = query.in('equipment', equipmentFilter);
-  } else {
-    // Full gym: exclude resistance band exercises
-    query = query.not('equipment', 'in', `(${BAND_EQUIPMENT.map(e => `"${e}"`).join(',')})`);
+    if (equipmentFilter) {
+      // Specific equipment list (no equipment / dumbbells only)
+      q = q.in('equipment', equipmentFilter);
+    } else {
+      // Full gym: exclude resistance band exercises
+      q = q.not('equipment', 'in', `(${BAND_EQUIPMENT.map(e => `"${e}"`).join(',')})`);
+    }
+    if (muscleGroups) q = q.in('muscle_group', muscleGroups);
+    return q;
+  };
+
+  let missingVideoColumns = false;
+  let { data: rawRows, error } = await supabaseQuery(() => buildExerciseQuery(EXERCISE_SELECT_WITH_VIDEO));
+  if (error && /video_url|video_storage_bucket|video_storage_path/i.test(String(error.message || ''))) {
+    missingVideoColumns = true;
+  } else if (error && /difficulty_level/i.test(String(error.message || ''))) {
+    ({ data: rawRows, error } = await supabaseQuery(() => buildExerciseQuery(EXERCISE_SELECT_WITH_VIDEO_NO_DIFFICULTY)));
+    if (error && /video_url|video_storage_bucket|video_storage_path/i.test(String(error.message || ''))) {
+      missingVideoColumns = true;
+    }
   }
-  if (muscleGroups) query = query.in('muscle_group', muscleGroups);
 
-  const { data: rawRows, error } = await supabaseQuery(() => query);
+  if (missingVideoColumns) {
+    return NextResponse.json(
+      { error: 'Coloanele pentru video-uri lipsesc din exercises. Rulează scriptul add-exercise-video-columns.sql.' },
+      { status: 409 }
+    );
+  }
+
+  if (error) {
+    console.error('Workout exercise video query failed:', error);
+    return NextResponse.json(
+      { error: 'Nu am putut încărca exercițiile cu video.' },
+      { status: 500 }
+    );
+  }
 
   // Filter by difficulty level — beginners only see beginner/untagged exercises,
   // intermediate see beginner+intermediate, advanced see everything.
-  let rows = rawRows;
+  const videoRows = (rawRows || []).filter(hasExerciseVideo);
+  let rows = videoRows;
   if (rows && rows.length > 0) {
     const levelOrder = { beginner: 0, intermediate: 1, advanced: 2 };
     const userLevelNum = levelOrder[fitnessLevel] ?? 1;
@@ -668,19 +820,14 @@ export async function GET(request) {
       return rowLevelNum <= userLevelNum;
     });
     // If filtering left too few, fall back to all fetched rows
-    if (rows.length < 4) rows = rawRows;
+    if (rows.length < 4) rows = videoRows;
   }
 
-  // If DB empty or errored, use FOCUS_STRUCTURE fallback (random per pattern, paired for large groups)
-  if (error || !rows || rows.length === 0) {
-    const structure = FOCUS_STRUCTURE[focus] || FOCUS_STRUCTURE.fullBody;
-    const picked = pickFromStructure(structure, targetCount);
-    const exercises = picked.map(({ ex, isPaired }, i) => {
-      const dummyRow = { is_compound: ex[4], default_reps: ex[2], default_rest_seconds: ex[3] };
-      const { sets, reps, restSeconds } = prescribe(dummyRow, fitnessLevel, fitnessGoal, frequency, isPaired);
-      return { id: i + 1, name: ex[0], muscleGroup: ex[1], sets, reps, restSeconds };
-    });
-    return NextResponse.json({ exercises, focus, trainingSplit });
+  if (!rows || rows.length === 0) {
+    return NextResponse.json(
+      { error: 'Nu există exerciții cu video disponibile pentru antrenamentul de azi.' },
+      { status: 404 }
+    );
   }
 
   // Group rows by muscle_group; for large groups pick 1 compound + 1 isolation (isPaired=true),
@@ -723,17 +870,19 @@ export async function GET(request) {
     }
   }
 
-  const exercises = selected.slice(0, targetCount).map(({ row, isPaired }, i) => {
+  const exercises = await Promise.all(selected.slice(0, targetCount).map(async ({ row, isPaired }, i) => {
     const { sets, reps, restSeconds } = prescribe(row, fitnessLevel, fitnessGoal, frequency, isPaired);
     return {
       id: i + 1,
       name: row.name_ro || row.name,
+      sourceName: row.name,
       muscleGroup: muscleRo(row.muscle_group),
       sets,
       reps,
       restSeconds,
+      videoUrl: await resolveExerciseVideoUrl(supabase, row),
     };
-  });
+  }));
 
   return NextResponse.json({ exercises, focus, trainingSplit });
 }
@@ -746,22 +895,30 @@ export async function GET(request) {
 export async function POST(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
-  if (auth.role !== 'user') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  if (auth.role !== 'user' && auth.role !== 'client') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Body invalid.' }, { status: 400 }); }
   const { exercises, focus } = body;
   if (!exercises?.length) return NextResponse.json({ error: 'Exerciții lipsă.' }, { status: 400 });
 
+  const supabase = getSupabase();
+  const hydratedExercises = await hydrateExercisesWithDbVideos(supabase, exercises);
+  if (!hydratedExercises) {
+    return NextResponse.json(
+      { error: 'Antrenamentul conține exerciții fără video. Generează din nou antrenamentul.' },
+      { status: 409 }
+    );
+  }
+
   const session = {
     focus: focus || 'fullBody',
-    exercises,
+    exercises: hydratedExercises,
     currentIndex: 0,
     xpEarned: 0,
     startedAt: new Date().toISOString(),
   };
 
-  const supabase = getSupabase();
   await supabase.from('users').update({ active_workout_session: session }).eq('id', auth.userId);
   return NextResponse.json({ ok: true });
 }
@@ -774,7 +931,7 @@ export async function POST(request) {
 export async function PATCH(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
-  if (auth.role !== 'user') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  if (auth.role !== 'user' && auth.role !== 'client') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Body invalid.' }, { status: 400 }); }
@@ -808,7 +965,7 @@ export async function PATCH(request) {
 export async function DELETE(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
-  if (auth.role !== 'user') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  if (auth.role !== 'user' && auth.role !== 'client') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
   const supabase = getSupabase();
   await supabase.from('users').update({ active_workout_session: null }).eq('id', auth.userId);

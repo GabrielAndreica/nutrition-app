@@ -2,65 +2,39 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 
-// GET /api/workout-plans — list plans (trainer: all for their clients; client: own)
+function isClientUser(role) {
+  return role === 'client' || role === 'user';
+}
+
+// GET /api/workout-plans - planurile utilizatorului autentificat
 export async function GET(request) {
   const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
   const { searchParams } = new URL(request.url);
   const clientIdFilter = searchParams.get('clientId');
-  const trainerId = Number.parseInt(String(auth.userId), 10);
 
-  if (!auth.role || !['trainer', 'client', 'user'].includes(auth.role)) {
-    return NextResponse.json({ error: 'Rol necunoscut. Acces interzis.' }, { status: 403 });
-  }
-  if (auth.role === 'trainer' && !Number.isFinite(trainerId)) {
-    return NextResponse.json({ error: 'ID antrenor invalid.' }, { status: 401 });
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
-  let query = supabase
+  if (clientIdFilter && clientIdFilter !== String(auth.userId)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  }
+
+  const { data, error } = await supabase
     .from('workout_plans')
-    .select('id, client_id, created_at, approval_status')
+    .select('id, client_id, created_at')
+    .eq('client_id', auth.userId)
     .order('created_at', { ascending: false });
 
-  if (auth.role === 'trainer') {
-    query = query.eq('trainer_id', trainerId);
-    if (clientIdFilter) {
-      query = query.eq('client_id', clientIdFilter);
-    }
-  } else {
-    query = query.eq('client_id', auth.userId);
-    query = query.eq('approval_status', 'approved');
-    if (clientIdFilter && clientIdFilter !== auth.userId) {
-      return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
-    }
-  }
-
-  const { data, error } = await query;
   if (error) {
     console.error('GET workout_plans error:', error);
     return NextResponse.json({ error: 'Eroare la încărcarea planurilor.' }, { status: 500 });
   }
 
-  if (auth.role === 'trainer') {
-    // Latest plan per client
-    const latestPerClient = {};
-    for (const row of data) {
-      if (!latestPerClient[row.client_id]) {
-        latestPerClient[row.client_id] = {
-          planId: row.id,
-          createdAt: row.created_at,
-          approvalStatus: row.approval_status || 'approved',
-        };
-      }
-    }
-    const res = NextResponse.json({ plans: latestPerClient });
-    res.headers.set('Cache-Control', 'no-store, max-age=0');
-    res.headers.set('Pragma', 'no-cache');
-    return res;
-  }
-
-  const res = NextResponse.json({ plans: data });
+  const res = NextResponse.json({ plans: data || [] });
   res.headers.set('Cache-Control', 'no-store, max-age=0');
   res.headers.set('Pragma', 'no-cache');
   return res;

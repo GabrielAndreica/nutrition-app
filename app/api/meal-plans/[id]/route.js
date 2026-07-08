@@ -1,101 +1,56 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
-import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
-// GET /api/meal-plans/[id] — returnează un plan complet
-export async function GET(request, {
-params }) {
+function isClientUser(role) {
+  return role === 'client' || role === 'user';
+}
+
+export async function GET(request, { params }) {
   const supabase = getSupabase();
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  // Construiește query-ul bazat pe rol
-  if (!auth.role || !['trainer', 'client', 'user'].includes(auth.role)) {
-    return NextResponse.json({ error: 'Rol necunoscut. Acces interzis.' }, { status: 403 });
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
-  // ─── Query simplu fără JOIN (B2C: clients eliminat) ───────
-  let query = supabase
+  const { data, error } = await supabase
     .from('meal_plans')
-    .select(`
-      id, 
-      client_id, 
-      plan_data, 
-      daily_targets, 
-      created_at, 
-      previous_plan_calories,
-      approval_status,
-      approved_at,
-      approved_by
-    `)
-    .eq('id', id);
-
-  // Dacă e client/user, verifică că planul aparține utilizatorului
-  if (auth.role === 'client' || auth.role === 'user') {
-    query = query.eq('client_id', auth.userId);
-    query = query.eq('approval_status', 'approved');
-  }
-
-  const { data, error } = await query.single();
+    .select('id, client_id, plan_data, daily_targets, created_at, previous_plan_calories')
+    .eq('id', id)
+    .eq('client_id', auth.userId)
+    .maybeSingle();
 
   if (error || !data) {
     return NextResponse.json({ error: 'Planul nu a fost găsit sau nu ai acces.' }, { status: 404 });
   }
 
-  // Fetch user profile separately from users table
   const { data: client } = await supabase
     .from('users')
     .select('name, age, weight, height, gender, goal, activity_level, diet_type, allergies, meals_per_day, hydration_target_ml, food_preferences')
     .eq('id', data.client_id)
     .maybeSingle();
 
-  const { ip, userAgent } = getRequestMeta(request);
-  logActivity({
-    action: 'meal_plan.view',
-    status: 'success',
-    userId: auth.userId,
-    email: auth.email,
-    ipAddress: ip,
-    userAgent,
-    details: {
-      planId: id,
-      clientId: data.client_id || null,
-      clientName: client?.name || data.plan_data?.clientName || null,
-    },
-  });
-
-  // Nu folosim cache pentru a avea datele mereu fresh (important pentru greutate actualizată)
-  const res = NextResponse.json({ 
-    mealPlan: {
-      id: data.id,
-      client_id: data.client_id,
-      plan_data: data.plan_data,
-      daily_targets: data.daily_targets,
-      created_at: data.created_at,
-      previous_plan_calories: data.previous_plan_calories,
-      approval_status: data.approval_status || 'approved',
-      approved_at: data.approved_at || null,
-      approved_by: data.approved_by || null
-    }, 
+  const res = NextResponse.json({
+    mealPlan: data,
     client,
-    previousPlanCalories: data.previous_plan_calories || null
+    previousPlanCalories: data.previous_plan_calories || null,
   });
-  res.headers.set('Cache-Control', 'private, max-age=10'); // Cache 10 secunde pentru același user
+  res.headers.set('Cache-Control', 'private, max-age=10');
   res.headers.set('Vary', 'Authorization');
   return res;
 }
 
-// PATCH /api/meal-plans/[id] — actualizează planul sau îl aprobă pentru client
 export async function PATCH(request, { params }) {
   const supabase = getSupabase();
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  if (auth.role !== 'trainer') {
-    return NextResponse.json({ error: 'Doar antrenorul poate modifica sau aproba planul.' }, { status: 403 });
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
   let body;
@@ -105,244 +60,57 @@ export async function PATCH(request, { params }) {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }
 
-  const action = body?.action;
-  if (!['update', 'approve'].includes(action)) {
-    return NextResponse.json({ error: 'Acțiune invalidă.' }, { status: 400 });
+  const updatePayload = {};
+  if (body.plan_data && typeof body.plan_data === 'object' && Array.isArray(body.plan_data.days)) {
+    updatePayload.plan_data = body.plan_data;
+  }
+  if (body.daily_targets && typeof body.daily_targets === 'object') {
+    updatePayload.daily_targets = body.daily_targets;
   }
 
-  const { data: existing, error: existingError } = await supabase
+  if (!Object.keys(updatePayload).length) {
+    return NextResponse.json({ error: 'Nu există câmpuri valide de actualizat.' }, { status: 400 });
+  }
+
+  const { data, error } = await supabase
     .from('meal_plans')
-    .select('id, client_id, plan_data, daily_targets, approval_status, approved_at, approved_by')
+    .update(updatePayload)
     .eq('id', id)
-    .single();
-
-  if (existingError || !existing) {
-    return NextResponse.json({ error: 'Planul nu a fost găsit sau nu ai acces.' }, { status: 404 });
-  }
-
-  const { ip, userAgent } = getRequestMeta(request);
-
-  if (action === 'update') {
-    if (!body.plan_data || typeof body.plan_data !== 'object' || !Array.isArray(body.plan_data.days)) {
-      return NextResponse.json({ error: 'Structura planului este invalidă.' }, { status: 400 });
-    }
-
-    const isAlreadyApproved = (existing.approval_status || 'approved') === 'approved';
-    const updatePayload = {
-      plan_data: body.plan_data,
-      approval_status: isAlreadyApproved ? 'approved' : 'pending_review',
-      approved_at: isAlreadyApproved ? existing.approved_at : null,
-      approved_by: isAlreadyApproved ? existing.approved_by : null,
-    };
-    if (body.daily_targets && typeof body.daily_targets === 'object') {
-      updatePayload.daily_targets = body.daily_targets;
-    }
-
-    const { data: updated, error: updateError } = await supabase
-      .from('meal_plans')
-      .update(updatePayload)
-      .eq('id', id)
-      .select('id, client_id, plan_data, daily_targets, approval_status, approved_at, approved_by')
-      .single();
-
-    if (updateError) {
-      console.error('[meal-plans PATCH] Eroare la salvarea modificărilor:', {
-        planId: id,
-        trainerId: auth.userId,
-        code: updateError.code,
-        message: updateError.message,
-        details: updateError.details,
-        hint: updateError.hint,
-      });
-      return NextResponse.json({
-        error: 'Nu am putut salva modificările planului.',
-        ...(process.env.NODE_ENV !== 'production'
-          ? { details: updateError.message, code: updateError.code || null }
-          : {}),
-      }, { status: 500 });
-    }
-
-    logActivity({
-      action: 'meal_plan.update_for_review',
-      status: 'success',
-      userId: auth.userId,
-      email: auth.email,
-      ipAddress: ip,
-      userAgent,
-      details: { planId: id, clientId: existing.client_id },
-    });
-
-    return NextResponse.json({ mealPlan: updated });
-  }
-
-  const now = new Date().toISOString();
-  const { data: approved, error: approveError } = await supabase
-    .from('meal_plans')
-    .update({
-      approval_status: 'approved',
-      approved_at: now,
-      approved_by: auth.userId,
-    })
-    .eq('id', id)
-    .select('id, client_id, plan_data, daily_targets, approval_status, approved_at, approved_by')
-    .single();
-
-  if (approveError) {
-    console.error('[meal-plans PATCH] Eroare la aprobarea planului:', {
-      planId: id,
-      trainerId: auth.userId,
-      code: approveError.code,
-      message: approveError.message,
-      details: approveError.details,
-      hint: approveError.hint,
-    });
-    return NextResponse.json({
-      error: 'Nu am putut aproba planul.',
-      ...(process.env.NODE_ENV !== 'production'
-        ? { details: approveError.message, code: approveError.code || null }
-        : {}),
-    }, { status: 500 });
-  }
-
-  let pairedWorkoutPlan = null;
-  const { data: pendingWorkout, error: pendingWorkoutError } = await supabase
-    .from('workout_plans')
-    .select('id, client_id, plan_data, approval_status, approved_at, approved_by')
-    .eq('client_id', existing.client_id)
-    .eq('approval_status', 'pending_review')
-    .order('created_at', { ascending: false })
-    .limit(1)
+    .eq('client_id', auth.userId)
+    .select('id, client_id, plan_data, daily_targets, created_at, previous_plan_calories')
     .maybeSingle();
 
-  if (pendingWorkoutError) {
-    console.error('[meal-plans PATCH] Eroare la căutarea planului de antrenament pereche:', {
-      planId: id,
-      clientId: existing.client_id,
-      code: pendingWorkoutError.code,
-      message: pendingWorkoutError.message,
-      details: pendingWorkoutError.details,
-      hint: pendingWorkoutError.hint,
-    });
-  } else if (pendingWorkout) {
-    const { data: approvedWorkout, error: pairedWorkoutError } = await supabase
-      .from('workout_plans')
-      .update({
-        approval_status: 'approved',
-        approved_at: now,
-        approved_by: auth.userId,
-      })
-      .eq('id', pendingWorkout.id)
-      .select('id, client_id, plan_data, approval_status, approved_at, approved_by')
-      .single();
-
-    if (pairedWorkoutError) {
-      console.error('[meal-plans PATCH] Eroare la aprobarea planului de antrenament pereche:', {
-        mealPlanId: id,
-        workoutPlanId: pendingWorkout.id,
-        clientId: existing.client_id,
-        code: pairedWorkoutError.code,
-        message: pairedWorkoutError.message,
-        details: pairedWorkoutError.details,
-        hint: pairedWorkoutError.hint,
-      });
-    } else {
-      pairedWorkoutPlan = approvedWorkout;
-    }
+  if (error || !data) {
+    console.error('[meal-plans PATCH] Eroare la salvarea planului:', error);
+    return NextResponse.json({ error: 'Nu am putut salva modificările planului.' }, { status: 500 });
   }
 
-  const clientUserId = existing.client_id;
-  if (clientUserId) {
-    const notifications = [{
-        user_id: clientUserId,
-        type: 'new_meal_plan',
-        title: existing.approval_status === 'approved' ? 'Plan alimentar actualizat' : 'Plan alimentar nou',
-        message: existing.approval_status === 'approved'
-          ? 'Antrenorul tău ți-a trimis o versiune actualizată a planului alimentar.'
-          : 'Antrenorul tău ți-a trimis un plan alimentar nou.',
-        related_plan_id: id,
-        related_client_id: existing.client_id,
-        is_read: false,
-      }];
-
-    if (pairedWorkoutPlan) {
-      notifications.push({
-        user_id: clientUserId,
-        type: 'new_workout_plan',
-        title: 'Plan de antrenament nou',
-        message: 'Antrenorul tău ți-a trimis un plan de antrenament nou.',
-        related_plan_id: null,
-        related_client_id: existing.client_id,
-        is_read: false,
-      });
-    }
-
-    const { error: notificationError } = await supabase
-      .from('notifications')
-      .insert(notifications);
-    if (notificationError) {
-      console.error('[meal-plans PATCH] Eroare la notificarea clientului:', notificationError.message);
-    }
-  }
-
-  logActivity({
-    action: 'meal_plan.approve',
-    status: 'success',
-    userId: auth.userId,
-    email: auth.email,
-    ipAddress: ip,
-    userAgent,
-    details: { planId: id, clientId: existing.client_id },
-  });
-
-  return NextResponse.json({ mealPlan: approved, workoutPlan: pairedWorkoutPlan });
+  return NextResponse.json({ mealPlan: data });
 }
 
-// DELETE /api/meal-plans/[id] — șterge un plan (doar traineri)
-export async function DELETE(request, {
-params }) {
+export async function DELETE(request, { params }) {
   const supabase = getSupabase();
   const { id } = await params;
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  // Doar trainerii pot șterge planuri
-  if (auth.role !== 'trainer') {
-    return NextResponse.json({ error: 'Nu ai permisiunea să ștergi planuri.' }, { status: 403 });
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
-  // .eq('trainer_id') servește și ca ownership check — dacă count=0 înseamnă not found / no access
   const { error, count } = await supabase
     .from('meal_plans')
     .delete({ count: 'exact' })
-    .eq('id', id);
-
-  const { ip, userAgent } = getRequestMeta(request);
+    .eq('id', id)
+    .eq('client_id', auth.userId);
 
   if (!error && count === 0) {
     return NextResponse.json({ error: 'Planul nu a fost găsit sau nu ai acces.' }, { status: 404 });
   }
 
   if (error) {
-    logActivity({
-      action: 'meal_plan.delete',
-      status: 'failure',
-      userId: auth.userId,
-      email: auth.email,
-      ipAddress: ip,
-      userAgent,
-      details: { planId: id, error: error.message },
-    });
     return NextResponse.json({ error: 'Eroare la ștergerea planului.' }, { status: 500 });
   }
 
-  logActivity({
-    action: 'meal_plan.delete',
-    status: 'success',
-    userId: auth.userId,
-    email: auth.email,
-    ipAddress: ip,
-    userAgent,
-    details: { planId: id },
-  });
   return NextResponse.json({ success: true });
 }

@@ -4,6 +4,7 @@ import { verifyToken } from '@/app/lib/verifyToken';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import { resolveUserOnboardingCompletion } from '@/app/lib/onboardingStatus';
 import { calculateHydrationTargetMl } from '@/app/lib/hydrationTarget';
+import { createAutomaticMealPlanForUser } from '@/app/lib/automaticMealPlan';
 
 // Allowed enum values
 const ALLOWED_FITNESS_LEVELS = ['beginner', 'intermediate', 'advanced'];
@@ -18,7 +19,7 @@ export async function POST(request) {
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
-  if (auth.role !== 'user') {
+  if (auth.role !== 'user' && auth.role !== 'client') {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
@@ -155,6 +156,9 @@ export async function POST(request) {
       meals_per_day: 5,
       hydration_target_ml: hydrationTargetMl,
       food_preferences: '',
+      meals_completed_days: 0,
+      current_plan_day: 0,
+      meal_day_status: {},
       onboarding_completed: true,
     })
     .eq('id', auth.userId);
@@ -164,8 +168,35 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Eroare la salvarea profilului.' }, { status: 500 });
   }
 
+  let automaticMealPlan = null;
+  let automaticMealPlanWarning = null;
+  try {
+    automaticMealPlan = await createAutomaticMealPlanForUser({
+      supabase,
+      userId: auth.userId,
+      profile: {
+        name: userName,
+        age: ageNum,
+        weight: weightNum,
+        height: heightNum,
+        gender: genderNorm,
+        goal,
+        activityLevel,
+        dietType: dietTypeSafe,
+      },
+    });
+  } catch (mealPlanError) {
+    automaticMealPlanWarning = mealPlanError?.message || 'Planul alimentar automat nu a putut fi generat.';
+    console.error('[onboarding] automatic meal plan error:', mealPlanError);
+  }
+
   // clientId = userId (pentru compatibilitate cu codul existent)
-  return NextResponse.json({ clientId: auth.userId, success: true });
+  return NextResponse.json({
+    clientId: auth.userId,
+    success: true,
+    mealPlanId: automaticMealPlan?.mealPlanId || null,
+    warning: automaticMealPlanWarning,
+  });
 }
 
 export async function GET(request) {
@@ -173,7 +204,7 @@ export async function GET(request) {
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
-  if (auth.role !== 'user') {
+  if (auth.role !== 'user' && auth.role !== 'client') {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 

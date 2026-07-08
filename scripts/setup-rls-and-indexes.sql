@@ -141,12 +141,15 @@ CREATE POLICY "weight_history_delete_own" ON weight_history
 -- 8. INDEXES pentru performanta
 -- ============================================================
 
--- Asigura existenta coloanei approval_status (poate lipsi dupa migrare)
 ALTER TABLE meal_plans
-  ADD COLUMN IF NOT EXISTS approval_status text NOT NULL DEFAULT 'approved';
+  DROP COLUMN IF EXISTS approval_status,
+  DROP COLUMN IF EXISTS approved_at,
+  DROP COLUMN IF EXISTS approved_by;
 
 ALTER TABLE workout_plans
-  ADD COLUMN IF NOT EXISTS approval_status text NOT NULL DEFAULT 'approved';
+  DROP COLUMN IF EXISTS approval_status,
+  DROP COLUMN IF EXISTS approved_at,
+  DROP COLUMN IF EXISTS approved_by;
 
 -- ── users ──────────────────────────────────────────────────
 ALTER TABLE users
@@ -188,8 +191,10 @@ CREATE INDEX IF NOT EXISTS idx_users_role_status
 CREATE INDEX IF NOT EXISTS idx_meal_plans_client_id
   ON meal_plans(client_id);
 
-CREATE INDEX IF NOT EXISTS idx_meal_plans_client_approved
-  ON meal_plans(client_id, approval_status, created_at DESC);
+DROP INDEX IF EXISTS idx_meal_plans_client_approved;
+
+CREATE INDEX IF NOT EXISTS idx_meal_plans_client_created
+  ON meal_plans(client_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_meal_plans_created_at
   ON meal_plans(created_at DESC);
@@ -198,8 +203,10 @@ CREATE INDEX IF NOT EXISTS idx_meal_plans_created_at
 CREATE INDEX IF NOT EXISTS idx_workout_plans_client_id
   ON workout_plans(client_id);
 
-CREATE INDEX IF NOT EXISTS idx_workout_plans_client_approved
-  ON workout_plans(client_id, approval_status, created_at DESC);
+DROP INDEX IF EXISTS idx_workout_plans_client_approved;
+
+CREATE INDEX IF NOT EXISTS idx_workout_plans_client_created
+  ON workout_plans(client_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_workout_plans_created_at
   ON workout_plans(created_at DESC);

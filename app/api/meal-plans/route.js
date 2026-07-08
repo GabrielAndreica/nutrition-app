@@ -2,67 +2,36 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 
-// GET /api/meal-plans — returnează planuri (toate pentru trainer, doar ale sale pentru client)
+function isClientUser(role) {
+  return role === 'client' || role === 'user';
+}
+
+// GET /api/meal-plans - planurile utilizatorului autentificat
 export async function GET(request) {
   const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  }
+
   const { searchParams } = new URL(request.url);
   const clientIdFilter = searchParams.get('clientId');
-  const trainerId = Number.parseInt(String(auth.userId), 10);
-
-  // Construiește query-ul bazat pe rol
-  if (!auth.role || !['trainer', 'client', 'user'].includes(auth.role)) {
-    return NextResponse.json({ error: 'Rol necunoscut. Acces interzis.' }, { status: 403 });
+  if (clientIdFilter && clientIdFilter !== String(auth.userId)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
-  let query = supabase
+  const { data, error } = await supabase
     .from('meal_plans')
-    .select('id, client_id, created_at, approval_status')
+    .select('id, client_id, created_at')
+    .eq('client_id', auth.userId)
     .order('created_at', { ascending: false });
-
-  // Dacă e trainer, returnează planurile clienților săi
-  if (auth.role === 'trainer') {
-    if (!Number.isFinite(trainerId)) {
-      return NextResponse.json({ error: 'ID antrenor invalid.' }, { status: 401 });
-    }
-    query = query.eq('trainer_id', trainerId);
-    if (clientIdFilter) {
-      query = query.eq('client_id', clientIdFilter);
-    }
-  }
-  // Dacă e client, returnează doar planurile sale
-  else if (auth.role === 'client' || auth.role === 'user') {
-    query = query.eq('client_id', auth.userId);
-    query = query.eq('approval_status', 'approved');
-    if (clientIdFilter && clientIdFilter !== auth.userId) {
-      return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
-    }
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     console.error('Supabase GET meal_plans error:', error);
     return NextResponse.json({ error: 'Eroare la încărcarea planurilor.' }, { status: 500 });
   }
 
-  // Pentru trainer: păstrează doar cel mai recent plan per client
-  // Pentru client: returnează toate planurile sale
-  if (auth.role === 'trainer') {
-    const latestPerClient = {};
-    for (const row of data) {
-      if (!latestPerClient[row.client_id]) {
-        latestPerClient[row.client_id] = {
-          planId: row.id,
-          createdAt: row.created_at,
-          approvalStatus: row.approval_status || 'approved',
-        };
-      }
-    }
-    return NextResponse.json({ plans: latestPerClient });
-  } else {
-    // Pentru client/user, returnează array direct
-    return NextResponse.json({ plans: data });
-  }
+  return NextResponse.json({ plans: data || [] });
 }

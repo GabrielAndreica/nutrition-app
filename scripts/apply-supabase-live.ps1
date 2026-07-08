@@ -35,7 +35,6 @@ $coreSql = @(
   "$root\supabase\rate-limiting.sql",
   "$root\supabase\add_email_confirmation_to_users.sql",
   "$root\supabase\add_trial_system.sql",
-  "$appRoot\supabase\client_invitations.sql",
   "$appRoot\supabase\weight_history.sql",
   "$appRoot\supabase\add_food_preferences.sql",
   "$root\supabase\add_has_new_progress.sql",
