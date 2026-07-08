@@ -183,6 +183,17 @@ function getDailyWaterStorageKey(ownerId) {
   return `trevano_water_ml_${safeOwnerId}_${new Date().toISOString().slice(0, 10)}`;
 }
 
+function normalizeInstructionList(instructions) {
+  if (!instructions) return [];
+  if (Array.isArray(instructions)) {
+    return instructions.map(item => String(item || '').trim()).filter(Boolean);
+  }
+  return String(instructions)
+    .split(/\r?\n/)
+    .map(item => item.replace(/^[-•\d.)\s]+/, '').trim())
+    .filter(Boolean);
+}
+
 function ClientDashboardContent() {
   const router = useRouter();
   const { logout, user, login } = useAuth();
@@ -231,6 +242,7 @@ function ClientDashboardContent() {
   const [confirmAbandonWorkout, setConfirmAbandonWorkout] = useState(false);
   const [xpToast, setXpToast] = useState(null);       // { amount } | null
   const [xpFinishPopup, setXpFinishPopup] = useState(null); // { totalXp, elapsedSeconds, exerciseCount } | null
+  const [loadedWorkoutVideos, setLoadedWorkoutVideos] = useState({});
   // Wall-clock timer: Date.now() at last start/resume
   const timerStartedAtRef = useRef(null);
   // Accumulated seconds before current segment
@@ -910,6 +922,9 @@ function ClientDashboardContent() {
       .slice(0, 4)
       .join(' · ')
     : '';
+  const workoutPreloadVideoUrls = workoutStartScreen
+    ? [...new Set(workoutStartScreen.exercises.map(ex => ex.videoUrl).filter(Boolean))]
+    : [];
   const waterDoneToday = hydrationTargetLoaded && waterMl >= hydrationTargetMl;
   const hasWorkoutInProgress = hasActivePausedSession || workoutSession?.phase === 'active';
   const dayDoneToday = workoutDoneToday && mealsDoneToday && waterDoneToday;
@@ -1690,6 +1705,22 @@ function ClientDashboardContent() {
           {/* ── Workout Start Screen (pre-flight) ─────────────────── */}
           {workoutStartScreen && !workoutSession && (
             <div className={styles.workoutStartWrap}>
+              {workoutPreloadVideoUrls.length > 0 && (
+                <div className={styles.workoutVideoPreloadBank} aria-hidden="true">
+                  {workoutPreloadVideoUrls.map(url => (
+                    <video
+                      key={url}
+                      src={url}
+                      muted
+                      playsInline
+                      preload="auto"
+                      onLoadedData={() => {
+                        setLoadedWorkoutVideos(prev => prev[url] ? prev : { ...prev, [url]: true });
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
               <button className={styles.workoutStartBack} onClick={() => setWorkoutStartScreen(null)}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="15 18 9 12 15 6"/>
@@ -1731,6 +1762,8 @@ function ClientDashboardContent() {
           {/* ── Active Workout Session ─────────────────────────────── */}
           {workoutSession?.phase === 'active' && (() => {
             const ex = workoutSession.exercises[workoutSession.currentIndex];
+            const videoReady = !!(ex?.videoUrl && loadedWorkoutVideos[ex.videoUrl]);
+            const exerciseInstructions = normalizeInstructionList(ex?.instructions);
             const progressPct = Math.round((workoutSession.currentIndex / workoutSession.exercises.length) * 100);
             return (
               <div className={styles.wsWrap}>
@@ -1772,17 +1805,27 @@ function ClientDashboardContent() {
                 </p>
                 <div className={styles.wsCard}>
                   {ex?.videoUrl && (
-                    <div className={styles.wsVideoFrame}>
+                    <div className={`${styles.wsVideoFrame} ${videoReady ? '' : styles.wsVideoFrameLoading}`}>
                       <video
                         key={ex.videoUrl}
-                        className={styles.wsVideo}
+                        className={`${styles.wsVideo} ${videoReady ? '' : styles.wsVideoHidden}`}
                         src={ex.videoUrl}
                         autoPlay
                         muted
                         loop
                         playsInline
                         preload="auto"
+                        onLoadedData={() => {
+                          setLoadedWorkoutVideos(prev => prev[ex.videoUrl] ? prev : { ...prev, [ex.videoUrl]: true });
+                        }}
                       />
+                    </div>
+                  )}
+                  {exerciseInstructions.length > 0 && (
+                    <div className={styles.wsInstructions}>
+                      {exerciseInstructions.map((instruction, index) => (
+                        <p key={`${instruction}-${index}`}>{instruction}</p>
+                      ))}
                     </div>
                   )}
                   <span className={styles.wsMuscle}>{ex?.muscleGroup || ex?.muscle || ''}</span>

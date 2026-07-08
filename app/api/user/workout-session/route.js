@@ -586,10 +586,13 @@ function shuffle(arr) {
   return a;
 }
 
-const EXERCISE_SELECT_BASE = 'name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment';
+const EXERCISE_SELECT_BASE = 'name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment, notes';
+const EXERCISE_SELECT_BASE_NO_NOTES = 'name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment';
 const EXERCISE_SELECT_WITH_DIFFICULTY = `${EXERCISE_SELECT_BASE}, difficulty_level`;
 const EXERCISE_SELECT_WITH_VIDEO = `${EXERCISE_SELECT_WITH_DIFFICULTY}, video_url, video_storage_bucket, video_storage_path`;
 const EXERCISE_SELECT_WITH_VIDEO_NO_DIFFICULTY = `${EXERCISE_SELECT_BASE}, video_url, video_storage_bucket, video_storage_path`;
+const EXERCISE_SELECT_WITH_VIDEO_NO_NOTES = `${EXERCISE_SELECT_BASE_NO_NOTES}, difficulty_level, video_url, video_storage_bucket, video_storage_path`;
+const EXERCISE_SELECT_WITH_VIDEO_MINIMAL = `${EXERCISE_SELECT_BASE_NO_NOTES}, video_url, video_storage_bucket, video_storage_path`;
 const DEFAULT_EXERCISE_VIDEO_BUCKET = 'video-exercitii';
 
 function normalizeExerciseVideoBucket(bucket) {
@@ -628,6 +631,20 @@ function hasExerciseVideo(row) {
   return Boolean(row?.videoUrl || row?.video_url || row?.video_storage_path);
 }
 
+function normalizeExerciseInstructions(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.map(item => String(item || '').trim()).filter(Boolean);
+  }
+  if (typeof value === 'object') {
+    return Object.values(value).map(item => String(item || '').trim()).filter(Boolean);
+  }
+  return String(value)
+    .split(/\r?\n|(?<=\.)\s+(?=[A-ZĂÂÎȘȚ])/)
+    .map(item => item.replace(/^[-•\d.)\s]+/, '').trim())
+    .filter(Boolean);
+}
+
 function hasLegacyVideoBucket(row) {
   return typeof row?.videoUrl === 'string' && row.videoUrl.includes('/vide-exercitii/');
 }
@@ -650,10 +667,17 @@ function getSessionExerciseKey(ex) {
 }
 
 async function getDbVideoExerciseRows(supabase) {
-  const { data, error } = await supabaseQuery(() => supabase
+  let { data, error } = await supabaseQuery(() => supabase
     .from('exercises')
-    .select('name, name_ro, video_url, video_storage_bucket, video_storage_path')
+    .select('name, name_ro, notes, video_url, video_storage_bucket, video_storage_path')
     .eq('active', true));
+
+  if (error && /notes/i.test(String(error.message || ''))) {
+    ({ data, error } = await supabaseQuery(() => supabase
+      .from('exercises')
+      .select('name, name_ro, video_url, video_storage_bucket, video_storage_path')
+      .eq('active', true)));
+  }
 
   if (error) {
     console.error('Workout video validation query failed:', error);
@@ -693,6 +717,7 @@ async function hydrateExercisesWithDbVideos(supabase, exercises, dbVideoRows = n
       ...ex,
       sourceName: row.name,
       name: ex.name || row.name_ro || row.name,
+      instructions: normalizeExerciseInstructions(row.notes),
       videoUrl,
     });
   }
@@ -785,8 +810,19 @@ export async function GET(request) {
   let { data: rawRows, error } = await supabaseQuery(() => buildExerciseQuery(EXERCISE_SELECT_WITH_VIDEO));
   if (error && /video_url|video_storage_bucket|video_storage_path/i.test(String(error.message || ''))) {
     missingVideoColumns = true;
+  } else if (error && /notes/i.test(String(error.message || ''))) {
+    ({ data: rawRows, error } = await supabaseQuery(() => buildExerciseQuery(EXERCISE_SELECT_WITH_VIDEO_NO_NOTES)));
+    if (error && /difficulty_level/i.test(String(error.message || ''))) {
+      ({ data: rawRows, error } = await supabaseQuery(() => buildExerciseQuery(EXERCISE_SELECT_WITH_VIDEO_MINIMAL)));
+    }
+    if (error && /video_url|video_storage_bucket|video_storage_path/i.test(String(error.message || ''))) {
+      missingVideoColumns = true;
+    }
   } else if (error && /difficulty_level/i.test(String(error.message || ''))) {
     ({ data: rawRows, error } = await supabaseQuery(() => buildExerciseQuery(EXERCISE_SELECT_WITH_VIDEO_NO_DIFFICULTY)));
+    if (error && /notes/i.test(String(error.message || ''))) {
+      ({ data: rawRows, error } = await supabaseQuery(() => buildExerciseQuery(EXERCISE_SELECT_WITH_VIDEO_MINIMAL)));
+    }
     if (error && /video_url|video_storage_bucket|video_storage_path/i.test(String(error.message || ''))) {
       missingVideoColumns = true;
     }
@@ -880,6 +916,7 @@ export async function GET(request) {
       sets,
       reps,
       restSeconds,
+      instructions: normalizeExerciseInstructions(row.notes),
       videoUrl: await resolveExerciseVideoUrl(supabase, row),
     };
   }));
