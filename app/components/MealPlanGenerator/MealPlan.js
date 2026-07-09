@@ -86,6 +86,7 @@ export default function MealPlan({
   currentPlanDay = 0,
   dayStatus = {},
   onFinishMeals,
+  onBack,
 }) {
   const { user } = useAuth();
   const [activeDay, setActiveDay] = useState(0);
@@ -100,6 +101,8 @@ export default function MealPlan({
   const [progressSuccess, setProgressSuccess] = useState(false);
   const [progressSubmitError, setProgressSubmitError] = useState(null);
   const [progressSentBanner, setProgressSentBanner] = useState(null);
+  const [mealChecks, setMealChecks] = useState({});
+  const [mealChecksLoaded, setMealChecksLoaded] = useState(false);
   const [progressData, setProgressData] = useState({
     currentWeight: clientData?.weight || '',
     adherence: '',
@@ -115,11 +118,70 @@ export default function MealPlan({
   });
   const [progressStep, setProgressStep] = useState(1);
   const safeCurrentPlanDay = Math.max(0, Math.min(7, Number(currentPlanDay) || 0));
+  const currentDay = plan && plan.days ? plan.days[activeDay] : null;
+  const cooldownDate = progressCooldownUntil ? new Date(progressCooldownUntil) : null;
+  const progressInCooldown = !!(cooldownDate && cooldownDate > new Date());
+  const mealCheckStorageKey = [
+    'meal-checks',
+    clientData?.clientId || clientData?.id || user?.id || user?.email || 'client',
+    plan?.id || plan?.createdAt || plan?.created_at || plan?.days?.length || 'plan',
+  ].join(':');
 
   useEffect(() => {
     if (!onFinishMeals || !plan?.days?.length) return;
     setActiveDay(Math.min(safeCurrentPlanDay, plan.days.length - 1));
   }, [onFinishMeals, plan?.days?.length, safeCurrentPlanDay]);
+
+  useEffect(() => {
+    if (!onFinishMeals || !plan?.days?.length) return;
+
+    setMealChecksLoaded(false);
+
+    try {
+      const savedChecks = localStorage.getItem(mealCheckStorageKey);
+      setMealChecks(savedChecks ? JSON.parse(savedChecks) || {} : {});
+    } catch {
+      setMealChecks({});
+    } finally {
+      setMealChecksLoaded(true);
+    }
+  }, [mealCheckStorageKey, onFinishMeals, plan?.days?.length]);
+
+  useEffect(() => {
+    if (!onFinishMeals || !plan?.days?.length || !mealChecksLoaded) return;
+
+    try {
+      localStorage.setItem(mealCheckStorageKey, JSON.stringify(mealChecks));
+    } catch {
+      // Local progress still works even if storage is unavailable.
+    }
+  }, [mealChecks, mealCheckStorageKey, mealChecksLoaded, onFinishMeals, plan?.days?.length]);
+
+  useEffect(() => {
+    if (!onFinishMeals || !plan?.days?.length || !mealChecksLoaded) return;
+
+    setMealChecks(prev => {
+      let changed = false;
+      const next = { ...prev };
+
+      plan.days.forEach((day, dayIndex) => {
+        const dayKey = String(dayIndex);
+        if (dayStatus[dayKey] !== true) return;
+
+        const nextDay = { ...(next[dayKey] || {}) };
+        (day.meals || []).forEach((_, mealIndex) => {
+          const mealKey = String(mealIndex);
+          if (nextDay[mealKey] !== true) {
+            nextDay[mealKey] = true;
+            changed = true;
+          }
+        });
+        next[dayKey] = nextDay;
+      });
+
+      return changed ? next : prev;
+    });
+  }, [dayStatus, mealChecksLoaded, onFinishMeals, plan?.days]);
 
   const goalLabels = {
     weight_loss: 'Slăbit',
@@ -144,15 +206,19 @@ export default function MealPlan({
     'Gustare': { name: 'Gustare' },
     'Gustare 1': { name: 'Gustare 1' },
     'Gustare 2': { name: 'Gustare 2' },
-    'Breakfast': { name: 'Masa 1' },
-    'Lunch': { name: 'Masa 2' },
-    'Dinner': { name: 'Masa 3' },
+    'Breakfast': { name: 'Mic dejun' },
+    'Lunch': { name: 'Prânz' },
+    'Dinner': { name: 'Cină' },
     'Snack': { name: 'Gustare' },
     'Snack 1': { name: 'Gustare 1' },
     'Snack 2': { name: 'Gustare 2' },
-    'Mic Dejun': { name: 'Masa 1' },
-    'Prânz': { name: 'Masa 2' },
-    'Cină': { name: 'Masa 3' },
+    breakfast: { name: 'Mic dejun' },
+    lunch: { name: 'Prânz' },
+    dinner: { name: 'Cină' },
+    snack: { name: 'Gustare' },
+    'Mic Dejun': { name: 'Mic dejun' },
+    'Prânz': { name: 'Prânz' },
+    'Cină': { name: 'Cină' },
   };
 
   const getMealLabel = (mealType) => {
@@ -294,6 +360,37 @@ export default function MealPlan({
     }
   };
 
+  const getMealDayState = (dayIndex) => {
+    const dayCompleted = dayStatus[String(dayIndex)] === true;
+    const dayDisabled = dayIndex < safeCurrentPlanDay && !dayCompleted;
+    const weekCompleted = safeCurrentPlanDay >= 7;
+    const dayLocked = dayDisabled || dayIndex > safeCurrentPlanDay || (lockedAfterDay !== null && dayIndex > lockedAfterDay);
+
+    return {
+      dayCompleted,
+      disabled: progressInCooldown || dayLocked || dayCompleted || weekCompleted,
+    };
+  };
+
+  const isMealChecked = (dayIndex, mealIndex) => {
+    const dayKey = String(dayIndex);
+    const mealKey = String(mealIndex);
+    return dayStatus[dayKey] === true || mealChecks[dayKey]?.[mealKey] === true;
+  };
+
+  const handleMealCheckToggle = (mealIndex) => {
+    if (!onFinishMeals || getMealDayState(activeDay).disabled) return;
+
+    setMealChecks(prev => {
+      const dayKey = String(activeDay);
+      const mealKey = String(mealIndex);
+      const nextDay = { ...(prev[dayKey] || {}) };
+      nextDay[mealKey] = !nextDay[mealKey];
+
+      return { ...prev, [dayKey]: nextDay };
+    });
+  };
+
   if (!workoutOnlyMode && (!plan || !plan.days || plan.days.length === 0)) {
     return <div className={styles.container}>Nu s-a putut genera planul.</div>;
   }
@@ -338,7 +435,6 @@ export default function MealPlan({
     );
   }
 
-  const currentDay = plan && plan.days ? plan.days[activeDay] : null;
   const canEditAmounts = editableAmounts && user?.role === 'trainer' && typeof onPlanChange === 'function';
 
   const handleFoodAmountChange = (mealIndex, foodIndex, nextAmount) => {
@@ -347,11 +443,20 @@ export default function MealPlan({
     onPlanDirtyChange?.(true);
   };
 
-  const cooldownDate = progressCooldownUntil ? new Date(progressCooldownUntil) : null;
-  const progressInCooldown = !!(cooldownDate && cooldownDate > new Date());
-  const progressDaysLeft = progressInCooldown
-    ? Math.ceil((cooldownDate - new Date()) / (1000 * 60 * 60 * 24))
+  const dayCaloriesTotal = Number(currentDay?.dailyTotals?.calories)
+    || (currentDay?.meals || []).reduce((sum, meal) => sum + (Number(meal.mealTotals?.calories) || 0), 0);
+  const dayCaloriesConsumed = (currentDay?.meals || []).reduce((sum, meal, mealIndex) => {
+    return isMealChecked(activeDay, mealIndex)
+      ? sum + (Number(meal.mealTotals?.calories) || 0)
+      : sum;
+  }, 0);
+  const dayCaloriesProgress = dayCaloriesTotal > 0
+    ? Math.min(100, Math.round((dayCaloriesConsumed / dayCaloriesTotal) * 100))
     : 0;
+  const activeMealDayState = getMealDayState(activeDay);
+  const allActiveMealsChecked = !!currentDay?.meals?.length &&
+    currentDay.meals.every((_, mealIndex) => isMealChecked(activeDay, mealIndex));
+  const canFinalizeMealsDay = !!onFinishMeals && allActiveMealsChecked && !activeMealDayState.disabled;
 
   /* ── Inline Progress Page (client mode) ── */
   if (showProgress && onSubmitProgress) {
@@ -644,31 +749,45 @@ export default function MealPlan({
 
   return (
     <div className={styles.container}>
-      {/* Client Header */}
-      {clientData && (
-        <div className={styles.clientHeader}>
-          <div className={styles.clientHeaderLeft}>
-            <div>
-              <h2 className={styles.clientName}>{clientData.name}</h2>
-              <p className={styles.clientSub}>{goalLabels[clientData.goal]} · {dietLabels[clientData.dietType]}</p>
+      <div className={styles.mealPageHeader}>
+        {onBack && (
+          <button className={styles.mealBackBtn} onClick={onBack}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Înapoi
+          </button>
+        )}
+        <h1 className={styles.mealTodayTitle}>{dayNames[activeDay % dayNames.length]}</h1>
+        {dayCaloriesTotal > 0 && (
+          <div
+            className={styles.mealKcalProgress}
+            aria-label={`${dayCaloriesConsumed} din ${dayCaloriesTotal} kcal consumate`}
+          >
+            <div className={styles.mealKcalRing}>
+              <svg className={styles.mealKcalRingSvg} viewBox="0 0 52 52" aria-hidden="true">
+                <circle className={styles.mealKcalRingTrack} cx="26" cy="26" r="22" pathLength="100" />
+                <circle
+                  className={styles.mealKcalRingValue}
+                  cx="26"
+                  cy="26"
+                  r="22"
+                  pathLength="100"
+                  style={{ strokeDashoffset: 100 - dayCaloriesProgress }}
+                />
+              </svg>
+              <div className={styles.mealKcalRingInner}>
+                <span>{dayCaloriesProgress}%</span>
+              </div>
+            </div>
+            <div className={styles.mealKcalText}>
+              <span className={styles.mealKcalLabel}>Calorii consumate</span>
+              <strong key={`${activeDay}-${dayCaloriesConsumed}`}>{dayCaloriesConsumed} / {dayCaloriesTotal}</strong>
+              <span className={styles.mealKcalTotal}>kcal astăzi</span>
             </div>
           </div>
-          <div className={styles.clientStats}>
-            <div className={styles.clientStat}>
-              <span className={styles.clientStatValue}>{clientData.age}</span>
-              <span className={styles.clientStatLabel}>Vârstă</span>
-            </div>
-            <div className={styles.clientStat}>
-              <span className={styles.clientStatValue}>{clientData.weight}</span>
-              <span className={styles.clientStatLabel}>Greutate</span>
-            </div>
-            <div className={styles.clientStat}>
-              <span className={styles.clientStatValue}>{clientData.height}</span>
-              <span className={styles.clientStatLabel}>Înălțime</span>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Banner progres trimis */}
       {progressSentBanner && (
@@ -766,8 +885,8 @@ export default function MealPlan({
                 onClick={() => setActiveDay(index)}
               >
                   <span className={styles.dayTabInner}>
-                    <span className={styles.dayFull}>{`Ziua ${index + 1}`}</span>
-                    <span className={styles.dayShort}>{`Z${index + 1}`}</span>
+                    <span className={styles.dayFull}>{dayNames[index % dayNames.length]}</span>
+                    <span className={styles.dayShort}>{dayNamesShort[index % dayNamesShort.length]}</span>
                     {isCompleted && (
                       <svg className={styles.dayTabLockIcon} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
@@ -778,85 +897,43 @@ export default function MealPlan({
               );
             })}
           </div>
-          {onFinishMeals && (
-          <div className={styles.tabsActions}>
-            {(() => {
-              const dayCompleted = dayStatus[String(activeDay)] === true;
-              const dayDisabled = activeDay < safeCurrentPlanDay && !dayCompleted;
-              const weekCompleted = safeCurrentPlanDay >= 7;
-              const dayLocked = dayDisabled || activeDay > safeCurrentPlanDay || (lockedAfterDay !== null && activeDay > lockedAfterDay);
-              const btnDisabled = progressInCooldown || dayLocked || dayCompleted || weekCompleted;
-              const isDone = dayCompleted || (progressInCooldown && !dayLocked);
-              const daysUntilUnlock = dayLocked ? Math.max(1, activeDay - safeCurrentPlanDay) : progressDaysLeft;
-              const disabledLabel = weekCompleted
-                ? 'Săptămână completă'
-                : (dayDisabled
-                  ? 'Dezactivat'
-                  : isDone
-                  ? 'Finalizat'
-                  : `Disponibil în ${daysUntilUnlock} ${daysUntilUnlock === 1 ? 'zi' : 'zile'}`);
-              return (
-                <button
-                  className={`${styles.updateProgressBtn} ${btnDisabled ? (isDone ? styles.updateProgressBtnDone : styles.updateProgressBtnLocked) : ''}`}
-                  onClick={() => { if (!btnDisabled) onFinishMeals(activeDay); }}
-                  disabled={btnDisabled}
-                  title={btnDisabled ? disabledLabel : undefined}
-                >
-                  {btnDisabled ? (
-                    isDone ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12"/>
-                      </svg>
-                    ) : disabledLabel === 'Dezactivat' ? null : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                      </svg>
-                    )
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12"/>
-                    </svg>
-                  )}
-                  {btnDisabled ? disabledLabel : 'Finalizare zi'}
-                </button>
-              );
-            })()}
-          </div>
-          )}
         </div>
 
-        {/* Day Totals */}
+        {/* Meals */}
         {(() => {
           const isDayLocked = lockedAfterDay !== null && activeDay > lockedAfterDay;
           void isDayLocked;
           return (
             <div>
-              {currentDay.dailyTotals && (
-                <div className={styles.dayTotalsBar}>
-                  <span className={styles.dayTotalsLabel}>Total {dayNames[activeDay]}</span>
-                  <div className={styles.dayTotalsValues}>
-                    <span><strong>{currentDay.dailyTotals.calories}</strong> kcal</span>
-                    <span className={styles.dotLight}>·</span>
-                    <span><strong>{currentDay.dailyTotals.protein}g</strong> prot</span>
-                    <span className={styles.dotLight}>·</span>
-                    <span><strong>{currentDay.dailyTotals.carbs}g</strong> carbo</span>
-                    <span className={styles.dotLight}>·</span>
-                    <span><strong>{currentDay.dailyTotals.fat}g</strong> grăsimi</span>
-                  </div>
-                </div>
-              )}
-
               {/* Meals Grid for Active Day */}
               <div className={styles.mealsGrid}>
                 {currentDay.meals.map((meal, mealIndex) => {
             const { name } = getMealLabel(meal.mealType);
+            const mealChecked = isMealChecked(activeDay, mealIndex);
             return (
               <div key={mealIndex} className={styles.mealCard}>
                 <div className={styles.mealCardHeader}>
-                  <h4>{meal.name || name}</h4>
-                  {meal.mealTotals && (
-                    <span className={styles.mealCalories}>{meal.mealTotals.calories} kcal</span>
-                  )}
+                  <div className={styles.mealCardHeaderText}>
+                    <span className={styles.mealTypeLabel}>{name}</span>
+                    <h4>{meal.name || name}</h4>
+                  </div>
+                  <div className={styles.mealHeaderActions}>
+                    {onFinishMeals && (
+                      <button
+                        type="button"
+                        className={`${styles.mealCheckBtn} ${mealChecked ? styles.mealCheckBtnChecked : ''}`}
+                        onClick={() => handleMealCheckToggle(mealIndex)}
+                        disabled={activeMealDayState.disabled}
+                        aria-label={mealChecked ? `${name} bifată` : `Bifează ${name}`}
+                        title={mealChecked ? 'Masă bifată' : 'Bifează masa'}
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>{mealChecked ? 'Mâncat' : 'Bifează masa'}</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <ul className={styles.mealList}>
@@ -900,9 +977,6 @@ export default function MealPlan({
                           </span>
                         )}
                       </div>
-                      <span className={styles.foodMacros}>
-                        {food.nutritionNote ? '≈ ' : ''}{food.calories}kcal · P:{food.protein}g · C:{food.carbs}g · G:{food.fat}g
-                      </span>
                     </li>
                   ))}
                 </ul>
@@ -915,15 +989,25 @@ export default function MealPlan({
 
                 {meal.mealTotals && (
                   <div className={styles.mealTotals}>
-                    <span>P: {meal.mealTotals.protein}g</span>
-                    <span>C: {meal.mealTotals.carbs}g</span>
-                    <span>G: {meal.mealTotals.fat}g</span>
+                    <span>Total masă</span>
+                    <strong>{meal.mealTotals.calories} kcal</strong>
                   </div>
                 )}
               </div>
             );
           })}
               </div>
+              {canFinalizeMealsDay && (
+                <div className={styles.finishMealsWrap}>
+                  <button
+                    type="button"
+                    className={styles.finishMealsBtn}
+                    onClick={() => onFinishMeals(activeDay)}
+                  >
+                    Finalizează ziua!
+                  </button>
+                </div>
+              )}
             </div>
           );
         })()}

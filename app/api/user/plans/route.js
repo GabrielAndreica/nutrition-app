@@ -18,7 +18,7 @@ export async function GET(request) {
   // Obține profilul utilizatorului direct din users
   let { data: clientRow, error: clientError } = await supabase
     .from('users')
-    .select('id, name, age, weight, height, gender, fitness_level, available_equipment, workouts_per_week, training_split, fitness_goal, goal, activity_level, diet_type, meals_per_day, hydration_target_ml, food_preferences')
+    .select('id, name, age, weight, height, gender, fitness_level, available_equipment, workouts_per_week, training_split, fitness_goal, goal, activity_level, diet_type, meals_per_day, hydration_target_ml, food_preferences, allergies')
     .eq('id', auth.userId)
     .maybeSingle();
 
@@ -72,6 +72,8 @@ export async function GET(request) {
           goal: clientRow.goal,
           activityLevel: clientRow.activity_level,
           dietType: clientRow.diet_type,
+          allergies: clientRow.allergies,
+          foodPreferences: clientRow.food_preferences,
         },
       });
       if (generated?.mealPlanId) {

@@ -1,4 +1,4 @@
-import { getNextPlanMidnightIso } from '@/app/lib/weeklyPlanRegeneration';
+import { getCurrentPlanDayIndex, getNextPlanMidnightIso } from '@/app/lib/weeklyPlanRegeneration';
 
 function clampDay(value) {
   return Math.max(0, Math.min(7, Number(value) || 0));
@@ -55,6 +55,7 @@ function evaluateFinishedDay(state, dayIndex) {
 }
 
 export function reconcileDailyPlanProgress(clientRow, now = new Date()) {
+  const calendarPlanDay = getCurrentPlanDayIndex(now);
   const state = {
     currentPlanDay: clampDay(clientRow?.current_plan_day),
     currentPlanDayDueAt: clientRow?.current_plan_day_due_at || null,
@@ -97,6 +98,12 @@ export function reconcileDailyPlanProgress(clientRow, now = new Date()) {
 
     state.currentPlanDayDueAt = getNextPlanMidnightIso(new Date(dueAt.getTime() + 1000));
     guard += 1;
+  }
+
+  if (state.currentPlanDay < 7 && state.currentPlanDay !== calendarPlanDay) {
+    state.currentPlanDay = calendarPlanDay;
+    state.currentPlanDayDueAt = getNextPlanMidnightIso(now);
+    state.changed = true;
   }
 
   return state;

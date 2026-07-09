@@ -912,18 +912,21 @@ function ClientDashboardContent() {
   }) : null;
   const waterOwnerId = String(clientData?.clientId || user?.id || user?.email || 'anonymous');
   const workoutStartCopy = workoutStartScreen
-    ? getWorkoutFocusCopy(workoutStartScreen.focus, workoutStartScreen.exercises)
+    ? getWorkoutFocusCopy(workoutStartScreen.focus, workoutStartScreen.exercises || [])
     : null;
   const workoutStartMuscles = workoutStartScreen
-    ? workoutStartScreen.exercises
+    ? (workoutStartScreen.exercises || [])
       .map(ex => ex.muscleGroup || ex.muscle)
       .filter(Boolean)
       .filter((value, index, array) => array.indexOf(value) === index)
       .slice(0, 4)
       .join(' · ')
     : '';
+  const workoutStartExerciseCount = workoutStartScreen
+    ? Number(workoutStartScreen.exerciseCount) || (workoutStartScreen.exercises || []).length || 0
+    : 0;
   const workoutPreloadVideoUrls = workoutStartScreen
-    ? [...new Set(workoutStartScreen.exercises.map(ex => ex.videoUrl).filter(Boolean))]
+    ? [...new Set((workoutStartScreen.exercises || []).map(ex => ex.videoUrl).filter(Boolean))]
     : [];
   const waterDoneToday = hydrationTargetLoaded && waterMl >= hydrationTargetMl;
   const hasWorkoutInProgress = hasActivePausedSession || workoutSession?.phase === 'active';
@@ -1139,6 +1142,7 @@ function ClientDashboardContent() {
           setWorkoutSession({
             phase: 'active',
             focus: s.focus,
+            workoutDayIndex: s.workoutDayIndex,
             exercises: s.exercises,
             currentIndex: s.currentIndex || 0,
             xpEarned: s.xpEarned || 0,
@@ -1148,8 +1152,8 @@ function ClientDashboardContent() {
           return;
         }
       }
-      // No existing session — generate exercises for today's focus
-      const focusRes = await fetch('/api/user/workout-session?focus=auto', {
+      // No existing session — fetch only today's theme from the user's split
+      const focusRes = await fetch('/api/user/workout-session?focus=auto&preview=1', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!focusRes.ok) {
@@ -1159,14 +1163,19 @@ function ClientDashboardContent() {
         return;
       }
       const focusData = await focusRes.json().catch(() => null);
-      if (!focusData?.exercises?.length) {
-        setError('Nu există exerciții disponibile pentru antrenamentul de azi.');
+      if (!focusData?.focus) {
+        setError('Nu am putut pregăti tematica antrenamentului.');
         setWorkoutSession(null);
         return;
       }
       // Show pre-flight start screen
       setWorkoutSession(null);
-      setWorkoutStartScreen({ exercises: focusData.exercises, focus: focusData.focus });
+      setWorkoutStartScreen({
+        focus: focusData.focus,
+        trainingSplit: focusData.trainingSplit,
+        workoutDayIndex: focusData.workoutDayIndex,
+        exerciseCount: focusData.exerciseCount,
+      });
     } catch {
       setWorkoutSession(null);
     }
@@ -1174,13 +1183,14 @@ function ClientDashboardContent() {
 
   const handleStartActualSession = async () => {
     if (!workoutStartScreen) return;
-    const { exercises, focus } = workoutStartScreen;
+    const { focus } = workoutStartScreen;
     const token = localStorage.getItem('token');
+    let session = null;
     if (token) {
       const response = await fetch('/api/user/workout-session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ exercises, focus }),
+          body: JSON.stringify({ focus, generate: true }),
         })
         .catch(() => null);
       if (!response?.ok) {
@@ -1189,6 +1199,14 @@ function ClientDashboardContent() {
         setWorkoutStartScreen(null);
         return;
       }
+      const data = await response.json().catch(() => null);
+      session = data?.session || null;
+    }
+    const exercises = session?.exercises || [];
+    if (!exercises.length) {
+      setError('Nu am putut genera exercițiile pentru antrenament.');
+      setWorkoutStartScreen(null);
+      return;
     }
     timerBaseRef.current = 0;
     timerStartedAtRef.current = Date.now();
@@ -1196,7 +1214,8 @@ function ClientDashboardContent() {
     setHasActivePausedSession(false);
     setWorkoutSession({
       phase: 'active',
-      focus,
+      focus: session?.focus || focus,
+      workoutDayIndex: session?.workoutDayIndex ?? workoutStartScreen.workoutDayIndex,
       exercises,
       currentIndex: 0,
       xpEarned: 0,
@@ -1222,7 +1241,14 @@ function ClientDashboardContent() {
         }).catch(() => {});
       }
       if (nextIndex >= prev.exercises.length) {
-        return { phase: 'done', focus: prev.focus, totalXp: newXp, elapsedSeconds: liveElapsed, exerciseCount: prev.exercises.length };
+        return {
+          phase: 'done',
+          focus: prev.focus,
+          workoutDayIndex: prev.workoutDayIndex,
+          totalXp: newXp,
+          elapsedSeconds: liveElapsed,
+          exerciseCount: prev.exercises.length,
+        };
       }
       return { ...prev, currentIndex: nextIndex, xpEarned: newXp, elapsedSeconds: liveElapsed };
     });
@@ -1243,7 +1269,7 @@ function ClientDashboardContent() {
   const handleFinalizeWorkout = () => {
     if (workoutSession?.phase !== 'done') return;
     const token = localStorage.getItem('token');
-    const { totalXp, elapsedSeconds, exerciseCount } = workoutSession;
+    const { totalXp, elapsedSeconds, exerciseCount, workoutDayIndex } = workoutSession;
 
     if (token) {
       fetch('/api/user/workout-session', {
@@ -1262,13 +1288,17 @@ function ClientDashboardContent() {
       fetch('/api/user/xp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ amount: 50, type: 'workout_complete' }),
+        body: JSON.stringify({ amount: 50, type: 'workout', dayIndex: workoutDayIndex ?? currentPlanDay }),
       }).then(r => r.json()).then(data => {
         if (data?.level) {
           setUserLevel(data);
           const levelUp = getLevelUpPayload(previousLevelInfo, data, 50);
           if (levelUp) setPendingLevelUp(levelUp);
         }
+        if (data?.workoutCooldownUntil) setWorkoutCooldownUntil(data.workoutCooldownUntil);
+        if (Number.isFinite(Number(data?.workoutCompletedDays))) setWorkoutCompletedDays(Number(data.workoutCompletedDays));
+        if (Number.isFinite(Number(data?.currentPlanDay))) setCurrentPlanDay(Number(data.currentPlanDay));
+        if (data?.workoutDayStatus) setWorkoutDayStatus(data.workoutDayStatus);
       }).catch(() => {});
     }
   };
@@ -1737,17 +1767,17 @@ function ClientDashboardContent() {
                 </p>
                 <div className={styles.workoutStartMeta}>
                   <div className={styles.workoutStartMetaItem}>
-                    <span className={styles.workoutStartMetaVal}>{workoutStartScreen.exercises.length}</span>
+                    <span className={styles.workoutStartMetaVal}>{workoutStartExerciseCount}</span>
                     <span className={styles.workoutStartMetaLbl}>Exerciții</span>
                   </div>
                   <div className={styles.workoutStartMetaDivider} />
                   <div className={styles.workoutStartMetaItem}>
-                    <span className={styles.workoutStartMetaVal}>+{workoutStartScreen.exercises.length * 15}</span>
+                    <span className={styles.workoutStartMetaVal}>+{workoutStartExerciseCount * 15}</span>
                     <span className={styles.workoutStartMetaLbl}>XP posibil</span>
                   </div>
                   <div className={styles.workoutStartMetaDivider} />
                   <div className={styles.workoutStartMetaItem}>
-                    <span className={styles.workoutStartMetaVal}>~{Math.round(workoutStartScreen.exercises.length * 4)}</span>
+                    <span className={styles.workoutStartMetaVal}>~{Math.round(workoutStartExerciseCount * 4)}</span>
                     <span className={styles.workoutStartMetaLbl}>Min</span>
                   </div>
                 </div>
@@ -2006,7 +2036,7 @@ function ClientDashboardContent() {
           ) : (
           <>
           {/* Tab navigation */}
-          {!progressFormOpen && !(!loading && !mealPlan && !error && confirmedNoMealPlan && activeTab === 'plan') && !(!loading && !workoutPlan && confirmedNoWorkoutPlan && activeTab === 'workout') && (
+          {!progressFormOpen && activeTab !== 'plan' && !(!loading && !mealPlan && !error && confirmedNoMealPlan && activeTab === 'plan') && !(!loading && !workoutPlan && confirmedNoWorkoutPlan && activeTab === 'workout') && (
           <div className={styles.planNavBlock}>
             <div className={styles.weekCompletionInline}>
               <div className={styles.weekCompletionTop}>
@@ -2056,7 +2086,23 @@ function ClientDashboardContent() {
                   completedDays={mealsCompletedDays}
                   currentPlanDay={currentPlanDay}
                   dayStatus={mealDayStatus}
-                  onFinishMeals={(dayIndex) => setConfirmFinish({ type: 'meals', dayIndex })}
+                  onFinishMeals={(dayIndex) => {
+                    const previousLevelInfo = userLevel;
+                    fireConfetti();
+                    const optimisticLevel = previousLevelInfo ? getLevelInfoFromXp((Number(previousLevelInfo.totalXp) || 0) + 50) : null;
+                    setFinishReward({ type: 'meals', dayIndex, levelInfo: optimisticLevel });
+                    handleFinishDay('meals', dayIndex, previousLevelInfo).then((data) => {
+                      if (!data) {
+                        setFinishReward(null);
+                        setPendingLevelUp(null);
+                        return;
+                      }
+                      if (data.level) {
+                        setFinishReward(prev => prev ? { ...prev, levelInfo: data } : prev);
+                      }
+                    });
+                  }}
+                  onBack={() => handleTabChange('home')}
                 />
               )}
             </>

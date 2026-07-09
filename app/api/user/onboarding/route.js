@@ -5,6 +5,7 @@ import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import { resolveUserOnboardingCompletion } from '@/app/lib/onboardingStatus';
 import { calculateHydrationTargetMl } from '@/app/lib/hydrationTarget';
 import { createAutomaticMealPlanForUser } from '@/app/lib/automaticMealPlan';
+import { getCurrentPlanDayIndex, getNextPlanMidnightIso } from '@/app/lib/weeklyPlanRegeneration';
 
 // Allowed enum values
 const ALLOWED_FITNESS_LEVELS = ['beginner', 'intermediate', 'advanced'];
@@ -43,7 +44,7 @@ export async function POST(request) {
     name,
     age, height, weight, gender,
     fitnessLevel, workoutsPerWeek, trainingLocation,
-    goal, dietType,
+    goal, dietType, allergies, foodPreferences,
   } = body;
 
   // Validare câmpuri obligatorii
@@ -124,6 +125,8 @@ export async function POST(request) {
     activityLevel,
     goal,
   });
+  const now = new Date();
+  const currentPlanDay = getCurrentPlanDayIndex(now);
 
   const supabase = getSupabase();
 
@@ -155,10 +158,17 @@ export async function POST(request) {
       diet_type: dietTypeSafe,
       meals_per_day: 5,
       hydration_target_ml: hydrationTargetMl,
-      food_preferences: '',
+      food_preferences: typeof foodPreferences === 'string' ? foodPreferences : '',
+      allergies: Array.isArray(allergies) ? allergies.join(', ') : (typeof allergies === 'string' ? allergies : ''),
       meals_completed_days: 0,
-      current_plan_day: 0,
+      workout_completed_days: 0,
+      current_plan_day: currentPlanDay,
+      current_plan_day_due_at: getNextPlanMidnightIso(now),
       meal_day_status: {},
+      workout_day_status: {},
+      meals_cooldown_until: null,
+      workout_cooldown_until: null,
+      weekly_plan_due_at: null,
       onboarding_completed: true,
     })
     .eq('id', auth.userId);
@@ -183,6 +193,8 @@ export async function POST(request) {
         goal,
         activityLevel,
         dietType: dietTypeSafe,
+        allergies,
+        foodPreferences,
       },
     });
   } catch (mealPlanError) {

@@ -1,11 +1,160 @@
 /* Apple/Nike Inspired Minimalist Design */
 
 .container {
-  max-width: none;
-  margin: 0;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
   padding: 0;
   font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
   position: relative;
+}
+
+.mealPageHeader {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas:
+    "back back"
+    "title kcal";
+  align-items: end;
+  gap: 12px 16px;
+  margin-bottom: 24px;
+}
+
+.mealBackBtn {
+  grid-area: back;
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #86868b;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  letter-spacing: -0.1px;
+  transition: color 0.15s ease;
+  margin-bottom: 0;
+}
+
+.mealBackBtn:hover {
+  color: #1c1c1e;
+}
+
+.mealTodayTitle {
+  grid-area: title;
+  margin: 0;
+  font-size: 42px;
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: -1.6px;
+  color: #0a0a0a;
+}
+
+.mealKcalProgress {
+  grid-area: kcal;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  justify-self: end;
+  background: #f5f5f7;
+  border: 1px solid #ededf0;
+  border-radius: 18px;
+  padding: 8px 11px 8px 8px;
+  min-width: 192px;
+}
+
+.mealKcalRing {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.mealKcalRingSvg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.mealKcalRingTrack,
+.mealKcalRingValue {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+}
+
+.mealKcalRingTrack {
+  stroke: #dedee4;
+}
+
+.mealKcalRingValue {
+  stroke: #b7ff00;
+  stroke-dasharray: 100;
+  transition: stroke-dashoffset 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.mealKcalRingInner {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #fff;
+  display: grid;
+  place-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.mealKcalRingInner span {
+  font-size: 11px;
+  font-weight: 900;
+  color: #0a0a0a;
+  letter-spacing: -0.3px;
+}
+
+.mealKcalText {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+}
+
+.mealKcalLabel,
+.mealKcalTotal {
+  font-size: 10px;
+  font-weight: 700;
+  color: #86868b;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.mealKcalText strong {
+  font-size: 17px;
+  font-weight: 900;
+  color: #0a0a0a;
+  line-height: 1;
+  letter-spacing: -0.7px;
+  white-space: nowrap;
+  animation: kcalCountLift 0.34s ease;
+}
+
+@keyframes kcalCountLift {
+  0% {
+    opacity: 0.72;
+    transform: translateY(3px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* ── Inline Progress Page (client mode) ─────────────────── */
@@ -392,14 +541,14 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 16px;
   background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 21px;
-  padding: 16px 20px;
+  border: 1px solid #e8e8ed;
+  border-radius: 20px;
+  padding: 22px 22px 20px;
   margin-bottom: 16px;
   flex-wrap: wrap;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 13px rgba(0,0,0,0.03);
+  box-shadow: none;
 }
 
 .clientHeaderLeft {
@@ -422,22 +571,24 @@
 
 .clientName {
   margin: 0;
-  font-size: 18px;
-  font-weight: 700;
-  color: #1d1d1f;
-  letter-spacing: -0.3px;
+  font-size: 30px;
+  font-weight: 900;
+  color: #0a0a0a;
+  letter-spacing: -1.2px;
+  line-height: 1.05;
 }
 
 .clientSub {
-  margin: 3px 0 0 0;
+  margin: 5px 0 0 0;
   font-size: 13px;
-  color: #86868b;
+  color: #5f5f66;
   font-weight: 400;
+  line-height: 1.45;
 }
 
 .clientStats {
   display: flex;
-  gap: 24px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
@@ -446,20 +597,26 @@
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  min-width: 62px;
+  padding: 9px 10px;
+  background: #f5f5f7;
+  border-radius: 12px;
 }
 
 .clientStatValue {
-  font-size: 17px;
-  font-weight: 600;
-  color: #1d1d1f;
+  font-size: 18px;
+  font-weight: 800;
+  color: #0a0a0a;
+  letter-spacing: -0.6px;
+  line-height: 1;
 }
 
 .clientStatLabel {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 500;
   color: #86868b;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+  text-transform: none;
+  letter-spacing: -0.1px;
 }
 
 /* Macro Targets - Hero Section */
@@ -549,25 +706,32 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  width: 100%;
 }
 
 /* Day Tabs */
 .dayTabs {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 0;
-  background: transparent;
-  border-radius: 0;
+  flex-wrap: nowrap;
+  gap: 6px;
+  padding: 4px;
+  background: #f5f5f7;
+  border-radius: 14px;
   flex: 1;
   min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.dayTabs::-webkit-scrollbar {
+  display: none;
 }
 
 /* Tabs row - tabs + action buttons side by side (desktop: 1 rând) */
 .tabsRow {
   display: flex;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 10px;
 }
 
@@ -583,13 +747,15 @@
   display: inline-flex;
   align-items: center;
   gap: 7px;
-  padding: 10px 18px;
+  width: 100%;
+  justify-content: center;
+  padding: 14px 18px;
   background: #0a0a0a;
   color: #b7ff00;
   border: none;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 700;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 800;
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
@@ -1093,37 +1259,38 @@
 }
 
 .dayTab {
-  padding: 9px 20px;
-  border: 1.5px solid #e8e8ed;
-  border-radius: 20px;
-  background: #fff;
-  color: #3c3c43;
-  font-size: 14px;
-  font-weight: 500;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #86868b;
+  font-size: 13px;
+  font-weight: 700;
   cursor: pointer;
-  transition: all 0.18s ease;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
   white-space: nowrap;
+  font-family: inherit;
+  text-align: center;
 }
 
 .dayTab:hover {
-  border-color: #b7ff00;
-  color: #1d1d1f;
-  background: rgba(183, 255, 0, 0.06);
+  color: #0a0a0a;
+  background: rgba(255,255,255,0.65);
 }
 
 .dayTabActive {
-  background: #b7ff00;
-  border-color: #b7ff00;
-  color: #000;
-  font-weight: 700;
-  box-shadow: 0 2px 10px rgba(183, 255, 0, 0.35);
+  background: #ffffff;
+  color: #0a0a0a;
+  font-weight: 800;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
 }
 
 .dayTabActive:hover {
-  background: #c8ff33;
-  border-color: #c8ff33;
-  color: #000;
-  box-shadow: 0 2px 10px rgba(183, 255, 0, 0.35);
+  background: #ffffff;
+  color: #0a0a0a;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05);
 }
 
 /* ─── Locked day tabs & content ──────────────────────────────── */
@@ -1135,9 +1302,8 @@
   gap: 4px;
 }
 .dayTabLocked:hover {
-  border-color: #e8e8ed;
-  background: #fff;
-  color: #3c3c43;
+  background: transparent;
+  color: #86868b;
 }
 .dayTabInner {
   display: inline-flex;
@@ -1229,75 +1395,36 @@
   font-size: 11px;
 }
 
-/* Day Totals Bar */
-.dayTotalsBar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: #0a0a0a;
-  border-radius: 12px;
-  padding: 13px 20px;
-  flex-wrap: wrap;
-}
-
-.dayTotalsLabel {
-  font-size: 11px;
-  font-weight: 600;
-  color: rgba(255,255,255,0.45);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
-
-.dayTotalsValues {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 13px;
-  color: rgba(255,255,255,0.7);
-}
-
-.dayTotalsValues strong {
-  color: #b7ff00;
-  font-weight: 700;
-}
-
-.dotLight {
-  color: rgba(255,255,255,0.2);
-  font-size: 11px;
-}
-
 /* Meals Grid */
 .mealsGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 14px;
 }
 
 /* Meal Card */
 .mealCard {
   background: #fff;
-  border-radius: 16px;
+  border-radius: 20px;
   border: 1px solid #e8e8ed;
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: border-color 0.18s ease, transform 0.12s ease;
   display: flex;
   flex-direction: column;
 }
 
 .mealCard:hover {
-  border-color: rgba(183, 255, 0, 0.5);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.07), 0 0 0 3px rgba(183, 255, 0, 0.12);
-  transform: translateY(-2px);
+  border-color: #d8d8de;
+  box-shadow: none;
+  transform: translateY(-1px);
 }
 
 .mealCardHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 12px;
-  padding: 20px 24px;
+  padding: 24px 24px 18px;
   border-bottom: 1px solid #f5f5f7;
 }
 
@@ -1310,22 +1437,25 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
 
 .mealTypeLabel {
   margin: 0;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 700;
   color: #6e6e73;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
 }
 
 .mealCardHeader h4 {
   margin: 0;
-  font-size: 17px;
-  font-weight: 600;
-  color: #1d1d1f;
+  font-size: 25px;
+  font-weight: 900;
+  color: #0a0a0a;
+  letter-spacing: -0.9px;
+  line-height: 1.12;
 }
 
 .mealSubtitle {
@@ -1335,15 +1465,67 @@
   color: #6e6e73;
 }
 
-.mealCalories {
-  font-size: 14px;
-  font-weight: 700;
-  color: #000;
-  background: #b7ff00;
-  padding: 5px 14px;
-  border-radius: 20px;
-  white-space: nowrap;
+.mealHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   flex-shrink: 0;
+}
+
+.mealCheckBtn {
+  min-width: 118px;
+  height: 34px;
+  padding: 0 13px 0 11px;
+  border-radius: 999px;
+  border: 1px solid #d8d8de;
+  background: #fff;
+  color: #3f3f46;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: -0.1px;
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.12s ease;
+}
+
+.mealCheckBtn svg {
+  width: 15px;
+  height: 15px;
+  stroke: currentColor;
+  stroke-width: 2.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.42;
+}
+
+.mealCheckBtn span {
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.mealCheckBtn:hover:not(:disabled) {
+  border-color: #111;
+  color: #0a0a0a;
+  transform: translateY(-1px);
+}
+
+.mealCheckBtnChecked {
+  border-color: #b7ff00;
+  background: #b7ff00;
+  color: #0a0a0a;
+}
+
+.mealCheckBtnChecked svg {
+  opacity: 1;
+}
+
+.mealCheckBtn:disabled {
+  cursor: default;
+  opacity: 0.72;
 }
 
 /* Meal List */
@@ -1357,10 +1539,9 @@
 .mealItem {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 16px 24px;
+  gap: 0;
+  padding: 14px 24px;
   border-bottom: 1px solid #f5f5f7;
-  transition: background 0.2s ease;
 }
 
 .mealItem:last-child {
@@ -1368,7 +1549,7 @@
 }
 
 .mealItem:hover {
-  background: #fafafa;
+  background: #fbfbfc;
 }
 
 .mealItem::before {
@@ -1377,8 +1558,9 @@
 
 .foodName {
   font-size: 15px;
-  font-weight: 500;
-  color: #1d1d1f;
+  font-weight: 650;
+  color: #0a0a0a;
+  letter-spacing: -0.2px;
 }
 
 .foodMainRow {
@@ -1389,9 +1571,9 @@
 }
 
 .foodAmount {
-  color: #5f6368;
+  color: #0a0a0a;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   white-space: nowrap;
 }
 
@@ -1448,19 +1630,15 @@
   font-weight: 700;
 }
 
-.foodMacros {
-  font-size: 13px;
-  color: #86868b;
-  font-weight: 400;
-}
-
 /* Preparation */
 .preparation {
-  padding: 16px 24px;
-  background: rgba(183, 255, 0, 0.06);
-  border-top: 1px solid rgba(183, 255, 0, 0.18);
-  font-size: 14px;
-  color: #1d1d1f;
+  margin: 16px 24px 0;
+  padding: 12px 14px;
+  background: #f8f8f9;
+  border: 1px solid #ededf0;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #4f4f55;
   line-height: 1.5;
 }
 
@@ -1471,13 +1649,56 @@
 /* Meal Totals */
 .mealTotals {
   display: flex;
-  gap: 24px;
-  padding: 12px 24px;
-  background: rgba(183, 255, 0, 0.05);
-  border-top: 1px solid rgba(183, 255, 0, 0.14);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 16px 24px 24px;
+  padding: 13px 16px;
+  background: #f5f5f7;
+  border-radius: 12px;
   font-size: 13px;
   font-weight: 600;
-  color: #3c3c43;
+  color: #0a0a0a;
+}
+
+.mealTotals span {
+  color: #6e6e73;
+}
+
+.mealTotals strong {
+  font-size: 14px;
+  font-weight: 900;
+  color: #0a0a0a;
+}
+
+.finishMealsWrap {
+  margin-top: 14px;
+}
+
+.finishMealsBtn {
+  width: 100%;
+  min-height: 52px;
+  border: none;
+  border-radius: 16px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(10, 10, 10, 0.16);
+  transition: opacity 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.finishMealsBtn:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(10, 10, 10, 0.2);
+}
+
+.finishMealsBtn:active {
+  transform: translateY(0);
 }
 
 /* Daily Totals */
@@ -1528,6 +1749,61 @@
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
+  .mealPageHeader {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "back back"
+      "title kcal";
+    align-items: center;
+    gap: 10px 10px;
+    margin-bottom: 20px;
+  }
+
+  .mealTodayTitle {
+    display: flex;
+    align-items: center;
+    min-height: 58px;
+    font-size: 34px;
+    line-height: 1;
+    letter-spacing: -1.1px;
+    transform: translateY(-2px);
+  }
+
+  .mealKcalProgress {
+    width: auto;
+    justify-self: end;
+    align-self: center;
+    justify-content: flex-start;
+    min-width: 156px;
+    gap: 7px;
+    border-radius: 16px;
+    padding: 7px 9px 7px 7px;
+  }
+
+  .mealKcalRing {
+    width: 42px;
+    height: 42px;
+  }
+
+  .mealKcalRingInner {
+    width: 32px;
+    height: 32px;
+  }
+
+  .mealKcalRingInner span {
+    font-size: 9px;
+  }
+
+  .mealKcalLabel,
+  .mealKcalTotal {
+    font-size: 9px;
+  }
+
+  .mealKcalText strong {
+    font-size: 13px;
+    letter-spacing: -0.4px;
+  }
+
   .downloadBtn {
     padding: 9px 10px;
     min-height: 44px;
@@ -1566,38 +1842,38 @@
   }
 
   .clientHeader {
-    padding: 10px 12px;
+    padding: 18px;
     margin-bottom: 12px;
-    gap: 10px;
-    flex-wrap: nowrap;
-    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    align-items: flex-start;
     overflow: hidden;
   }
 
   .clientHeaderLeft {
-    flex: 0 1 34%;
+    flex: 1 1 100%;
     min-width: 0;
   }
 
   .clientName {
-    font-size: 13px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 28px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .clientSub {
-    font-size: 9px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 13px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .clientStats {
     display: flex;
-    flex: 1 1 66%;
-    gap: 5px;
-    width: auto;
+    flex: 1 1 100%;
+    gap: 8px;
+    width: 100%;
     max-width: none;
     flex-wrap: nowrap;
     overflow: hidden;
@@ -1607,11 +1883,12 @@
     flex: 1 1 0;
     min-width: 0;
     align-items: center;
-    gap: 1px;
+    gap: 2px;
+    padding: 9px 8px;
   }
 
   .clientStatValue {
-    font-size: 13px;
+    font-size: 17px;
     max-width: 100%;
     line-height: 1.05;
     text-align: center;
@@ -1621,7 +1898,7 @@
   }
 
   .clientStatLabel {
-    font-size: 8px;
+    font-size: 10px;
     line-height: 1.05;
     text-align: center;
     white-space: nowrap;
@@ -1631,33 +1908,33 @@
 
   @media (max-width: 390px) {
     .clientHeader {
-      padding: 9px 10px;
+      padding: 16px;
       gap: 8px;
     }
 
     .clientHeaderLeft {
-      flex-basis: 32%;
+      flex-basis: 100%;
     }
 
     .clientStats {
-      flex-basis: 68%;
+      flex-basis: 100%;
       gap: 4px;
     }
 
     .clientName {
-      font-size: 12px;
+      font-size: 24px;
     }
 
     .clientSub {
-      font-size: 8px;
-    }
-
-    .clientStatValue {
       font-size: 12px;
     }
 
+    .clientStatValue {
+      font-size: 15px;
+    }
+
     .clientStatLabel {
-      font-size: 7.4px;
+      font-size: 9px;
     }
   }
 
@@ -1680,6 +1957,7 @@
   .dayTabs {
     display: flex;
     gap: 5px;
+    padding: 4px;
     order: 2; /* Zilele jos */
     width: 100%;
   }
@@ -1707,11 +1985,11 @@
   }
 
   .dayTab {
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
     text-align: center;
-    padding: 10px 4px;
-    font-size: 13px;
+    padding: 10px 6px;
+    font-size: 12px;
     border-radius: 10px;
     min-height: 44px;
     touch-action: manipulation;
@@ -1742,7 +2020,7 @@
   }
 
   .mealCard {
-    border-radius: 12px;
+    border-radius: 18px;
   }
 
   .mealCard:hover {
@@ -1756,8 +2034,12 @@
   }
 
   .mealCardHeader {
-    padding: 14px 16px;
+    padding: 20px 18px 16px;
     gap: 10px;
+  }
+
+  .mealHeaderActions {
+    gap: 7px;
   }
 
   .mealEmoji {
@@ -1765,16 +2047,19 @@
   }
 
   .mealCardHeader h4 {
-    font-size: 15px;
+    font-size: 22px;
   }
 
-  .mealCalories {
-    font-size: 15px;
-    padding: 5px 10px;
+  .mealCheckBtn {
+    min-width: 104px;
+    height: 32px;
+    padding: 0 11px 0 10px;
+    gap: 6px;
+    font-size: 11px;
   }
 
   .mealItem {
-    padding: 12px 16px;
+    padding: 13px 18px;
     gap: 2px;
   }
 
@@ -1785,10 +2070,6 @@
   .foodMainRow {
     align-items: flex-start;
     gap: 8px;
-  }
-
-  .foodMacros {
-    font-size: 12px;
   }
 
   .dailyTotals {
@@ -1822,14 +2103,16 @@
   }
 
   .mealTotals {
-    padding: 10px 16px;
-    gap: 16px;
+    margin: 14px 18px 20px;
+    padding: 12px 14px;
+    gap: 14px;
     font-size: 13px;
   }
 
   .preparation {
-    padding: 12px 16px;
-    font-size: 15px;
+    margin: 14px 18px 0;
+    padding: 12px 14px;
+    font-size: 13px;
   }
 
   .rightColumn {
@@ -1846,9 +2129,36 @@
     padding: 12px;
   }
 
-  .dayTab {
-    padding: 6px 10px;
+  .mealTodayTitle {
+    font-size: 30px;
+    line-height: 1;
+    min-height: 52px;
+    transform: translateY(-2px);
+  }
+
+  .mealKcalProgress {
+    min-width: 142px;
+    gap: 6px;
+    padding: 6px 8px 6px 6px;
+  }
+
+  .mealKcalRing {
+    width: 38px;
+    height: 38px;
+  }
+
+  .mealKcalRingInner {
+    width: 29px;
+    height: 29px;
+  }
+
+  .mealKcalText strong {
     font-size: 12px;
+  }
+
+  .dayTab {
+    padding: 8px 3px;
+    font-size: 11px;
   }
 
   .macroValue {
@@ -1889,9 +2199,6 @@
     font-size: 12px;
   }
 
-  .foodMacros {
-    font-size: 10px;
-  }
 }
 
 /* ─── Progress & Regeneration Section ─────────────────────────────────────── */

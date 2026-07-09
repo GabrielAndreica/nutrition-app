@@ -49,6 +49,16 @@ export function getNextPlanMidnightIso(now = new Date()) {
   }, PLAN_TIME_ZONE).toISOString();
 }
 
+export function getCurrentPlanDayIndex(now = new Date()) {
+  const currentLocal = getTimeZoneParts(now, PLAN_TIME_ZONE);
+  const localDateAtUtcMidnight = new Date(Date.UTC(
+    currentLocal.year,
+    currentLocal.month - 1,
+    currentLocal.day
+  ));
+  return (localDateAtUtcMidnight.getUTCDay() + 6) % 7;
+}
+
 export function getAppOrigin(request = null) {
   if (request?.nextUrl?.origin) return request.nextUrl.origin;
   if (request?.url) return new URL(request.url).origin;
@@ -186,13 +196,14 @@ export async function runWeeklyPlanRegenerationForClient({ clientId, request = n
       throw new Error('Planul alimentar automat nu a fost salvat.');
     }
 
+    const now = new Date();
     await supabaseQuery(() => supabase
       .from('users')
       .update({
         meals_completed_days: 0,
         workout_completed_days: 0,
-        current_plan_day: 0,
-        current_plan_day_due_at: getNextPlanMidnightIso(new Date()),
+        current_plan_day: getCurrentPlanDayIndex(now),
+        current_plan_day_due_at: getNextPlanMidnightIso(now),
         meal_day_status: {},
         workout_day_status: {},
         streak_awarded_day: -1,
