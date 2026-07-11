@@ -1548,6 +1548,8 @@
   }
 
   .mobileLevelText {
+    display: inline-flex;
+    align-items: center;
     font-size: 11px;
     font-weight: 700;
     color: #b7ff00;
