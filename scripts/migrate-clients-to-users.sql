@@ -27,7 +27,8 @@ ALTER TABLE users
 -- 2. Adauga coloane XP / nivel
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS xp integer DEFAULT 0,
-  ADD COLUMN IF NOT EXISTS level integer DEFAULT 1;
+  ADD COLUMN IF NOT EXISTS level integer DEFAULT 1,
+  ADD COLUMN IF NOT EXISTS app_coins integer NOT NULL DEFAULT 0;
 
 -- 3. Adauga coloane de progres zilnic / streak
 ALTER TABLE users

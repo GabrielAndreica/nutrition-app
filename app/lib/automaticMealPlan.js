@@ -24,6 +24,17 @@ const DEFAULT_MAX_GRAMS = {
   default: 250,
 };
 
+const DEFAULT_MIN_GRAMS = {
+  protein: 90,
+  carb: 35,
+  fat: 5,
+  mixed: 60,
+  low: 30,
+  default: 30,
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function normalizeName(value = '') {
   return String(value).toLowerCase()
     .replace(/\s*\(crud[aă]?\)/gi, '')
@@ -106,27 +117,111 @@ function calculateMacros(profile, targetCalories) {
 }
 
 function classifyFood(food) {
-  const calories = Math.max(Number(food.calories_per_100g) || 1, 1);
-  const proteinPct = ((Number(food.protein_per_100g) || 0) * 4) / calories;
-  const carbsPct = ((Number(food.carbs_per_100g) || 0) * 4) / calories;
-  const fatPct = ((Number(food.fat_per_100g) || 0) * 9) / calories;
-  if ((Number(food.fat_per_100g) || 0) >= 15 && fatPct >= 0.45) return 'fat';
-  if (calories < 60 && (Number(food.protein_per_100g) || 0) < 8) return 'low';
-  if ((Number(food.protein_per_100g) || 0) >= 15 && proteinPct >= 0.35) return 'protein';
-  if ((Number(food.carbs_per_100g) || 0) >= 25 && carbsPct >= 0.45) return 'carb';
+  const calories = Math.max(getPer100(food, 'calories') || 1, 1);
+  const protein = getPer100(food, 'protein');
+  const carbs = getPer100(food, 'carbs');
+  const fat = getPer100(food, 'fat');
+  const proteinPct = (protein * 4) / calories;
+  const carbsPct = (carbs * 4) / calories;
+  const fatPct = (fat * 9) / calories;
+  if (fat >= 15 && fatPct >= 0.45) return 'fat';
+  if (calories < 60 && protein < 8) return 'low';
+  if (protein >= 15 && proteinPct >= 0.35) return 'protein';
+  if (carbs >= 25 && carbsPct >= 0.45) return 'carb';
   return 'mixed';
 }
 
-function getMaxAmount(food) {
+function getPer100(food, nutrient) {
+  const dbKeys = {
+    calories: 'calories_per_100g',
+    protein: 'protein_per_100g',
+    carbs: 'carbs_per_100g',
+    fat: 'fat_per_100g',
+  };
+  return Number(food?.[dbKeys[nutrient]] ?? food?._per100?.[nutrient]) || 0;
+}
+
+function includesAny(value, terms) {
+  return terms.some(term => value.includes(term));
+}
+
+function getFoodKey(food) {
+  return normalizeForMatch(food?.name || food?.id || '');
+}
+
+function getFoodLimitProfile(food = {}) {
   const name = normalizeName(food.name);
-  if (name.includes('ulei')) return 15;
-  if (name.includes('ou')) return 120;
-  if (name.includes('iaurt')) return 300;
-  if (name.includes('paine')) return 140;
-  if (name.includes('orez') || name.includes('paste') || name.includes('ovaz')) return 120;
-  if (name.includes('pui') || name.includes('curcan') || name.includes('vita') || name.includes('peste') || name.includes('somon')) return 230;
-  if (name.includes('nuci') || name.includes('migdale') || name.includes('arahide')) return 40;
-  return Number(food.max_amount_per_meal) || DEFAULT_MAX_GRAMS[classifyFood(food)] || DEFAULT_MAX_GRAMS.default;
+  const category = normalizeForMatch(food.category || '');
+  const role = classifyFood(food);
+  let min = DEFAULT_MIN_GRAMS[role] || DEFAULT_MIN_GRAMS.default;
+  let max = Number(food.max_amount_per_meal) || DEFAULT_MAX_GRAMS[role] || DEFAULT_MAX_GRAMS.default;
+  let dailyMax = null;
+
+  if (includesAny(name, ['ulei', 'unt', 'maioneza'])) {
+    min = 5;
+    max = 15;
+    dailyMax = 25;
+  } else if (includesAny(name, ['nuci', 'migdale', 'arahide', 'caju', 'seminte'])) {
+    min = 10;
+    max = 35;
+    dailyMax = 50;
+  } else if (name.includes('banana')) {
+    min = 80;
+    max = 150;
+    dailyMax = 200;
+  } else if (includesAny(name, ['mar', 'para', 'portocala', 'fructe de padure', 'afine', 'capsuni'])) {
+    min = 80;
+    max = 180;
+    dailyMax = 260;
+  } else if (includesAny(name, ['kefir', 'lapte batut', 'iaurt'])) {
+    min = 150;
+    max = 300;
+    dailyMax = 500;
+  } else if (includesAny(name, ['paine', 'lipie', 'tortilla'])) {
+    min = 40;
+    max = 120;
+    dailyMax = 180;
+  } else if (includesAny(name, ['cascaval', 'mozzarella', 'telemea', 'parmezan'])) {
+    min = 25;
+    max = 60;
+    dailyMax = 90;
+  } else if (includesAny(name, ['branza cottage', 'branza de vaci', 'skyr'])) {
+    min = 120;
+    max = 250;
+    dailyMax = 350;
+  } else if (name.includes('ou')) {
+    min = 50;
+    max = 120;
+    dailyMax = 180;
+  } else if (includesAny(name, ['sunca', 'prosciutto', 'jambon'])) {
+    min = 50;
+    max = 120;
+    dailyMax = 180;
+  } else if (includesAny(name, ['pui', 'curcan', 'vita', 'peste', 'somon', 'ton', 'cod'])) {
+    min = 100;
+    max = 220;
+    dailyMax = 320;
+  } else if (includesAny(name, ['orez', 'paste', 'ovaz', 'cartof', 'quinoa', 'couscous'])) {
+    min = 40;
+    max = 120;
+    dailyMax = 180;
+  } else if (role === 'low' || includesAny(category, ['vegetables', 'legume'])) {
+    min = 30;
+    max = 250;
+    dailyMax = 500;
+  }
+
+  if (Number(food.min_amount_per_meal) > 0) min = Number(food.min_amount_per_meal);
+  if (Number(food.daily_max_amount) > 0) dailyMax = Number(food.daily_max_amount);
+
+  max = Math.max(5, Math.round(max));
+  min = Math.min(Math.max(5, Math.round(min)), max);
+  dailyMax = dailyMax ? Math.max(min, Math.round(dailyMax)) : null;
+  return { min, max, dailyMax };
+}
+
+function getMaxAmount(food) {
+  return getFoodLimitProfile(food).max;
 }
 
 function recalculateDay(day) {
@@ -160,14 +255,48 @@ function recalculateDay(day) {
   };
 }
 
-function setFoodAmount(food, amount) {
-  const nextAmount = roundToNearest5(amount);
+function setFoodAmount(food, amount, options = {}) {
+  const minAmount = options.enforceMin === false ? 5 : Number(food._minAmount) || 5;
+  const maxAmount = Number(food._maxAmount) || 500;
+  const nextAmount = Math.min(maxAmount, Math.max(minAmount, roundToNearest5(amount)));
   const scale = nextAmount / 100;
   food.amount = nextAmount;
   food.calories = Math.round(food._per100.calories * scale);
   food.protein = Math.round(food._per100.protein * scale);
   food.carbs = Math.round(food._per100.carbs * scale);
   food.fat = Math.round(food._per100.fat * scale);
+}
+
+function enforceDailyFoodLimits(day) {
+  const groups = new Map();
+  for (const meal of day.meals || []) {
+    for (const food of meal.foods || []) {
+      const dailyMax = Number(food._dailyMaxAmount) || 0;
+      const key = food._foodKey || normalizeForMatch(food.name);
+      if (!dailyMax || !key) continue;
+      if (!groups.has(key)) groups.set(key, { dailyMax, foods: [] });
+      groups.get(key).foods.push(food);
+    }
+  }
+
+  for (const { dailyMax, foods } of groups.values()) {
+    const total = foods.reduce((sum, food) => sum + (Number(food.amount) || 0), 0);
+    if (total <= dailyMax) continue;
+
+    const minSum = foods.reduce((sum, food) => sum + (Number(food._minAmount) || 5), 0);
+    const keepMin = minSum <= dailyMax;
+    const adjustable = foods.reduce((sum, food) =>
+      sum + Math.max(0, (Number(food.amount) || 0) - (Number(food._minAmount) || 5)), 0);
+
+    for (const food of foods) {
+      const minAmount = Number(food._minAmount) || 5;
+      const current = Number(food.amount) || minAmount;
+      const nextAmount = keepMin && adjustable > 0
+        ? minAmount + Math.max(0, current - minAmount) * ((dailyMax - minSum) / adjustable)
+        : current * (dailyMax / total);
+      setFoodAmount(food, nextAmount, { enforceMin: keepMin });
+    }
+  }
 }
 
 function scoreTotals(totals, targets) {
@@ -191,6 +320,7 @@ function isWithinTargets(totals, targets) {
 }
 
 function tuneDayToTargets(day, targets) {
+  enforceDailyFoodLimits(day);
   recalculateDay(day);
   const foods = day.meals.flatMap(meal => meal.foods || []);
 
@@ -201,10 +331,18 @@ function tuneDayToTargets(day, targets) {
     let best = null;
     for (const food of foods) {
       const originalAmount = food.amount;
+      const minAmount = Math.max(Number(food._minAmount) || 5, 5);
       const maxAmount = Math.max(food._maxAmount || 250, 5);
+      const sameFoodAmount = foods
+        .filter(item => item !== food && item._foodKey && item._foodKey === food._foodKey)
+        .reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      const dailyRoom = Number(food._dailyMaxAmount)
+        ? Math.max(minAmount, Number(food._dailyMaxAmount) - sameFoodAmount)
+        : maxAmount;
+      const effectiveMaxAmount = Math.min(maxAmount, dailyRoom);
       for (const delta of [-5, 5]) {
         const nextAmount = originalAmount + delta;
-        if (nextAmount < 5 || nextAmount > maxAmount) continue;
+        if (nextAmount < minAmount || nextAmount > effectiveMaxAmount) continue;
         setFoodAmount(food, nextAmount);
         recalculateDay(day);
         const nextScore = scoreTotals(day.dailyTotals, targets);
@@ -218,6 +356,7 @@ function tuneDayToTargets(day, targets) {
 
     if (!best) break;
     setFoodAmount(best.food, best.amount);
+    enforceDailyFoodLimits(day);
     recalculateDay(day);
   }
 }
@@ -228,16 +367,21 @@ function cleanForStorage(day) {
       food.displayAmount = `${food.amount}${food.unit || 'g'}`;
       delete food._per100;
       delete food._maxAmount;
+      delete food._minAmount;
+      delete food._dailyMaxAmount;
+      delete food._foodKey;
     }
   }
   return day;
 }
 
 function makeDbFoodItem(food, amount) {
-  const scale = roundToNearest5(amount) / 100;
+  const limits = getFoodLimitProfile(food);
+  const safeAmount = Math.min(limits.max, Math.max(limits.min, roundToNearest5(amount)));
+  const scale = safeAmount / 100;
   return {
     name: food.name,
-    amount: Math.round(scale * 100),
+    amount: safeAmount,
     unit: 'g',
     calories: Math.round((Number(food.calories_per_100g) || 0) * scale),
     protein: Math.round((Number(food.protein_per_100g) || 0) * scale),
@@ -249,7 +393,10 @@ function makeDbFoodItem(food, amount) {
       carbs: Number(food.carbs_per_100g) || 0,
       fat: Number(food.fat_per_100g) || 0,
     },
-    _maxAmount: getMaxAmount(food),
+    _maxAmount: limits.max,
+    _minAmount: limits.min,
+    _dailyMaxAmount: limits.dailyMax,
+    _foodKey: getFoodKey(food),
   };
 }
 
@@ -279,10 +426,19 @@ function buildFoodPools(foods = []) {
 
 function buildFoodsMap(foods = []) {
   const map = new Map();
+  const addKey = (key, food) => {
+    const rawKey = String(key || '').trim();
+    const normalizedKey = normalizeForMatch(rawKey);
+    if (!rawKey || !normalizedKey) return;
+    map.set(rawKey, food);
+    map.set(normalizedKey, food);
+  };
+
   for (const food of foods || []) {
     if (!food?.name) continue;
-    map.set(food.name, food);
-    map.set(normalizeForMatch(food.name), food);
+    if (food.id) addKey(food.id, food);
+    addKey(food.name, food);
+    parseList(food.aliases).forEach(alias => addKey(alias, food));
   }
   return map;
 }
@@ -307,15 +463,64 @@ function parseList(value) {
 }
 
 function parseRecipeIngredients(value) {
-  if (Array.isArray(value)) return value;
+  const normalizeIngredient = (item, fallbackName = null) => {
+    if (!item && !fallbackName) return null;
+    if (typeof item === 'string') return { name: item };
+    if (typeof item === 'number') return fallbackName ? { name: fallbackName, amount: item } : null;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+
+    const name = item.food_name ||
+      item.foodName ||
+      item.food_id ||
+      item.foodId ||
+      item.food_uuid ||
+      item.foodUuid ||
+      item.id ||
+      item.food ||
+      item.ingredient ||
+      item.name ||
+      item.label ||
+      item.title ||
+      fallbackName;
+
+    if (!name) return null;
+
+    return {
+      ...item,
+      name,
+      amount: item.amount ??
+        item.amount_g ??
+        item.base_amount_g ??
+        item.quantity ??
+        item.quantity_g ??
+        item.grams ??
+        item.gramaj ??
+        item.g,
+    };
+  };
+
+  if (Array.isArray(value)) {
+    return value.map(item => normalizeIngredient(item)).filter(Boolean);
+  }
   if (!value) return [];
   if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
     try {
-      const parsed = JSON.parse(value);
-      return Array.isArray(parsed) ? parsed : [];
+      return parseRecipeIngredients(JSON.parse(trimmed));
     } catch {
-      return [];
+      return trimmed
+        .split(',')
+        .map(item => normalizeIngredient(item.trim()))
+        .filter(Boolean);
     }
+  }
+  if (typeof value === 'object') {
+    if (Array.isArray(value.ingredients)) return parseRecipeIngredients(value.ingredients);
+    if (Array.isArray(value.foods)) return parseRecipeIngredients(value.foods);
+    return Object.entries(value)
+      .map(([name, item]) => normalizeIngredient(item, name))
+      .filter(Boolean);
   }
   return [];
 }
@@ -341,7 +546,7 @@ function recipeContainsBlockedTerm(recipe, blockedTerms = []) {
   const haystack = [
     recipe.name,
     recipe.protein_source,
-    ...parseRecipeIngredients(recipe.ingredients).map(ingredient => ingredient.food_name || ingredient.name || ''),
+    ...parseRecipeIngredients(recipe.ingredients).map(ingredient => getIngredientName(ingredient)),
   ].map(normalizeForMatch).join(' ');
   return blockedTerms.some(term => haystack.includes(normalizeForMatch(term)));
 }
@@ -374,14 +579,91 @@ function pickRecipeVariants(pool = [], count = 3) {
   return Array.from({ length: count }, (_, index) => shuffled[index % shuffled.length]);
 }
 
+function isFreeRecipe(recipe) {
+  return recipe?.is_free === true || Number(recipe?.coin_price) <= 0;
+}
+
+function isRecipeAvailableForUser(recipe, unlockedRecipeIds, { freeOnly = false } = {}) {
+  if (freeOnly) return isFreeRecipe(recipe);
+  if (recipe?.is_free === true) return true;
+  if (!Object.prototype.hasOwnProperty.call(recipe || {}, 'is_free')) return true;
+  return unlockedRecipeIds.has(String(recipe.id));
+}
+
+function normalizeFoodId(value) {
+  const candidate = String(value || '').trim();
+  return UUID_RE.test(candidate) ? candidate : '';
+}
+
+function getIngredientFoodId(ingredient) {
+  if (typeof ingredient === 'string') return normalizeFoodId(ingredient);
+  if (!ingredient || typeof ingredient !== 'object') return '';
+
+  const directId = normalizeFoodId(
+    ingredient.food_id ||
+    ingredient.foodId ||
+    ingredient.food_uuid ||
+    ingredient.foodUuid ||
+    ingredient.food?.id ||
+    ingredient.id ||
+    ingredient.name
+  );
+
+  return directId;
+}
+
+function getIngredientName(ingredient) {
+  if (typeof ingredient === 'string') return ingredient;
+  return ingredient?.food_name ||
+    ingredient?.foodName ||
+    ingredient?.food?.name ||
+    (typeof ingredient?.food === 'string' ? ingredient.food : '') ||
+    ingredient?.ingredient ||
+    (!normalizeFoodId(ingredient?.name) ? ingredient?.name : '') ||
+    ingredient?.label ||
+    ingredient?.title ||
+    getIngredientFoodId(ingredient) ||
+    '';
+}
+
 function resolveIngredientFood(ingredient, foodsMap) {
-  const rawName = ingredient.food_name || ingredient.name || ingredient.food || ingredient.foodName;
-  if (!rawName) return null;
-  return foodsMap.get(rawName) || foodsMap.get(normalizeForMatch(rawName)) || null;
+  const foodId = getIngredientFoodId(ingredient);
+  if (!foodId) return null;
+  return foodsMap.get(foodId) || null;
+}
+
+function getRecipeMappingStatus(recipe, foodsMap) {
+  const ingredients = parseRecipeIngredients(recipe.ingredients);
+  if (!ingredients.length) {
+    return { isComplete: false, missing: ['ingrediente lipsă'] };
+  }
+
+  const missing = [];
+  for (const ingredient of ingredients) {
+    const ingredientName = getIngredientName(ingredient);
+    const food = resolveIngredientFood(ingredient, foodsMap);
+    if (!food || !Number(food.calories_per_100g)) {
+      missing.push(ingredientName || 'ingredient fără nume');
+    }
+  }
+
+  return {
+    isComplete: missing.length === 0,
+    missing,
+  };
 }
 
 function getIngredientBaseAmount(ingredient, food) {
-  let amount = Number(ingredient.base_amount_g ?? ingredient.amount_g ?? ingredient.amount ?? ingredient.grams);
+  let amount = Number(
+    ingredient.base_amount_g ??
+    ingredient.amount_g ??
+    ingredient.quantity_g ??
+    ingredient.amount ??
+    ingredient.quantity ??
+    ingredient.grams ??
+    ingredient.gramaj ??
+    ingredient.g
+  );
   if (!amount && ingredient.ratio_pct) {
     const cal100 = Math.max(Number(food?.calories_per_100g) || 100, 1);
     amount = Math.round((Number(ingredient.ratio_pct) * 500) / (cal100 / 100));
@@ -393,13 +675,25 @@ function makeRecipeFoodItem(food, amount) {
   return makeDbFoodItem(food, amount);
 }
 
+function getRecipeImageMeta(recipe = {}) {
+  const imageUrl = recipe.image_url || recipe.imageUrl || null;
+  const imageStoragePath = recipe.image_storage_path || recipe.imageStoragePath || null;
+  const imageStorageBucket = recipe.image_storage_bucket || recipe.imageStorageBucket || null;
+
+  return {
+    imageUrl,
+    imageStoragePath,
+    imageStorageBucket,
+  };
+}
+
 function scaleRecipeToMealTarget(recipe, mealTargetCalories, foodsMap) {
   const ingredients = parseRecipeIngredients(recipe.ingredients);
   const items = [];
 
   for (const ingredient of ingredients) {
     const food = resolveIngredientFood(ingredient, foodsMap);
-    if (!food || !Number(food.calories_per_100g)) continue;
+    if (!food || !Number(food.calories_per_100g)) return [];
     const baseAmount = getIngredientBaseAmount(ingredient, food);
     const category = food.category || classifyFood(food);
     const isLowDensity = category === 'vegetables' || category === 'fruits' || Number(food.calories_per_100g) < 60;
@@ -464,6 +758,7 @@ function buildRecipeMeal(slot, recipe, targets, foodsMap) {
     name: recipe.name || slot.label,
     mealType: slot.mealType,
     recipeId: recipe.id || null,
+    ...getRecipeImageMeta(recipe),
     foods,
     preparation: recipe.preparation || 'Pregătește rețeta conform ingredientelor și gramajelor afișate.',
     targetCalories: mealTargets.calories,
@@ -483,9 +778,7 @@ function cloneDayForIndex(day, dayIndex) {
 function buildRecipePatternDay(patternIndex, targets, recipeVariants, foodsMap) {
   const meals = MEAL_SLOTS.map(slot => {
     const variants = recipeVariants[slot.mealType] || [];
-    const variantIndex = slot.mealType === 'snack' && slot.label.includes('2')
-      ? patternIndex + 1
-      : patternIndex;
+    const variantIndex = patternIndex;
     const recipe = variants[variantIndex % Math.max(variants.length, 1)];
     if (!recipe) throw new Error(`Nu există rețete disponibile pentru ${slot.label}.`);
     return buildRecipeMeal(slot, recipe, targets, foodsMap);
@@ -595,7 +888,7 @@ function buildBestFoodDay(dayIndex, targets, foodPools) {
   return bestDay;
 }
 
-export async function createAutomaticMealPlanForUser({ supabase, userId, profile }) {
+export async function createAutomaticMealPlanForUser({ supabase, userId, profile, freeOnly = false }) {
   if (!supabase || !userId || !profile) {
     throw new Error('Date insuficiente pentru planul alimentar automat.');
   }
@@ -609,31 +902,55 @@ export async function createAutomaticMealPlanForUser({ supabase, userId, profile
     fat: Math.round(macros.fat),
   };
 
-  const [{ data: foods, error: foodsError }, { data: recipes, error: recipesError }] = await Promise.all([
+  const [
+    { data: foods, error: foodsError },
+    { data: recipes, error: recipesError },
+    { data: unlockedRecipes, error: unlockedRecipesError },
+  ] = await Promise.all([
     supabase
     .from('foods')
-      .select('name, category, calories_per_100g, protein_per_100g, carbs_per_100g, fat_per_100g, max_amount_per_meal'),
+      .select('*'),
     supabase
       .from('recipes')
-      .select('id, name, meal_type, diet_types, protein_source, preparation, ingredients'),
+      .select('*'),
+    supabase
+      .from('user_recipe_unlocks')
+      .select('recipe_id')
+      .eq('user_id', userId),
   ]);
 
   if (foodsError) throw new Error(`Nu am putut încărca alimentele: ${foodsError.message}`);
   if (recipesError) throw new Error(`Nu am putut încărca rețetele: ${recipesError.message}`);
+  if (unlockedRecipesError) throw new Error(`Nu am putut încărca rețetele deblocate: ${unlockedRecipesError.message}`);
 
   const foodPools = buildFoodPools(foods || []);
   if (!foodPools.all.length) throw new Error('Nu există alimente disponibile pentru planul automat.');
 
   const foodsMap = buildFoodsMap(foods || []);
-  const eligibleByType = getEligibleRecipesByType(recipes || [], profile);
+  const unlockedRecipeIds = new Set((unlockedRecipes || []).map(row => String(row.recipe_id)));
+  const availableRecipes = (recipes || []).filter(recipe =>
+    isRecipeAvailableForUser(recipe, unlockedRecipeIds, { freeOnly })
+  );
+  const eligibleByType = getEligibleRecipesByType(availableRecipes, profile);
   const recipeVariants = {};
 
   for (const mealType of ['breakfast', 'lunch', 'snack', 'dinner']) {
-    const pool = (eligibleByType[mealType] || []).filter(recipe =>
-      parseRecipeIngredients(recipe.ingredients).some(ingredient => resolveIngredientFood(ingredient, foodsMap))
-    );
+    const mappingStatuses = (eligibleByType[mealType] || []).map(recipe => ({
+      recipe,
+      ...getRecipeMappingStatus(recipe, foodsMap),
+    }));
+    const pool = mappingStatuses
+      .filter(status => status.isComplete)
+      .map(status => status.recipe);
     if (!pool.length) {
-      throw new Error(`Nu există rețete disponibile pentru ${mealType} cu ingrediente mapate în foods.`);
+      const sampleIngredients = mappingStatuses
+        .flatMap(status => status.missing)
+        .filter(Boolean)
+        .slice(0, 8);
+      const hint = sampleIngredients.length
+        ? ` Ingrediente nemapate: ${sampleIngredients.join(', ')}.`
+        : '';
+      throw new Error(`Nu există rețete disponibile/deblocate pentru ${mealType} cu toate ingredientele mapate în foods.${hint}`);
     }
     recipeVariants[mealType] = pickRecipeVariants(pool, 3);
   }
@@ -645,6 +962,7 @@ export async function createAutomaticMealPlanForUser({ supabase, userId, profile
     dailyTargets: targets,
     recipeRotation: {
       pattern: [1, 1, 2, 2, 3, 3, 1],
+      accessMode: freeOnly ? 'free_only' : 'free_and_unlocked',
       breakfastRecipeIds: recipeVariants.breakfast.map(recipe => recipe.id),
       lunchRecipeIds: recipeVariants.lunch.map(recipe => recipe.id),
       snackRecipeIds: recipeVariants.snack.map(recipe => recipe.id),

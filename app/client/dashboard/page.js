@@ -83,6 +83,16 @@ function getLevelInfoFromXp(xp) {
   };
 }
 
+function getLevelEmoji(level) {
+  const safeLevel = Math.max(1, Number(level) || 1);
+  if (safeLevel <= 2) return '🚶';
+  if (safeLevel <= 5) return '🏃';
+  if (safeLevel <= 10) return '🏋️';
+  if (safeLevel <= 15) return '💪';
+  if (safeLevel <= 20) return '🏅';
+  return '🏆';
+}
+
 function getLevelUpPayload(previousLevelInfo, nextLevelInfo, xpAdded = 50) {
   if (!nextLevelInfo?.level) return null;
   const previous = previousLevelInfo || getLevelInfoFromXp((Number(nextLevelInfo.totalXp) || 0) - xpAdded);
@@ -178,9 +188,22 @@ function WorkoutButtonIcon() {
   );
 }
 
-function getDailyWaterStorageKey(ownerId) {
-  const safeOwnerId = ownerId || 'anonymous';
-  return `trevano_water_ml_${safeOwnerId}_${new Date().toISOString().slice(0, 10)}`;
+function CoinAmount({ amount = 0, compact = false }) {
+  return (
+    <span className={`${styles.coinAmount} ${compact ? styles.coinAmountCompact : ''}`}>
+      <span className={styles.coinIcon} aria-hidden="true" />
+      <strong>{amount}</strong>
+    </span>
+  );
+}
+
+function LevelLabel({ level }) {
+  return (
+    <>
+      <span className={styles.levelEmoji} aria-hidden="true">{getLevelEmoji(level)}</span>
+      <span>Nivel {level}</span>
+    </>
+  );
 }
 
 function normalizeInstructionList(instructions) {
@@ -192,6 +215,29 @@ function normalizeInstructionList(instructions) {
     .split(/\r?\n/)
     .map(item => item.replace(/^[-•\d.)\s]+/, '').trim())
     .filter(Boolean);
+}
+
+function getMealImageUrl(meal = {}) {
+  return String(meal.imageUrl || meal.image_url || '').trim();
+}
+
+function getMealImageFallbackUrl(meal = {}) {
+  return String(meal.imageFallbackUrl || meal.image_fallback_url || '').trim();
+}
+
+function getTodayFirstMealImage(plan, currentPlanDay) {
+  const days = Array.isArray(plan?.days) ? plan.days : [];
+  if (!days.length) return null;
+
+  const dayIndex = Math.max(0, Math.min(days.length - 1, Number(currentPlanDay) || 0));
+  const meals = Array.isArray(days[dayIndex]?.meals) ? days[dayIndex].meals : [];
+  const meal = meals.find(item => getMealImageUrl(item));
+  if (!meal) return null;
+
+  return {
+    url: getMealImageUrl(meal),
+    fallbackUrl: getMealImageFallbackUrl(meal),
+  };
 }
 
 function ClientDashboardContent() {
@@ -216,6 +262,8 @@ function ClientDashboardContent() {
   const [mealDayStatus, setMealDayStatus] = useState({});
   const [workoutDayStatus, setWorkoutDayStatus] = useState({});
   const [waterMl, setWaterMl] = useState(0);
+  const [waterLoaded, setWaterLoaded] = useState(false);
+  const [waterSaving, setWaterSaving] = useState(false);
   const [streakCount, setStreakCount] = useState(0);
   const [streakState, setStreakState] = useState('normal');
   const [weeklyPlanRegenerating, setWeeklyPlanRegenerating] = useState(false);
@@ -229,6 +277,8 @@ function ClientDashboardContent() {
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const notificationsPanelRef = useRef(null);
   const fetchedRef = useRef(false);
+  const enrichedMealPlanLoadedRef = useRef(false);
+  const preloadedTodayMealImageRef = useRef('');
   const startWeeklyPlanRegenerationRef = useRef(null);
 
   // ── Workout Session SPA ──────────────────────────────────────────────────
@@ -262,6 +312,7 @@ function ClientDashboardContent() {
 
     const c = profileData.client;
     if (profileData.mealPlan?.plan_data) {
+      enrichedMealPlanLoadedRef.current = true;
       setConfirmedNoMealPlan(false);
       setMealPlan(profileData.mealPlan.plan_data);
       setNutritionalNeeds(profileData.mealPlan.daily_targets || null);
@@ -296,6 +347,26 @@ function ClientDashboardContent() {
     if (!response.ok) return null;
     return response.json();
   };
+
+  useEffect(() => {
+    if (activeTab === 'plan') return undefined;
+
+    const image = getTodayFirstMealImage(mealPlan, currentPlanDay);
+    if (!image?.url || preloadedTodayMealImageRef.current === image.url) return undefined;
+
+    preloadedTodayMealImageRef.current = image.url;
+    const preloadImage = new Image();
+    preloadImage.decoding = 'async';
+    preloadImage.fetchPriority = 'high';
+    preloadImage.onerror = () => {
+      if (image.fallbackUrl && preloadImage.src !== image.fallbackUrl) {
+        preloadImage.src = image.fallbackUrl;
+      }
+    };
+    preloadImage.src = image.url;
+
+    return undefined;
+  }, [activeTab, currentPlanDay, mealPlan]);
 
   useEffect(() => {
     if (!weeklyPlanRegenerating) return;
@@ -531,9 +602,11 @@ function ClientDashboardContent() {
         const { plan_data, daily_targets, client_id } = planData.mealPlan;
         const c = planData.client || {};
         
-        // Setează meal plan și nutritional needs
-        setMealPlan(plan_data);
-        setNutritionalNeeds(daily_targets);
+        // /api/user/plans aduce planul îmbogățit cu imagini; legacy detail e fallback.
+        if (!profileData?.mealPlan?.plan_data) {
+          setMealPlan(plan_data);
+          setNutritionalNeeds(daily_targets);
+        }
         
         setClientData({
           clientId: client_id,
@@ -653,11 +726,14 @@ function ClientDashboardContent() {
       .then(data => {
         if (!data.plans || data.plans.length === 0) {
           setError(null);
-          setMealPlan(null);
-          setConfirmedNoMealPlan(true);
           profilePromise
             .then(profileData => {
-              if (profileData?.mealPlan) setConfirmedNoMealPlan(false);
+              if (profileData?.mealPlan?.plan_data) {
+                setConfirmedNoMealPlan(false);
+              } else {
+                setMealPlan(null);
+                setConfirmedNoMealPlan(true);
+              }
             })
             .finally(() => setLoading(false));
           return;
@@ -680,8 +756,10 @@ function ClientDashboardContent() {
 
         const { plan_data, daily_targets, client_id } = data.mealPlan;
         setConfirmedNoMealPlan(false);
-        setMealPlan(plan_data);
-        setNutritionalNeeds(daily_targets);
+        if (!enrichedMealPlanLoadedRef.current) {
+          setMealPlan(plan_data);
+          setNutritionalNeeds(daily_targets);
+        }
         
         const c = data.client || {};
         setClientData({
@@ -825,7 +903,7 @@ function ClientDashboardContent() {
     fetch('/api/user/xp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ amount: 50 }),
+      body: JSON.stringify({ amount: 50, type: 'progress_update' }),
     }).then(r => r.json()).then(data => {
       if (data.level) {
         setUserLevel(data);
@@ -910,7 +988,6 @@ function ClientDashboardContent() {
   const hydrationTargetLiters = hydrationTargetLoaded ? (hydrationTargetMl / 1000).toLocaleString('ro-RO', {
     maximumFractionDigits: 2,
   }) : null;
-  const waterOwnerId = String(clientData?.clientId || user?.id || user?.email || 'anonymous');
   const workoutStartCopy = workoutStartScreen
     ? getWorkoutFocusCopy(workoutStartScreen.focus, workoutStartScreen.exercises || [])
     : null;
@@ -928,7 +1005,7 @@ function ClientDashboardContent() {
   const workoutPreloadVideoUrls = workoutStartScreen
     ? [...new Set((workoutStartScreen.exercises || []).map(ex => ex.videoUrl).filter(Boolean))]
     : [];
-  const waterDoneToday = hydrationTargetLoaded && waterMl >= hydrationTargetMl;
+  const waterDoneToday = hydrationTargetLoaded && waterLoaded && waterMl >= hydrationTargetMl;
   const hasWorkoutInProgress = hasActivePausedSession || workoutSession?.phase === 'active';
   const dayDoneToday = workoutDoneToday && mealsDoneToday && waterDoneToday;
   const todayMissionDoneCount = [workoutDoneToday, mealsDoneToday, waterDoneToday, dayDoneToday].filter(Boolean).length;
@@ -956,13 +1033,32 @@ function ClientDashboardContent() {
     : '';
 
   useEffect(() => {
-    try {
-      const key = getDailyWaterStorageKey(waterOwnerId);
-      setWaterMl(Math.max(0, Number(localStorage.getItem(key)) || 0));
-    } catch {
-      setWaterMl(0);
+    let cancelled = false;
+
+    async function loadDailyWater() {
+      setWaterLoaded(false);
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Token lipsă.');
+
+        const response = await fetch('/api/user/daily-progress', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Nu am putut citi apa de azi.');
+
+        if (!cancelled) setWaterMl(Math.max(0, Number(data.waterMl) || 0));
+      } catch (err) {
+        console.error('Daily water sync load failed:', err);
+        if (!cancelled) setWaterMl(0);
+      } finally {
+        if (!cancelled) setWaterLoaded(true);
+      }
     }
-  }, [waterOwnerId]);
+
+    loadDailyWater();
+    return () => { cancelled = true; };
+  }, [user?.id]);
   const closeFinishReward = () => {
     setFinishReward(null);
     if (pendingLevelUp) {
@@ -974,16 +1070,35 @@ function ClientDashboardContent() {
 
   const handleLogout = () => { logout(); router.push('/'); };
   const handleTabChange = (tab) => { setActiveTab(tab); setSidebarOpen(false); };
-  const handleAddWater = () => {
-    if (!hydrationTargetLoaded) return;
-    setWaterMl(prev => {
-      const next = Math.min(hydrationTargetMl, prev + 250);
-      try {
-        const key = getDailyWaterStorageKey(waterOwnerId);
-        localStorage.setItem(key, String(next));
-      } catch {}
-      return next;
-    });
+  const handleAddWater = async () => {
+    if (!hydrationTargetLoaded || !waterLoaded || waterSaving || waterDoneToday) return;
+
+    const previous = waterMl;
+    const next = Math.min(hydrationTargetMl, previous + 250);
+    setWaterMl(next);
+    setWaterSaving(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Token lipsă.');
+
+      const response = await fetch('/api/user/daily-progress', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ waterMl: next }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nu am putut salva apa de azi.');
+      setWaterMl(Math.max(0, Number(data.waterMl) || next));
+    } catch (err) {
+      console.error('Daily water sync save failed:', err);
+      setWaterMl(previous);
+    } finally {
+      setWaterSaving(false);
+    }
   };
 
   const openMealPlan = () => {
@@ -1099,18 +1214,20 @@ function ClientDashboardContent() {
             <article className={`${styles.jCard} ${waterDoneToday ? styles.jCardDone : ''}`}>
               <h2 className={styles.jCardTitle}>Apă</h2>
               <p className={styles.jCardSub}>
-                {hydrationTargetLoaded ? `${waterMl} / ${hydrationTargetMl} ml azi` : 'Se încarcă targetul din profil...'}
+                {hydrationTargetLoaded && waterLoaded
+                  ? `${waterMl} / ${hydrationTargetMl} ml azi`
+                  : 'Se încarcă progresul de apă...'}
               </p>
               <div className={styles.jCardFoot}>
                 <div className={styles.jCardWaterRow}>
                   <div className={styles.jCardWaterTrack}>
                     <div
                       className={`${styles.jCardWaterFill} ${waterDoneToday ? styles.jCardWaterFillDone : ''}`}
-                      style={{ width: `${hydrationTargetLoaded ? Math.min(100, Math.round((waterMl / hydrationTargetMl) * 100)) : 0}%` }}
+                      style={{ width: `${hydrationTargetLoaded && waterLoaded ? Math.min(100, Math.round((waterMl / hydrationTargetMl) * 100)) : 0}%` }}
                     />
                   </div>
-                  <button className={styles.jCardWaterBtn} onClick={handleAddWater} disabled={!hydrationTargetLoaded || waterDoneToday}>
-                    +250ml
+                  <button className={styles.jCardWaterBtn} onClick={handleAddWater} disabled={!hydrationTargetLoaded || !waterLoaded || waterSaving || waterDoneToday}>
+                    {waterSaving ? '...' : '+250ml'}
                   </button>
                 </div>
               </div>
@@ -1532,16 +1649,24 @@ function ClientDashboardContent() {
             <line x1="3" y1="18" x2="21" y2="18"/>
           </svg>
         </button>
-        <div className={styles.mobileLogo}>
-          <span style={{fontFamily:'var(--font-space-grotesk), var(--font-inter), sans-serif',fontWeight:700,fontSize:'20px',color:'#B7FF00',letterSpacing:'-0.5px'}}>trevano</span>
-        </div>
         {userLevel && (
           <div className={styles.mobileLevelPill}>
-            <span className={styles.mobileLevelText}>💪 Nivel {userLevel.level}</span>
+            <div className={styles.mobileLevelTop}>
+              <span className={styles.mobileLevelText}><LevelLabel level={userLevel.level} /></span>
+              <span className={styles.mobileXpText}>{userLevel.xpInCurrentLevel}/{userLevel.xpForNextLevel} XP</span>
+            </div>
+            <div className={styles.mobileXpTrack}>
+              <div className={styles.mobileXpFill} style={{ width: `${userLevel.progressPct}%` }} />
+            </div>
+          </div>
+        )}
+        {userLevel && (
+          <div className={styles.mobileCoinPill}>
+            <CoinAmount amount={userLevel.appCoins || 0} compact />
           </div>
         )}
         <div className={`${styles.mobileStreakPill} ${streakState === 'warning' ? styles.streakWarning : ''}`}>
-          <span className={styles.mobileLevelText}>🔥 Streak {streakCount} Zile</span>
+          <span className={styles.mobileLevelText}>🔥 {streakCount}</span>
         </div>
         <button 
           className={styles.mobileNotificationBtn}
@@ -1696,12 +1821,17 @@ function ClientDashboardContent() {
             {userLevel && (
               <div className={styles.sidebarLevelBlock}>
                 <div className={styles.sidebarLevelRow}>
-                  <span className={styles.sidebarLevelBadge}>💪 Nivel {userLevel.level}</span>
+                  <span className={styles.sidebarLevelBadge}><LevelLabel level={userLevel.level} /></span>
                   <span className={styles.sidebarLevelXp}>{userLevel.xpInCurrentLevel} / {userLevel.xpForNextLevel} XP</span>
                 </div>
                 <div className={styles.sidebarXpTrack}>
                   <div className={styles.sidebarXpFill} style={{ width: `${userLevel.progressPct}%` }} />
                 </div>
+              </div>
+            )}
+            {userLevel && (
+              <div className={styles.sidebarCoinBlock}>
+                <CoinAmount amount={userLevel.appCoins || 0} />
               </div>
             )}
             <div className={`${styles.sidebarStreakBlock} ${streakState === 'warning' ? styles.streakWarning : ''}`}>
@@ -2250,7 +2380,9 @@ function ClientDashboardContent() {
             <div className={styles.rewardIcon}>
               <span>{finishReward.type === 'onboarding' ? '🎉' : finishReward.type === 'meals' ? '💪' : '🔥'}</span>
             </div>
-            <div className={styles.rewardXpBadge}>+50 XP</div>
+            <div className={styles.rewardXpBadge}>
+              +50 XP{finishReward.levelInfo?.coinsAwarded ? ` · +${finishReward.levelInfo.coinsAwarded} monede` : ''}
+            </div>
             <h3>{finishRewardTitle}</h3>
             <p>{finishRewardMessage}</p>
             {(finishReward.levelInfo || userLevel) && (
@@ -2278,7 +2410,9 @@ function ClientDashboardContent() {
             <div className={styles.rewardIcon}>
               <span>💪</span>
             </div>
-            <div className={styles.rewardXpBadge}>LEVEL UP</div>
+            <div className={styles.rewardXpBadge}>
+              LEVEL UP{levelUpReward.levelInfo?.coinsAwarded ? ` · +${levelUpReward.levelInfo.coinsAwarded} monede` : ''}
+            </div>
             <h3>Nivel {levelUpReward.toLevel}</h3>
             <p>Excelent. Ai trecut de la nivelul {levelUpReward.fromLevel} la nivelul {levelUpReward.toLevel}. Se vede consecvența.</p>
             <div className={styles.rewardLevelLine}>

@@ -9,6 +9,25 @@ const clonePlan = (value) => JSON.parse(JSON.stringify(value || {}));
 const roundMacro = (value) => Math.round((Number(value) || 0) * 10) / 10;
 const roundKcal = (value) => Math.round(Number(value) || 0);
 
+function getMealImageUrl(meal = {}) {
+  return String(meal.imageUrl || meal.image_url || '').trim();
+}
+
+function getMealImageFallbackUrl(meal = {}) {
+  return String(meal.imageFallbackUrl || meal.image_fallback_url || '').trim();
+}
+
+function collectMealImageUrls(plan) {
+  const urls = new Set();
+  for (const day of plan?.days || []) {
+    for (const meal of day?.meals || []) {
+      const url = getMealImageUrl(meal);
+      if (url) urls.add(url);
+    }
+  }
+  return [...urls];
+}
+
 function recalculateDay(day) {
   if (!day?.meals) return day;
 
@@ -103,6 +122,7 @@ export default function MealPlan({
   const [progressSentBanner, setProgressSentBanner] = useState(null);
   const [mealChecks, setMealChecks] = useState({});
   const [mealChecksLoaded, setMealChecksLoaded] = useState(false);
+  const [loadedMealImages, setLoadedMealImages] = useState({});
   const [progressData, setProgressData] = useState({
     currentWeight: clientData?.weight || '',
     adherence: '',
@@ -121,11 +141,47 @@ export default function MealPlan({
   const currentDay = plan && plan.days ? plan.days[activeDay] : null;
   const cooldownDate = progressCooldownUntil ? new Date(progressCooldownUntil) : null;
   const progressInCooldown = !!(cooldownDate && cooldownDate > new Date());
-  const mealCheckStorageKey = [
-    'meal-checks',
-    clientData?.clientId || clientData?.id || user?.id || user?.email || 'client',
-    plan?.id || plan?.createdAt || plan?.created_at || plan?.days?.length || 'plan',
-  ].join(':');
+  const mealPlanProgressKey = String(
+    plan?.id ||
+    plan?.planId ||
+    plan?.createdAt ||
+    plan?.created_at ||
+    plan?.days?.length ||
+    'plan'
+  );
+
+  useEffect(() => {
+    const urls = collectMealImageUrls(plan);
+    if (!urls.length) {
+      setLoadedMealImages({});
+      return undefined;
+    }
+
+    let cancelled = false;
+    setLoadedMealImages(prev => {
+      const next = {};
+      for (const url of urls) {
+        if (prev[url]) next[url] = true;
+      }
+      return next;
+    });
+
+    for (const url of urls) {
+      const img = new Image();
+      img.decoding = 'async';
+      img.onload = () => {
+        if (cancelled) return;
+        setLoadedMealImages(prev => prev[url] ? prev : { ...prev, [url]: true });
+      };
+      img.onerror = () => {
+        if (cancelled) return;
+        setLoadedMealImages(prev => prev[url] ? prev : { ...prev, [url]: true });
+      };
+      img.src = url;
+    }
+
+    return () => { cancelled = true; };
+  }, [plan]);
 
   useEffect(() => {
     if (!onFinishMeals || !plan?.days?.length) return;
@@ -135,27 +191,60 @@ export default function MealPlan({
   useEffect(() => {
     if (!onFinishMeals || !plan?.days?.length) return;
 
+    let cancelled = false;
     setMealChecksLoaded(false);
 
-    try {
-      const savedChecks = localStorage.getItem(mealCheckStorageKey);
-      setMealChecks(savedChecks ? JSON.parse(savedChecks) || {} : {});
-    } catch {
-      setMealChecks({});
-    } finally {
-      setMealChecksLoaded(true);
+    async function loadMealChecks() {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('Token lipsă.');
+
+        const response = await fetch(`/api/user/daily-progress?mealPlanKey=${encodeURIComponent(mealPlanProgressKey)}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'Nu am putut citi mesele bifate.');
+
+        if (!cancelled) {
+          setMealChecks(data.mealChecks && typeof data.mealChecks === 'object' ? data.mealChecks : {});
+        }
+      } catch (err) {
+        console.error('Meal checks sync load failed:', err);
+        if (!cancelled) setMealChecks({});
+      } finally {
+        if (!cancelled) setMealChecksLoaded(true);
+      }
     }
-  }, [mealCheckStorageKey, onFinishMeals, plan?.days?.length]);
+
+    loadMealChecks();
+    return () => { cancelled = true; };
+  }, [mealPlanProgressKey, onFinishMeals, plan?.days?.length]);
 
   useEffect(() => {
     if (!onFinishMeals || !plan?.days?.length || !mealChecksLoaded) return;
 
-    try {
-      localStorage.setItem(mealCheckStorageKey, JSON.stringify(mealChecks));
-    } catch {
-      // Local progress still works even if storage is unavailable.
-    }
-  }, [mealChecks, mealCheckStorageKey, mealChecksLoaded, onFinishMeals, plan?.days?.length]);
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    fetch('/api/user/daily-progress', {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        mealPlanKey: mealPlanProgressKey,
+        mealChecks,
+      }),
+    }).then(async (response) => {
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Nu am putut salva mesele bifate.');
+      }
+    }).catch((err) => {
+      console.error('Meal checks sync save failed:', err);
+    });
+  }, [mealChecks, mealChecksLoaded, mealPlanProgressKey, onFinishMeals, plan?.days?.length]);
 
   useEffect(() => {
     if (!onFinishMeals || !plan?.days?.length || !mealChecksLoaded) return;
@@ -454,6 +543,9 @@ export default function MealPlan({
     ? Math.min(100, Math.round((dayCaloriesConsumed / dayCaloriesTotal) * 100))
     : 0;
   const activeMealDayState = getMealDayState(activeDay);
+  const isActiveCalendarDay = activeDay === safeCurrentPlanDay && safeCurrentPlanDay < 7;
+  const isReadOnlyDay = !isActiveCalendarDay || activeMealDayState.disabled;
+  const canEditAmountsForDay = canEditAmounts && !activeMealDayState.disabled;
   const allActiveMealsChecked = !!currentDay?.meals?.length &&
     currentDay.meals.every((_, mealIndex) => isMealChecked(activeDay, mealIndex));
   const canFinalizeMealsDay = !!onFinishMeals && allActiveMealsChecked && !activeMealDayState.disabled;
@@ -878,11 +970,16 @@ export default function MealPlan({
           <div className={styles.dayTabs}>
             {plan.days.map((day, index) => {
               const isCompleted = dayStatus[String(index)] === true;
+              const dayState = getMealDayState(index);
+              const isCurrentDay = index === safeCurrentPlanDay && safeCurrentPlanDay < 7;
+              const isReadOnlyTab = !isCurrentDay || dayState.disabled;
               return (
               <button
                 key={index}
-                className={`${styles.dayTab} ${activeDay === index ? styles.dayTabActive : ''}`}
+                className={`${styles.dayTab} ${activeDay === index ? styles.dayTabActive : ''} ${isReadOnlyTab ? styles.dayTabReadOnly : ''} ${isCurrentDay && !dayState.disabled ? styles.dayTabCurrent : ''}`}
                 onClick={() => setActiveDay(index)}
+                aria-disabled={isReadOnlyTab}
+                title={isReadOnlyTab ? 'Doar consultare' : 'Zi activă'}
               >
                   <span className={styles.dayTabInner}>
                     <span className={styles.dayFull}>{dayNames[index % dayNames.length]}</span>
@@ -906,10 +1003,12 @@ export default function MealPlan({
           return (
             <div>
               {/* Meals Grid for Active Day */}
-              <div className={styles.mealsGrid}>
+              <div className={`${styles.mealsGrid} ${isReadOnlyDay ? styles.mealsGridReadOnly : ''}`}>
                 {currentDay.meals.map((meal, mealIndex) => {
             const { name } = getMealLabel(meal.mealType);
             const mealChecked = isMealChecked(activeDay, mealIndex);
+            const mealImageUrl = getMealImageUrl(meal);
+            const mealImageFallbackUrl = getMealImageFallbackUrl(meal);
             return (
               <div key={mealIndex} className={styles.mealCard}>
                 <div className={styles.mealCardHeader}>
@@ -918,7 +1017,7 @@ export default function MealPlan({
                     <h4>{meal.name || name}</h4>
                   </div>
                   <div className={styles.mealHeaderActions}>
-                    {onFinishMeals && (
+                    {onFinishMeals && !isReadOnlyDay && (
                       <button
                         type="button"
                         className={`${styles.mealCheckBtn} ${mealChecked ? styles.mealCheckBtnChecked : ''}`}
@@ -936,12 +1035,38 @@ export default function MealPlan({
                   </div>
                 </div>
 
+                {mealImageUrl && (
+                  <div className={`${styles.mealImageWrap} ${loadedMealImages[mealImageUrl] ? styles.mealImageWrapReady : styles.mealImageWrapLoading}`}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      className={styles.mealImage}
+                      src={mealImageUrl}
+                      alt={meal.name || name}
+                      width="900"
+                      height="506"
+                      loading={activeDay === safeCurrentPlanDay && mealIndex === 0 ? 'eager' : 'lazy'}
+                      fetchPriority={activeDay === safeCurrentPlanDay && mealIndex === 0 ? 'high' : 'auto'}
+                      decoding="async"
+                      onLoad={() => {
+                        setLoadedMealImages(prev => prev[mealImageUrl] ? prev : { ...prev, [mealImageUrl]: true });
+                      }}
+                      onError={(event) => {
+                        if (mealImageFallbackUrl && event.currentTarget.src !== mealImageFallbackUrl) {
+                          event.currentTarget.src = mealImageFallbackUrl;
+                          return;
+                        }
+                        setLoadedMealImages(prev => prev[mealImageUrl] ? prev : { ...prev, [mealImageUrl]: true });
+                      }}
+                    />
+                  </div>
+                )}
+
                 <ul className={styles.mealList}>
                   {meal.foods.map((food, foodIndex) => (
                     <li key={foodIndex} className={styles.mealItem}>
                       <div className={styles.foodMainRow}>
                         <span className={styles.foodName}>{food.name}</span>
-                        {canEditAmounts ? (
+                        {canEditAmountsForDay ? (
                           <div className={styles.amountStepper} aria-label={`Gramaj ${food.name}`}>
                             <button
                               type="button"

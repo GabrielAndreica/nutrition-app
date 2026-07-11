@@ -59,6 +59,15 @@ export function getCurrentPlanDayIndex(now = new Date()) {
   return (localDateAtUtcMidnight.getUTCDay() + 6) % 7;
 }
 
+export function getCurrentPlanDateKey(now = new Date()) {
+  const currentLocal = getTimeZoneParts(now, PLAN_TIME_ZONE);
+  return [
+    currentLocal.year,
+    String(currentLocal.month).padStart(2, '0'),
+    String(currentLocal.day).padStart(2, '0'),
+  ].join('-');
+}
+
 export function getAppOrigin(request = null) {
   if (request?.nextUrl?.origin) return request.nextUrl.origin;
   if (request?.url) return new URL(request.url).origin;

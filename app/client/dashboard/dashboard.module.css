@@ -412,10 +412,22 @@
   margin-bottom: 6px;
 }
 .sidebarLevelBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   font-size: 12px;
   font-weight: 700;
   color: #b7ff00;
   letter-spacing: 0.02em;
+}
+
+.levelEmoji {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  transform: translateY(-1px);
 }
 .sidebarLevelXp {
   font-size: 10px;
@@ -442,12 +454,72 @@
   justify-content: space-between;
   margin: 8px 8px 2px;
   padding: 9px 10px;
-  border: 1px solid rgba(183, 255, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
-  color: #b7ff00;
-  background: rgba(183, 255, 0, 0.08);
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.045);
   font-size: 12px;
   font-weight: 750;
+}
+
+.sidebarCoinBlock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 8px 8px 2px;
+  padding: 9px 10px;
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  border-radius: 8px;
+  color: #facc15;
+  background: rgba(250, 204, 21, 0.08);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.sidebarCoinBlock strong {
+  color: #facc15;
+  font-size: 16px;
+}
+
+.coinAmount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: #facc15;
+  line-height: 1;
+}
+
+.coinAmount strong {
+  color: #facc15;
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.3px;
+}
+
+.coinAmountCompact {
+  gap: 5px;
+}
+
+.coinAmountCompact strong {
+  font-size: 12px;
+}
+
+.coinAmountCompact .coinIcon {
+  width: 15px;
+  height: 15px;
+}
+
+.coinIcon {
+  width: 17px;
+  height: 17px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background:
+    radial-gradient(circle at 35% 28%, #fff7ad 0 18%, transparent 19%),
+    linear-gradient(135deg, #fde047, #f59e0b);
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  box-shadow: inset 0 -2px 0 rgba(146, 64, 14, 0.28), 0 0 0 2px rgba(250, 204, 21, 0.12);
 }
 
 .sidebarStreakBlock strong {
@@ -1342,8 +1414,9 @@
   .mobileTopbar {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: env(safe-area-inset-top, 0) max(16px, env(safe-area-inset-right)) 0 max(16px, env(safe-area-inset-left));
+    justify-content: stretch;
+    gap: 5px;
+    padding: env(safe-area-inset-top, 0) max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
     min-height: 52px;
     height: calc(52px + env(safe-area-inset-top, 0px));
     background: #0f0f0f;
@@ -1356,7 +1429,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 44px;
+    min-width: 38px;
     min-height: 44px;
     border: none;
     background: transparent;
@@ -1372,18 +1445,15 @@
     color: rgba(255, 255, 255, 0.9);
   }
 
-.mobileLogo {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-right: auto;
+  .mobileLogo {
+    display: none;
   }
 
   .mobileNotificationBtn {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-width: 44px;
+    min-width: 38px;
     min-height: 44px;
     border: none;
     background: transparent;
@@ -1398,24 +1468,79 @@
 
   .mobileLevelPill {
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    gap: 4px;
     background: rgba(183, 255, 0, 0.12);
     border: 1px solid rgba(183, 255, 0, 0.25);
-    border-radius: 20px;
-    padding: 4px 9px;
+    border-radius: 13px;
+    padding: 6px 9px;
     margin-left: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .mobileLevelTop {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 7px;
+    min-width: 0;
+  }
+
+  .mobileLevelText .levelEmoji {
+    font-size: 20px;
+    margin-right: 3px;
+  }
+
+  .mobileXpText {
+    font-size: 9px;
+    font-weight: 800;
+    color: rgba(255, 255, 255, 0.58);
+    letter-spacing: -0.15px;
+    white-space: nowrap;
+  }
+
+  .mobileXpTrack {
+    height: 4px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .mobileXpFill {
+    height: 100%;
+    min-width: 4px;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #b7ff00, #7db800);
+    transition: width 0.45s ease;
+  }
+
+  .mobileCoinPill {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(250, 204, 21, 0.1);
+    border: 1px solid rgba(250, 204, 21, 0.28);
+    border-radius: 13px;
+    padding: 6px 7px;
     flex-shrink: 0;
+    min-height: 34px;
   }
 
   .mobileStreakPill {
     display: flex;
     align-items: center;
-    background: rgba(183, 255, 0, 0.12);
-    border: 1px solid rgba(183, 255, 0, 0.25);
-    border-radius: 20px;
-    padding: 4px 9px;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 13px;
+    padding: 6px 8px;
     flex-shrink: 0;
-    color: #b7ff00;
+    color: rgba(255, 255, 255, 0.86);
+    min-height: 34px;
   }
 
   .mobileStreakPill.streakWarning .mobileLevelText {
@@ -1725,20 +1850,23 @@
 
 /* Override centering on the wrapper when journey dash is active */
 .dummyPlanScreenDash {
-  flex-direction: column !important;
-  align-items: flex-start !important;
-  justify-content: flex-start !important;
-  padding: 40px 55px 60px !important;
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
+  width: 100% !important;
+  max-width: 560px !important;
+  height: auto !important;
+  min-height: 0 !important;
+  margin: 0 auto !important;
+  padding: 0 !important;
+  background: transparent !important;
+  display: block !important;
+  overflow: visible !important;
 }
 
-/* Two-column layout: missions left, cards right */
+/* Single-column layout aligned with meal/workout modules */
 .journeyLayout {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 280px) 1fr;
-  gap: 24px;
+  grid-template-columns: 1fr;
+  gap: 14px;
   align-items: start;
 }
 
@@ -1746,31 +1874,33 @@
 .journeyPanel {
   display: flex;
   flex-direction: column;
-  padding: 20px 18px 18px;
+  padding: 22px 22px 20px;
   background: #ffffff;
   border: 1px solid #e8e8ed;
-  border-radius: 14px;
+  border-radius: 20px;
 }
 
 .journeyPanelHead {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 }
 
 .journeyPanelLabel {
-  font-size: 13px;
-  font-weight: 700;
-  color: #3c3c43;
-  letter-spacing: -0.1px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #6e6e73;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
 }
 
 .journeyPanelCount {
-  font-size: 16px;
-  font-weight: 800;
+  font-size: 22px;
+  font-weight: 900;
   color: #0a0a0a;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.9px;
+  line-height: 1;
 }
 
 .journeyPanelCount small {
@@ -1782,16 +1912,16 @@
 .journeyMissionRows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 10px;
+  gap: 0;
+  margin-top: 6px;
 }
 
 .journeyMissionRow {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid #f3f3f5;
+  padding: 13px 0;
+  border-bottom: 1px solid #f5f5f7;
 }
 
 .journeyMissionRow:last-child {
@@ -1799,10 +1929,10 @@
 }
 
 .journeyBullet {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  border: 1.5px solid #d1d1d6;
+  border: 1.5px solid #d8d8de;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1818,8 +1948,8 @@
 
 .journeyMissionText {
   font-size: 15px;
-  font-weight: 500;
-  color: #1c1c1e;
+  font-weight: 650;
+  color: #0a0a0a;
   line-height: 1.3;
   letter-spacing: -0.2px;
 }
@@ -1830,11 +1960,11 @@
   text-decoration-color: #c8c8d0;
 }
 
-/* ── Right: 3 cards in a row ───────────────────────────── */
+/* ── Cards ─────────────────────────────────────────────── */
 .journeyCards {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  grid-template-columns: 1fr;
+  gap: 14px;
   align-items: stretch;
 }
 
@@ -1842,20 +1972,26 @@
 .jCard {
   background: #ffffff;
   border: 1px solid #e8e8ed;
-  border-radius: 14px;
-  padding: 24px 22px 20px;
+  border-radius: 20px;
+  padding: 24px 24px 20px;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  transition: border-color 0.25s ease;
+  transition: border-color 0.18s ease, transform 0.12s ease;
+}
+
+.jCard:hover {
+  border-color: #d8d8de;
+  transform: translateY(-1px);
 }
 
 .jCardDone {
-  border-color: rgba(183, 255, 0, 0.55);
+  border-color: rgba(183, 255, 0, 0.72);
+  background: linear-gradient(180deg, rgba(183, 255, 0, 0.08), #ffffff 42%);
 }
 
 .jCardTitle {
-  font-size: 22px;
+  font-size: 25px;
   font-weight: 900;
   color: #0a0a0a;
   margin: 0;
@@ -1864,9 +2000,9 @@
 }
 
 .jCardSub {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 400;
-  color: #737373;
+  color: #6e6e73;
   margin: 0;
   letter-spacing: -0.1px;
   line-height: 1.55;
@@ -1874,17 +2010,21 @@
 
 .jCardFoot {
   margin-top: auto;
-  padding-top: 12px;
-  border-top: 1px solid #f3f3f5;
+  padding-top: 14px;
+  border-top: 1px solid #f5f5f7;
 }
 
 .jCardStatusDone {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  width: fit-content;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #b7ff00;
   font-size: 14px;
-  font-weight: 600;
-  color: #2d6a00;
+  font-weight: 800;
+  color: #0a0a0a;
   letter-spacing: -0.1px;
 }
 
@@ -1899,10 +2039,10 @@
   background: #0a0a0a;
   color: #b7ff00;
   border: none;
-  border-radius: 8px;
-  padding: 11px 14px;
-  font-size: 14px;
-  font-weight: 700;
+  border-radius: 12px;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 800;
   cursor: pointer;
   font-family: inherit;
   letter-spacing: -0.2px;
@@ -1933,15 +2073,15 @@
 
 .jCardWaterTrack {
   flex: 1;
-  height: 5px;
-  background: #e8e8ed;
+  height: 8px;
+  background: #f0f0f3;
   border-radius: 999px;
   overflow: hidden;
 }
 
 .jCardWaterFill {
   height: 100%;
-  background: #3b82f6;
+  background: #b7ff00;
   border-radius: 999px;
   transition: width 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   min-width: 3px;
@@ -1955,10 +2095,10 @@
   background: #0a0a0a;
   color: #b7ff00;
   border: none;
-  border-radius: 7px;
-  padding: 8px 14px;
+  border-radius: 10px;
+  padding: 10px 14px;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
   font-family: inherit;
   letter-spacing: -0.1px;
@@ -2623,59 +2763,59 @@
 /* ── Desktop: reduce sizes that are too large on wide screens ─────────── */
 @media (min-width: 769px) {
   .jCardTitle {
-    font-size: 14px;
+    font-size: 25px;
   }
   .jCardSub {
-    font-size: 12px;
+    font-size: 13px;
   }
   .journeyMissionText {
-    font-size: 13px;
+    font-size: 15px;
   }
   .journeyPanelLabel {
     font-size: 11px;
   }
   .journeyPanelCount {
-    font-size: 13px;
+    font-size: 22px;
   }
   .journeyPanelCount small {
-    font-size: 11px;
+    font-size: 13px;
   }
   .jCardGenBtn {
-    font-size: 12px;
-    padding: 9px 12px;
+    font-size: 15px;
+    padding: 14px 18px;
   }
   .jCardStatusDone {
-    font-size: 12px;
+    font-size: 14px;
   }
   .jCardStatusPend {
-    font-size: 12px;
+    font-size: 14px;
   }
   .jCardWaterBtn {
-    font-size: 11px;
-    padding: 7px 12px;
+    font-size: 13px;
+    padding: 10px 14px;
   }
 }
 
 /* ── Mobile ─────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .dummyPlanScreenDash {
-    padding: 24px 20px 80px !important;
-    height: calc(100dvh - 52px) !important;
-    align-items: flex-start !important;
-    overflow: auto !important;
+    padding: 0 0 80px !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
   }
 
   .journeyLayout {
     grid-template-columns: 1fr;
-    gap: 24px;
+    gap: 14px;
   }
 
   .journeyCards {
     grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 14px;
   }
 
   .jCard {
-    padding: 16px 14px 14px;
+    padding: 20px 18px 16px;
   }
 }

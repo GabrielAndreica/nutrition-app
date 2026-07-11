@@ -45,7 +45,7 @@ export async function GET(request) {
   const supabase = getSupabase();
   const { data: clientRow, error } = await supabase
     .from('users')
-    .select('xp, level')
+    .select('xp, level, app_coins')
     .eq('id', auth.userId)
     .maybeSingle();
 
@@ -65,5 +65,8 @@ export async function GET(request) {
       .eq('id', auth.userId);
   }
 
-  return NextResponse.json(info);
+  return NextResponse.json({
+    ...info,
+    appCoins: Math.max(0, Number(clientRow?.app_coins) || 0),
+  });
 }

@@ -5,6 +5,12 @@ import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import { resolveUserOnboardingCompletion } from '@/app/lib/onboardingStatus';
 import { calculateHydrationTargetMl } from '@/app/lib/hydrationTarget';
 import { createAutomaticMealPlanForUser } from '@/app/lib/automaticMealPlan';
+import { getLevelInfo } from '@/app/api/user/level/route';
+import {
+  APP_COIN_REWARDS,
+  awardAppCoins,
+  getCoinRewardReason,
+} from '@/app/lib/appCurrency';
 import { getCurrentPlanDayIndex, getNextPlanMidnightIso } from '@/app/lib/weeklyPlanRegeneration';
 
 // Allowed enum values
@@ -14,6 +20,83 @@ const ALLOWED_GOALS = ['muscle_gain', 'weight_loss', 'maintenance', 'endurance',
 const ALLOWED_DIET_TYPES = ['omnivore', 'vegetarian', 'vegan', 'pescatarian', 'keto', 'paleo'];
 const ALLOWED_GENDERS = ['M', 'F'];
 const ALLOWED_WORKOUTS_PER_WEEK = [2, 3, 4, 5, 6];
+const ONBOARDING_XP_REWARD = 50;
+
+async function awardOnboardingReward({ supabase, userId, previousUserRow }) {
+  if (!previousUserRow || previousUserRow.onboarding_completed === true) return null;
+
+  const previousXp = Math.max(0, Number(previousUserRow.xp) || 0);
+  const previousLevel = Math.max(1, Number(previousUserRow.level) || 1);
+  const nextXp = previousXp + ONBOARDING_XP_REWARD;
+  const levelInfo = getLevelInfo(nextXp);
+  const leveledUp = levelInfo.level > previousLevel;
+
+  const { error: xpUpdateError } = await supabase
+    .from('users')
+    .update({ xp: nextXp, level: levelInfo.level })
+    .eq('id', userId);
+
+  if (xpUpdateError) {
+    console.error('[onboarding] reward XP error:', xpUpdateError);
+    return null;
+  }
+
+  const coinAwards = [];
+  let appCoins = Math.max(0, Number(previousUserRow.app_coins) || 0);
+  const onboardingCoins = await awardAppCoins({
+    supabase,
+    userId,
+    amount: APP_COIN_REWARDS.onboarding,
+    reason: getCoinRewardReason('onboarding'),
+    sourceType: 'onboarding',
+    sourceKey: `onboarding:${userId}`,
+    metadata: {
+      xpAmount: ONBOARDING_XP_REWARD,
+    },
+  });
+  if (onboardingCoins.amountAwarded > 0) coinAwards.push({ type: 'onboarding', amount: onboardingCoins.amountAwarded });
+  if (onboardingCoins.balance !== null) appCoins = onboardingCoins.balance;
+
+  if (leveledUp) {
+    const levelCoins = await awardAppCoins({
+      supabase,
+      userId,
+      amount: APP_COIN_REWARDS.level_up,
+      reason: getCoinRewardReason('level_up'),
+      sourceType: 'level_up',
+      sourceKey: `level:${levelInfo.level}`,
+      metadata: {
+        level: levelInfo.level,
+        previousLevel,
+      },
+    });
+    if (levelCoins.amountAwarded > 0) coinAwards.push({ type: 'level_up', amount: levelCoins.amountAwarded });
+    if (levelCoins.balance !== null) appCoins = levelCoins.balance;
+  }
+
+  const coinsAwarded = coinAwards.reduce((sum, award) => sum + award.amount, 0);
+  const payload = {
+    ...levelInfo,
+    xpAdded: ONBOARDING_XP_REWARD,
+    appCoins,
+    coinsAwarded,
+    coinAwards,
+  };
+
+  if (leveledUp) {
+    return {
+      type: 'levelUp',
+      fromLevel: previousLevel,
+      toLevel: levelInfo.level,
+      levelInfo: payload,
+    };
+  }
+
+  return {
+    type: 'xp',
+    levelInfo: payload,
+  };
+}
 
 export async function POST(request) {
   const auth = verifyToken(request);
@@ -133,7 +216,7 @@ export async function POST(request) {
   // Determină numele: din body sau din users
   const { data: userRow } = await supabase
     .from('users')
-    .select('name')
+    .select('name, onboarding_completed, xp, level, app_coins')
     .eq('id', auth.userId)
     .single();
 
@@ -180,10 +263,12 @@ export async function POST(request) {
 
   let automaticMealPlan = null;
   let automaticMealPlanWarning = null;
+  let onboardingReward = null;
   try {
     automaticMealPlan = await createAutomaticMealPlanForUser({
       supabase,
       userId: auth.userId,
+      freeOnly: true,
       profile: {
         name: userName,
         age: ageNum,
@@ -197,6 +282,11 @@ export async function POST(request) {
         foodPreferences,
       },
     });
+    onboardingReward = await awardOnboardingReward({
+      supabase,
+      userId: auth.userId,
+      previousUserRow: userRow,
+    });
   } catch (mealPlanError) {
     automaticMealPlanWarning = mealPlanError?.message || 'Planul alimentar automat nu a putut fi generat.';
     console.error('[onboarding] automatic meal plan error:', mealPlanError);
@@ -207,6 +297,7 @@ export async function POST(request) {
     clientId: auth.userId,
     success: true,
     mealPlanId: automaticMealPlan?.mealPlanId || null,
+    reward: onboardingReward,
     warning: automaticMealPlanWarning,
   });
 }

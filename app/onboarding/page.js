@@ -51,6 +51,12 @@ const GOALS = [
 ];
 
 const STEP_LABELS = ['Date personale', 'Antrenament', 'Obiectiv'];
+const ONBOARDING_LOADING_MESSAGES = [
+  'Calculăm necesarul tău caloric și macronutrienții.',
+  'Alegem mesele free care se potrivesc profilului tău.',
+  'Ajustăm gramajele ca planul să fie realist, nu doar matematic.',
+  'Pregătim dashboard-ul și primele tale recompense.',
+];
 
 const btnToggle = (active) => ({
   flex: 1,
@@ -93,6 +99,7 @@ export default function OnboardingPage() {
   const [xpReward, setXpReward] = useState(null);   // { levelInfo }
   const [levelUpReward, setLevelUpReward] = useState(null); // { fromLevel, toLevel, levelInfo }
   const [direction, setDirection] = useState(null); // null = no animation on first render
+  const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
 
   const [form, setForm] = useState({
     name: '',
@@ -135,6 +142,19 @@ export default function OnboardingPage() {
       })
       .catch(() => setAuthChecked(true));
   }, [authLoading, user, router, token]);
+
+  useEffect(() => {
+    if (!loading) {
+      setLoadingMessageIndex(0);
+      return undefined;
+    }
+
+    const intervalId = setInterval(() => {
+      setLoadingMessageIndex(index => (index + 1) % ONBOARDING_LOADING_MESSAGES.length);
+    }, 1700);
+
+    return () => clearInterval(intervalId);
+  }, [loading]);
 
   const updateForm = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -192,25 +212,10 @@ export default function OnboardingPage() {
         localStorage.setItem('user', JSON.stringify({ ...storedUser, onboarding_completed: true }));
       } catch { /* ignore */ }
 
-      // Acordă 50 XP pentru finalizarea înscrierii
       try {
-        const xpRes = await fetch('/api/user/xp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ amount: 50 }),
-        });
-        const xpData = await xpRes.json();
-        const levelInfo = xpData?.level ? xpData : getLevelInfoFromXp(50);
-        const levelUp = getLevelUpPayload(getLevelInfoFromXp(0), levelInfo, 50);
-
-        // Salvează reward-ul în localStorage — dashboard-ul îl va afișa după redirect
-        try {
-          if (levelUp) {
-            localStorage.setItem('pendingOnboardingReward', JSON.stringify({ type: 'levelUp', ...levelUp }));
-          } else {
-            localStorage.setItem('pendingOnboardingReward', JSON.stringify({ type: 'xp', levelInfo }));
-          }
-        } catch { /* ignore */ }
+        if (data.reward) {
+          localStorage.setItem('pendingOnboardingReward', JSON.stringify(data.reward));
+        }
       } catch { /* ignore, redirectam oricum */ }
 
       // Redirecționează imediat la dashboard
@@ -401,6 +406,42 @@ export default function OnboardingPage() {
             <p style={{ fontSize: 13, color: '#e53e3e', marginTop: 14, fontWeight: 500 }}>{error}</p>
           )}
 
+          {loading && (
+            <div
+              aria-live="polite"
+              style={{
+                marginTop: 18,
+                padding: '14px 15px',
+                borderRadius: 14,
+                background: 'linear-gradient(135deg, rgba(183,255,0,0.16), rgba(127,200,0,0.08))',
+                border: '1px solid rgba(127,200,0,0.24)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12,
+              }}
+            >
+              <div
+                style={{
+                  width: 30,
+                  height: 30,
+                  border: '3px solid rgba(127,200,0,0.18)',
+                  borderTopColor: '#7fc800',
+                  borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite',
+                  flexShrink: 0,
+                }}
+              />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#1f2a00', marginBottom: 2 }}>
+                  Acum pregătim totul
+                </div>
+                <div style={{ fontSize: 12.5, color: '#506100', lineHeight: 1.35 }}>
+                  {ONBOARDING_LOADING_MESSAGES[loadingMessageIndex]}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Butoane — mereu la baza cardului */}
           <div style={{ display: 'flex', gap: 10, marginTop: 24, flexShrink: 0 }}>
             {step > 1 && (
@@ -415,7 +456,7 @@ export default function OnboardingPage() {
               </button>
             ) : (
               <button type="button" onClick={handleSubmit} disabled={loading} className={styles.submitBtn} style={{ flex: step > 1 ? 2 : 1 }}>
-                {loading ? 'Se procesează...' : 'Finalizează înscrierea'}
+                {loading ? 'Pregătim planul...' : 'Finalizează înscrierea'}
               </button>
             )}
           </div>
@@ -429,7 +470,9 @@ export default function OnboardingPage() {
       <div className={clientStyles.modalOverlay} onClick={() => { setXpReward(null); router.push('/client/dashboard'); }}>
         <div className={`${clientStyles.confirmModal} ${dashStyles.rewardModal}`} onClick={e => e.stopPropagation()}>
           <div className={dashStyles.rewardIcon}><span>🎉</span></div>
-          <div className={dashStyles.rewardXpBadge}>+50 XP</div>
+          <div className={dashStyles.rewardXpBadge}>
+            +50 XP{xpReward.levelInfo?.coinsAwarded ? ` · +${xpReward.levelInfo.coinsAwarded} monede` : ''}
+          </div>
           <h3>Înregistrare finalizată!</h3>
           <p>Bine ai venit! Ai câștigat primii 50 XP pentru că ți-ai completat profilul.</p>
           {xpReward.levelInfo && (
@@ -456,7 +499,9 @@ export default function OnboardingPage() {
       <div className={clientStyles.modalOverlay} onClick={() => { setLevelUpReward(null); router.push('/client/dashboard'); }}>
         <div className={`${clientStyles.confirmModal} ${dashStyles.rewardModal} ${dashStyles.levelUpModal}`} onClick={e => e.stopPropagation()}>
           <div className={dashStyles.rewardIcon}><span>💪</span></div>
-          <div className={dashStyles.rewardXpBadge}>LEVEL UP</div>
+          <div className={dashStyles.rewardXpBadge}>
+            LEVEL UP{levelUpReward.levelInfo?.coinsAwarded ? ` · +${levelUpReward.levelInfo.coinsAwarded} monede` : ''}
+          </div>
           <h3>Nivel {levelUpReward.toLevel}</h3>
           <p>Ai trecut de la nivelul {levelUpReward.fromLevel} la nivelul {levelUpReward.toLevel}. Bun început!</p>
           <div className={dashStyles.rewardLevelLine}>
@@ -483,6 +528,9 @@ export default function OnboardingPage() {
       @keyframes stepFadeSlideInBack {
         from { opacity: 0; transform: translateX(-16px); }
         to   { opacity: 1; transform: translateX(0); }
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
       }
     `}</style>
   </>
