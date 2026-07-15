@@ -90,7 +90,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Utilizatorul nu a fost găsit.' }, { status: 404 });
   }
 
-  if (user.role !== 'trainer') {
+  if (user.role !== 'user' && user.role !== 'client') {
     await logActivity({
       action: 'billing.checkout_create',
       status: 'blocked',
@@ -98,9 +98,9 @@ export async function POST(request) {
       email: auth.email,
       ipAddress: ip,
       userAgent,
-      details: { reason: 'non_trainer_role', planType, role: user.role },
+      details: { reason: 'non_b2c_role', planType, role: user.role },
     });
-    return NextResponse.json({ error: 'Doar antrenorii pot activa abonamente.' }, { status: 403 });
+    return NextResponse.json({ error: 'Acest cont nu poate activa abonamente B2C.' }, { status: 403 });
   }
 
   try {
@@ -216,7 +216,7 @@ export async function POST(request) {
           quantity: 1,
         },
       ],
-      success_url: `${APP_URL}/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${APP_URL}/client/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_URL}/upgrade?payment=cancelled`,
       locale: 'ro',
       metadata: {

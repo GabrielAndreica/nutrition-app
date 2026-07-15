@@ -1,12 +1,14 @@
 export async function resolveUserOnboardingCompletion(supabase, userId) {
   const { data: userRow, error: userError } = await supabase
     .from('users')
-    .select('onboarding_completed, age, weight, height, gender, fitness_level, workouts_per_week, fitness_goal, goal')
+    .select('onboarding_completed, age, weight, target_weight, height, gender, fitness_level, workouts_per_week, fitness_goal, goal')
     .eq('id', userId)
     .maybeSingle();
 
   if (userError || !userRow) return false;
   if (userRow.onboarding_completed === true) return true;
+
+  const hasNutritionDirection = !!userRow.target_weight || !!(userRow.fitness_goal || userRow.goal);
 
   const hasProfile =
     !!userRow.age &&
@@ -15,7 +17,7 @@ export async function resolveUserOnboardingCompletion(supabase, userId) {
     !!userRow.gender &&
     !!userRow.fitness_level &&
     !!userRow.workouts_per_week &&
-    !!(userRow.fitness_goal || userRow.goal);
+    hasNutritionDirection;
 
   let completed = hasProfile;
 

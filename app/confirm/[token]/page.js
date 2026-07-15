@@ -20,8 +20,8 @@ export default function ConfirmPage() {
         if (res.ok) {
           setState('success');
           setMessage(data.message || 'Email confirmat!');
-          // Redirect to login after 3 seconds
-          setTimeout(() => router.push('/onboarding'), 3000);
+          // După confirmare, utilizatorul trebuie să se autentifice.
+          setTimeout(() => router.push('/auth?confirmed=1'), 3000);
         } else if (res.status === 410) {
           setState('expired');
           setMessage(data.error);
@@ -66,7 +66,7 @@ export default function ConfirmPage() {
 
           {effectiveState === 'success' && (
             <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
-              Vei fi redirecționat la configurarea profilului în câteva secunde...
+              Vei fi redirecționat la autentificare în câteva secunde...
             </p>
           )}
 

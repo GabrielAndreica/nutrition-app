@@ -39,15 +39,28 @@ function sanitizeMealChecks(value) {
   return result;
 }
 
-function buildProgressPayload(row, progressDate, mealPlanKey = null) {
+function normalizePlanDay(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const day = Number(value);
+  return Number.isInteger(day) && day >= 0 && day <= 6 ? day : null;
+}
+
+function buildProgressPayload(row, progressDate, mealPlanKey = null, planDay = null) {
   const allMealChecks = row?.meal_checks && typeof row.meal_checks === 'object'
     ? row.meal_checks
     : {};
   const key = mealPlanKey ? normalizePlanKey(mealPlanKey) : null;
+  const requestedPlanDay = normalizePlanDay(planDay);
+  const finalizedPlanDay = normalizePlanDay(row?.day_finalized_plan_day);
+  const dayFinalized = row?.day_finalized === true
+    && (requestedPlanDay === null || finalizedPlanDay === null || finalizedPlanDay === requestedPlanDay);
 
   return {
     progressDate,
     waterMl: Math.max(0, Number(row?.water_ml) || 0),
+    dayFinalized,
+    dayFinalizedPlanDay: finalizedPlanDay,
+    dayFinalizedAt: row?.day_finalized_at || null,
     mealChecks: key ? (allMealChecks[key] || {}) : allMealChecks,
   };
 }
@@ -55,7 +68,7 @@ function buildProgressPayload(row, progressDate, mealPlanKey = null) {
 async function readDailyProgress(supabase, userId, progressDate) {
   return supabaseQuery(() => supabase
     .from('daily_user_progress')
-    .select('meal_checks, water_ml')
+    .select('meal_checks, water_ml, day_finalized, day_finalized_plan_day, day_finalized_at')
     .eq('user_id', userId)
     .eq('progress_date', progressDate)
     .maybeSingle());
@@ -76,7 +89,9 @@ export async function GET(request) {
   if (rl) return rl;
 
   const progressDate = getCurrentPlanDateKey(new Date());
-  const mealPlanKey = new URL(request.url).searchParams.get('mealPlanKey');
+  const searchParams = new URL(request.url).searchParams;
+  const mealPlanKey = searchParams.get('mealPlanKey');
+  const planDay = searchParams.get('planDay');
   const supabase = getSupabase();
   const { data, error } = await readDailyProgress(supabase, userId, progressDate);
 
@@ -85,7 +100,7 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Nu am putut citi progresul zilnic.' }, { status: 500 });
   }
 
-  return NextResponse.json(buildProgressPayload(data, progressDate, mealPlanKey));
+  return NextResponse.json(buildProgressPayload(data, progressDate, mealPlanKey, planDay));
 }
 
 export async function PATCH(request) {
@@ -99,6 +114,7 @@ export async function PATCH(request) {
     endpoint: 'user-daily-progress-patch',
     maxRequests: 180,
     windowMinutes: 1,
+    failClosed: true,
   });
   if (rl) return rl;
 
@@ -126,6 +142,9 @@ export async function PATCH(request) {
     progress_date: progressDate,
     meal_checks: mealChecks,
     water_ml: Math.max(0, Number(existing?.water_ml) || 0),
+    day_finalized: existing?.day_finalized === true,
+    day_finalized_plan_day: normalizePlanDay(existing?.day_finalized_plan_day),
+    day_finalized_at: existing?.day_finalized_at || null,
   };
 
   if (Object.prototype.hasOwnProperty.call(body, 'waterMl')) {
@@ -143,7 +162,7 @@ export async function PATCH(request) {
   const { data, error } = await supabaseQuery(() => supabase
     .from('daily_user_progress')
     .upsert(payload, { onConflict: 'user_id,progress_date' })
-    .select('meal_checks, water_ml')
+    .select('meal_checks, water_ml, day_finalized, day_finalized_plan_day, day_finalized_at')
     .maybeSingle());
 
   if (error) {
@@ -151,5 +170,5 @@ export async function PATCH(request) {
     return NextResponse.json({ error: 'Nu am putut salva progresul zilnic.' }, { status: 500 });
   }
 
-  return NextResponse.json(buildProgressPayload(data, progressDate, body.mealPlanKey));
+  return NextResponse.json(buildProgressPayload(data, progressDate, body.mealPlanKey, body.planDay));
 }

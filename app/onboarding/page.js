@@ -8,9 +8,15 @@ import clientStyles from '@/app/clients/clients.module.css';
 import dashStyles from '@/app/client/dashboard/dashboard.module.css';
 import Link from 'next/link';
 
+const BRAND_GREEN = '#b7ff00';
+const BRAND_GREEN_DARK = '#5f8500';
+const BRAND_GREEN_TEXT = '#263800';
+const BRAND_GREEN_SOFT = 'rgba(183,255,0,0.13)';
+const BRAND_GREEN_BORDER = 'rgba(183,255,0,0.34)';
+
 const fireConfetti = async () => {
   const confetti = (await import('canvas-confetti')).default;
-  confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 }, colors: ['#b7ff00', '#0a0a0a', '#fff', '#7fc800'] });
+  confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 }, colors: [BRAND_GREEN, '#0a0a0a', '#fff', '#9be000'] });
 };
 
 function getLevelInfoFromXp(xp) {
@@ -44,13 +50,7 @@ const LOCATIONS = [
   { value: 'home', label: 'Acasă' },
 ];
 
-const GOALS = [
-  { value: 'weight_loss', label: 'Slăbire', desc: 'Ard grăsime și slăbesc' },
-  { value: 'muscle_gain', label: 'Masă musculară', desc: 'Cresc masa musculară' },
-  { value: 'maintenance', label: 'Menținere', desc: 'Îmi mențin greutatea actuală' },
-];
-
-const STEP_LABELS = ['Date personale', 'Antrenament', 'Obiectiv'];
+const STEP_LABELS = ['Date personale', 'Antrenament', 'Greutate dorită'];
 const ONBOARDING_LOADING_MESSAGES = [
   'Calculăm necesarul tău caloric și macronutrienții.',
   'Alegem mesele free care se potrivesc profilului tău.',
@@ -62,9 +62,9 @@ const btnToggle = (active) => ({
   flex: 1,
   padding: '11px 8px',
   borderRadius: 10,
-  border: `2px solid ${active ? '#7fc800' : '#e0e0e0'}`,
-  background: active ? 'rgba(127,200,0,0.1)' : '#f7f7f7',
-  color: active ? '#3d5200' : '#444',
+  border: `2px solid ${active ? BRAND_GREEN : '#e0e0e0'}`,
+  background: active ? BRAND_GREEN_SOFT : '#f7f7f7',
+  color: active ? BRAND_GREEN_TEXT : '#444',
   cursor: 'pointer',
   fontWeight: 600,
   fontSize: 13,
@@ -79,9 +79,9 @@ const cardToggle = (active) => ({
   textAlign: 'left',
   padding: '11px 14px',
   borderRadius: 10,
-  border: `2px solid ${active ? '#7fc800' : '#e0e0e0'}`,
-  background: active ? 'rgba(127,200,0,0.1)' : '#f7f7f7',
-  color: active ? '#3d5200' : '#333',
+  border: `2px solid ${active ? BRAND_GREEN : '#e0e0e0'}`,
+  background: active ? BRAND_GREEN_SOFT : '#f7f7f7',
+  color: active ? BRAND_GREEN_TEXT : '#333',
   cursor: 'pointer',
   transition: 'all 0.15s',
   fontFamily: 'inherit',
@@ -110,7 +110,7 @@ export default function OnboardingPage() {
     fitnessLevel: 'beginner',
     workoutsPerWeek: 3,
     trainingLocation: 'gym',
-    goal: 'muscle_gain',
+    targetWeight: '',
   });
 
   // Verifică statusul onboarding din BD, nu din localStorage
@@ -161,6 +161,18 @@ export default function OnboardingPage() {
     setError('');
   };
 
+  const goalPreview = (() => {
+    const current = Number(form.weight);
+    const target = Number(form.targetWeight);
+    if (!Number.isFinite(current) || !Number.isFinite(target) || current <= 0 || target <= 0) {
+      return 'Introdu greutatea dorită, iar noi calculăm automat direcția calorică.';
+    }
+    const diff = target - current;
+    if (diff <= -1) return 'Vom construi un deficit caloric controlat, ca să cobori sustenabil.';
+    if (diff >= 1) return 'Vom construi un surplus caloric moderat, ca să susținem progresul.';
+    return 'Vom merge pe menținere, cu calorii calibrate pentru stabilitate.';
+  })();
+
   const validateStep = () => {
     if (step === 1) {
       if (!form.name || form.name.trim().length < 2)
@@ -171,6 +183,10 @@ export default function OnboardingPage() {
         return 'Introdu o înălțime validă (120–230 cm).';
       if (!form.weight || Number(form.weight) < 30 || Number(form.weight) > 300)
         return 'Introdu o greutate validă (30–300 kg).';
+    }
+    if (step === 3) {
+      if (!form.targetWeight || Number(form.targetWeight) < 30 || Number(form.targetWeight) > 300)
+        return 'Introdu o greutate dorită validă (30–300 kg).';
     }
     return null;
   };
@@ -190,6 +206,8 @@ export default function OnboardingPage() {
   };
 
   const handleSubmit = async () => {
+    const err = validateStep();
+    if (err) { setError(err); return; }
     setLoading(true);
     setError('');
 
@@ -230,7 +248,7 @@ export default function OnboardingPage() {
   if (authLoading || !authChecked) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
-        <div style={{ width: 28, height: 28, border: '3px solid #e8e8e8', borderTop: '3px solid #7fc800', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        <div style={{ width: 28, height: 28, border: '3px solid #e8e8e8', borderTop: `3px solid ${BRAND_GREEN}`, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
@@ -265,8 +283,8 @@ export default function OnboardingPage() {
               const isDone = idx < step;
               return (
                 <div key={idx} style={{ flex: 1 }}>
-                  <div style={{ height: 3, borderRadius: 3, background: isDone || isActive ? '#7fc800' : '#e8e8e8', marginBottom: 5, transition: 'background 0.3s' }} />
-                  <span style={{ fontSize: 10, fontWeight: isActive ? 700 : 500, color: isActive ? '#3d5200' : isDone ? '#aaa' : '#ccc', textTransform: 'uppercase', letterSpacing: 0.4, display: 'block' }}>
+                  <div style={{ height: 3, borderRadius: 3, background: isDone || isActive ? BRAND_GREEN : '#e8e8e8', marginBottom: 5, transition: 'background 0.3s' }} />
+                  <span style={{ fontSize: 10, fontWeight: isActive ? 700 : 500, color: isActive ? BRAND_GREEN_TEXT : isDone ? '#aaa' : '#ccc', textTransform: 'uppercase', letterSpacing: 0.4, display: 'block' }}>
                     {label}
                   </span>
                 </div>
@@ -297,7 +315,7 @@ export default function OnboardingPage() {
                     value={form.name} onChange={e => updateForm('name', e.target.value)}
                     placeholder="Numele tău" maxLength="100"
                     style={{ width: '100%', padding: '13px', border: '1.5px solid #e5e5e5', borderRadius: 13, fontSize: 15, background: '#fafafa', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
-                    onFocus={e => e.target.style.borderColor = '#7fc800'}
+                    onFocus={e => e.target.style.borderColor = BRAND_GREEN}
                     onBlur={e => e.target.style.borderColor = '#e5e5e5'} />
                 </div>
 
@@ -316,7 +334,7 @@ export default function OnboardingPage() {
                     value={form.age} onChange={e => updateForm('age', e.target.value)}
                     placeholder="Ex: 25" min="14" max="100"
                     style={{ width: '100%', padding: '13px', border: '1.5px solid #e5e5e5', borderRadius: 13, fontSize: 15, background: '#fafafa', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
-                    onFocus={e => e.target.style.borderColor = '#7fc800'}
+                    onFocus={e => e.target.style.borderColor = BRAND_GREEN}
                     onBlur={e => e.target.style.borderColor = '#e5e5e5'} />
                 </div>
 
@@ -326,7 +344,7 @@ export default function OnboardingPage() {
                     value={form.height} onChange={e => updateForm('height', e.target.value)}
                     placeholder="Ex: 175" min="120" max="230"
                     style={{ width: '100%', padding: '13px', border: '1.5px solid #e5e5e5', borderRadius: 13, fontSize: 15, background: '#fafafa', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
-                    onFocus={e => e.target.style.borderColor = '#7fc800'}
+                    onFocus={e => e.target.style.borderColor = BRAND_GREEN}
                     onBlur={e => e.target.style.borderColor = '#e5e5e5'} />
                 </div>
 
@@ -336,7 +354,7 @@ export default function OnboardingPage() {
                     value={form.weight} onChange={e => updateForm('weight', e.target.value)}
                     placeholder="Ex: 75" min="30" max="300" step="0.1"
                     style={{ width: '100%', padding: '13px', border: '1.5px solid #e5e5e5', borderRadius: 13, fontSize: 15, background: '#fafafa', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
-                    onFocus={e => e.target.style.borderColor = '#7fc800'}
+                    onFocus={e => e.target.style.borderColor = BRAND_GREEN}
                     onBlur={e => e.target.style.borderColor = '#e5e5e5'} />
                 </div>
               </>
@@ -353,7 +371,7 @@ export default function OnboardingPage() {
                   {FITNESS_LEVELS.map(fl => (
                     <button key={fl.value} type="button" onClick={() => updateForm('fitnessLevel', fl.value)} style={cardToggle(form.fitnessLevel === fl.value)}>
                       <span style={{ fontWeight: 700, fontSize: 13 }}>{fl.label}</span>
-                      <span style={{ display: 'block', fontSize: 12, color: form.fitnessLevel === fl.value ? '#5a7a00' : '#888', marginTop: 1 }}>{fl.desc}</span>
+                      <span style={{ display: 'block', fontSize: 12, color: form.fitnessLevel === fl.value ? BRAND_GREEN_DARK : '#888', marginTop: 1 }}>{fl.desc}</span>
                     </button>
                   ))}
                 </div>
@@ -382,20 +400,46 @@ export default function OnboardingPage() {
               </>
             )}
 
-            {/* ── Pasul 3: Obiectiv și dietă ── */}
+            {/* ── Pasul 3: Greutate dorită ── */}
             {step === 3 && (
               <>
-                <h2 className={styles.cardTitle} style={{ marginBottom: 4 }}>Ce vrei să schimbi?</h2>
-                <p className={styles.cardSub} style={{ marginBottom: 20 }}>Fără judecată. Fără presiune. Doar direcția ta.</p>
+                <h2 className={styles.cardTitle} style={{ marginBottom: 4 }}>Greutatea la care vrei să ajungi</h2>
+                <p className={styles.cardSub} style={{ marginBottom: 20 }}>
+                  Tu alegi destinația. Noi decidem automat dacă planul are nevoie de deficit, menținere sau surplus caloric.
+                </p>
 
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: 'block', marginBottom: 7, fontSize: 13, fontWeight: 600, color: '#555' }}>Obiectiv principal</label>
-                  {GOALS.map(g => (
-                    <button key={g.value} type="button" onClick={() => updateForm('goal', g.value)} style={cardToggle(form.goal === g.value)}>
-                      <span style={{ fontWeight: 700, fontSize: 13, color: form.goal === g.value ? '#3d5200' : '#222' }}>{g.label}</span>
-                      <span style={{ display: 'block', fontSize: 12, color: form.goal === g.value ? '#5a7a00' : '#888', marginTop: 1 }}>{g.desc}</span>
-                    </button>
-                  ))}
+                  <label htmlFor="targetWeight" style={{ display: 'block', marginBottom: 7, fontSize: 13, fontWeight: 600, color: '#555' }}>
+                    Greutate dorită (kg)
+                  </label>
+                  <input
+                    type="number"
+                    id="targetWeight"
+                    value={form.targetWeight}
+                    onChange={e => updateForm('targetWeight', e.target.value)}
+                    placeholder={form.weight ? `Ex: ${Math.max(30, Math.round(Number(form.weight) - 5))}` : 'Ex: 70'}
+                    min="30"
+                    max="300"
+                    step="0.1"
+                    style={{ width: '100%', padding: '13px', border: '1.5px solid #e5e5e5', borderRadius: 13, fontSize: 15, background: '#fafafa', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+                    onFocus={e => e.target.style.borderColor = BRAND_GREEN}
+                    onBlur={e => e.target.style.borderColor = '#e5e5e5'}
+                  />
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: '12px 13px',
+                      borderRadius: 13,
+                      background: 'rgba(183,255,0,0.09)',
+                      border: `1px solid ${BRAND_GREEN_BORDER}`,
+                      color: BRAND_GREEN_TEXT,
+                      fontSize: 13,
+                      lineHeight: 1.4,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {goalPreview}
+                  </div>
                 </div>
               </>
             )}
@@ -413,8 +457,8 @@ export default function OnboardingPage() {
                 marginTop: 18,
                 padding: '14px 15px',
                 borderRadius: 14,
-                background: 'linear-gradient(135deg, rgba(183,255,0,0.16), rgba(127,200,0,0.08))',
-                border: '1px solid rgba(127,200,0,0.24)',
+                background: 'linear-gradient(135deg, rgba(183,255,0,0.16), rgba(183,255,0,0.06))',
+                border: `1px solid ${BRAND_GREEN_BORDER}`,
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12,
@@ -424,8 +468,8 @@ export default function OnboardingPage() {
                 style={{
                   width: 30,
                   height: 30,
-                  border: '3px solid rgba(127,200,0,0.18)',
-                  borderTopColor: '#7fc800',
+                  border: '3px solid rgba(183,255,0,0.22)',
+                  borderTopColor: BRAND_GREEN,
                   borderRadius: '50%',
                   animation: 'spin 0.8s linear infinite',
                   flexShrink: 0,
@@ -435,7 +479,7 @@ export default function OnboardingPage() {
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#1f2a00', marginBottom: 2 }}>
                   Acum pregătim totul
                 </div>
-                <div style={{ fontSize: 12.5, color: '#506100', lineHeight: 1.35 }}>
+                <div style={{ fontSize: 12.5, color: BRAND_GREEN_DARK, lineHeight: 1.35 }}>
                   {ONBOARDING_LOADING_MESSAGES[loadingMessageIndex]}
                 </div>
               </div>
@@ -470,9 +514,7 @@ export default function OnboardingPage() {
       <div className={clientStyles.modalOverlay} onClick={() => { setXpReward(null); router.push('/client/dashboard'); }}>
         <div className={`${clientStyles.confirmModal} ${dashStyles.rewardModal}`} onClick={e => e.stopPropagation()}>
           <div className={dashStyles.rewardIcon}><span>🎉</span></div>
-          <div className={dashStyles.rewardXpBadge}>
-            +50 XP{xpReward.levelInfo?.coinsAwarded ? ` · +${xpReward.levelInfo.coinsAwarded} monede` : ''}
-          </div>
+          <div className={dashStyles.rewardXpBadge}>+50 XP</div>
           <h3>Înregistrare finalizată!</h3>
           <p>Bine ai venit! Ai câștigat primii 50 XP pentru că ți-ai completat profilul.</p>
           {xpReward.levelInfo && (
@@ -484,7 +526,7 @@ export default function OnboardingPage() {
           <div className={clientStyles.confirmActions}>
             <button
               className={clientStyles.saveBtn}
-              style={{ background: '#0a0a0a', color: '#b7ff00', width: '100%' }}
+              style={{ background: '#0a0a0a', color: BRAND_GREEN, width: '100%' }}
               onClick={() => { setXpReward(null); router.push('/client/dashboard'); }}
             >
               Mergi la dashboard →
@@ -499,9 +541,7 @@ export default function OnboardingPage() {
       <div className={clientStyles.modalOverlay} onClick={() => { setLevelUpReward(null); router.push('/client/dashboard'); }}>
         <div className={`${clientStyles.confirmModal} ${dashStyles.rewardModal} ${dashStyles.levelUpModal}`} onClick={e => e.stopPropagation()}>
           <div className={dashStyles.rewardIcon}><span>💪</span></div>
-          <div className={dashStyles.rewardXpBadge}>
-            LEVEL UP{levelUpReward.levelInfo?.coinsAwarded ? ` · +${levelUpReward.levelInfo.coinsAwarded} monede` : ''}
-          </div>
+          <div className={dashStyles.rewardXpBadge}>LEVEL UP</div>
           <h3>Nivel {levelUpReward.toLevel}</h3>
           <p>Ai trecut de la nivelul {levelUpReward.fromLevel} la nivelul {levelUpReward.toLevel}. Bun început!</p>
           <div className={dashStyles.rewardLevelLine}>
@@ -511,7 +551,7 @@ export default function OnboardingPage() {
           <div className={clientStyles.confirmActions}>
             <button
               className={clientStyles.saveBtn}
-              style={{ background: '#0a0a0a', color: '#b7ff00', width: '100%' }}
+              style={{ background: '#0a0a0a', color: BRAND_GREEN, width: '100%' }}
               onClick={() => { setLevelUpReward(null); router.push('/client/dashboard'); }}
             >
               Mergi la dashboard →

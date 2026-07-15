@@ -1,11 +1,11 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 
 const AuthContext = createContext();
 
-// Rute unde NU facem subscription check (pagini publice + upgrade însuși)
+// Rute publice, fără sesiune obligatorie.
 const PUBLIC_PATHS = ['/', '/auth', '/register', '/confirm', '/upgrade', '/landing'];
 
 function isPublicPath(pathname) {
@@ -18,8 +18,6 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const router   = useRouter();
   const pathname = usePathname();
-  // Abort controller pentru fetch /api/auth/me — evităm memory leak la unmount
-  const abortRef = useRef(null);
 
   const clearStoredAuth = () => {
     localStorage.removeItem('user');
@@ -46,7 +44,6 @@ export function AuthProvider({ children }) {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
         setToken(tokenData);
-        document.cookie = `token=${tokenData}; path=/; SameSite=Lax`;
         setLoading(false);
       } catch (err) {
         console.error('[AuthContext] Failed to parse stored user:', err);
@@ -66,16 +63,11 @@ export function AuthProvider({ children }) {
         setUser(JSON.parse(userData));
 
         setToken(tokenData);
-        // Sincronizează cookie-ul pentru middleware (Edge Runtime)
-        document.cookie = `token=${tokenData}; path=/; SameSite=Lax`;
 
-        // ── Verificare live subscription (JWT poate fi stale) ────────────
-        // Sărind paginile publice și /upgrade — ele nu necesită subscripție
-        // Utilizatorii cu rol 'user' nu au subscripție — sărind verificarea
         const parsedUser = JSON.parse(userData);
 
-        // ── Verificare onboarding status pentru role 'user' ──────────────
-        if (!isPublicPath(pathname) && parsedUser?.role === 'user') {
+        // ── Verificare onboarding status pentru B2C users ────────────────
+        if (!isPublicPath(pathname) && (parsedUser?.role === 'user' || parsedUser?.role === 'client')) {
           isValidatingSession = true;
           fetch('/api/user/onboarding', {
             headers: { Authorization: `Bearer ${tokenData}` },
@@ -95,62 +87,6 @@ export function AuthProvider({ children }) {
             .catch(() => {})
             .finally(() => setLoading(false));
         }
-
-        if (!isPublicPath(pathname) && parsedUser?.role !== 'user') {
-          isValidatingSession = true;
-          abortRef.current?.abort(); // anulează orice fetch anterior
-          const controller = new AbortController();
-          abortRef.current = controller;
-
-          fetch('/api/auth/me', {
-            headers: { Authorization: `Bearer ${tokenData}` },
-            cache: 'no-store',
-            signal: controller.signal,
-          })
-              .then(r => {
-                if (r.status === 401 || r.status === 403) {
-                  clearStoredAuth();
-                  router.replace('/auth?reason=session_expired');
-                  return null;
-                }
-
-                return r.ok ? r.json() : null;
-              })
-              .then(data => {
-                if (!data) return;
-                const { subscription_status, subscription_plan, trial_ends_at } = data;
-
-                setUser(currentUser => {
-                  if (!currentUser) return currentUser;
-
-                  const updatedUser = {
-                    ...currentUser,
-                    subscription_status,
-                    subscription_plan,
-                    trial_ends_at,
-                  };
-
-                  localStorage.setItem('user', JSON.stringify(updatedUser));
-                  return updatedUser;
-                });
-
-                if (subscription_status === 'trial') {
-                  if (trial_ends_at && new Date(trial_ends_at) < new Date()) {
-                    router.replace('/upgrade?reason=trial_expired');
-                  }
-                } else if (subscription_status === 'cancelled' || subscription_status === 'inactive' || subscription_status === 'expired') {
-                  router.replace('/upgrade?reason=subscription_inactive');
-                }
-              })
-              .catch(err => {
-                if (err.name !== 'AbortError') {
-                  console.warn('[AuthContext] /api/auth/me failed, using JWT fallback');
-                }
-              })
-              .finally(() => {
-                setLoading(false);
-              });
-        }
       } catch (err) {
         console.error('[AuthContext] Failed to parse stored user:', err);
         clearStoredAuth();
@@ -164,7 +100,6 @@ export function AuthProvider({ children }) {
     window.addEventListener('focus', syncAuthFromStorage);
 
     return () => {
-      abortRef.current?.abort();
       window.removeEventListener('pageshow', syncAuthFromStorage);
       window.removeEventListener('focus', syncAuthFromStorage);
     };
@@ -198,7 +133,6 @@ export function AuthProvider({ children }) {
     setToken(tokenData);
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('token', tokenData);
-    document.cookie = `token=${tokenData}; path=/; SameSite=Lax`;
   };
 
   return (

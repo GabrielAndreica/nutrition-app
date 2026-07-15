@@ -55,12 +55,10 @@ function AuthContent() {
 
   useEffect(() => {
     if (!loading && user) {
-      if (user.role === 'client') {
-        router.push('/client/dashboard');
-      } else if (user.role === 'user') {
+      if (user.role === 'user' || user.role === 'client') {
         router.push(user.onboarding_completed === false ? '/onboarding' : '/client/dashboard');
       } else {
-        router.push('/dashboard');
+        router.push('/client/dashboard');
       }
     }
   }, [user, loading, router]);
@@ -115,13 +113,11 @@ function AuthContent() {
       setSuccessMessage('Autentificat cu succes!');
       login(data.user, data.token);
       
-      // Redirect în funcție de rol
-      if (data.user.role === 'client') {
-        router.push('/client/dashboard');
-      } else if (data.user.role === 'user') {
+      // B2C flow: onboarding first, then client dashboard.
+      if (data.user.role === 'user' || data.user.role === 'client') {
         router.push(data.user.onboarding_completed ? '/client/dashboard' : '/onboarding');
       } else {
-        router.push('/dashboard');
+        router.push('/client/dashboard');
       }
     } catch {
       setGeneralError('Eroare de retea. Verifica conexiunea si incearca din nou.');
@@ -150,10 +146,10 @@ function AuthContent() {
 
         <div className={styles.tagline}>
           <h1 className={styles.taglineHeading}>
-            Pentru antrenori<br />de fitness.
+            Fitness personalizat<br />pentru tine.
           </h1>
           <p className={styles.taglineSub}>
-            Clienți, planuri alimentare, antrenamente și progres într-un singur loc.
+            Mese, antrenamente, progres și motivație într-un singur loc.
           </p>
         </div>
 

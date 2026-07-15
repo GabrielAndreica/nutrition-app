@@ -9,23 +9,65 @@ import styles from '@/app/client/dashboard/dashboard.module.css';
 
 const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPlan'), {
   ssr: false,
-  loading: () => (
-    <div className={styles.loadingContainer}>
-      <div className={styles.loadingSpinner} />
-      <p>Se încarcă planul alimentar...</p>
-    </div>
-  ),
+  loading: () => <PlanModuleSkeleton compact />,
 });
 
 const WorkoutPlan = dynamic(() => import('@/app/components/WorkoutPlanGenerator/WorkoutPlan'), {
   ssr: false,
-  loading: () => (
-    <div className={styles.loadingContainer}>
-      <div className={styles.loadingSpinner} />
-      <p>Se încarcă planul de antrenament...</p>
-    </div>
-  ),
+  loading: () => <PlanModuleSkeleton compact />,
 });
+
+function PlanModuleSkeleton({ compact = false }) {
+  return (
+    <div className={`${styles.moduleSkeleton} ${compact ? styles.moduleSkeletonCompact : ''}`}>
+      <div className={styles.moduleSkeletonTop}>
+        <div className={`${styles.shimmer} ${styles.moduleSkeletonBack}`} />
+        <div className={`${styles.shimmer} ${styles.moduleSkeletonPill}`} />
+      </div>
+      <div className={styles.moduleSkeletonHeader}>
+        <div>
+          <div className={`${styles.shimmer} ${styles.moduleSkeletonTitle}`} />
+          <div className={`${styles.shimmer} ${styles.moduleSkeletonSubtitle}`} />
+        </div>
+        <div className={`${styles.shimmer} ${styles.moduleSkeletonBadge}`} />
+      </div>
+      <div className={styles.moduleSkeletonDays}>
+        {[1, 2, 3, 4, 5, 6, 7].map(i => (
+          <div key={i} className={`${styles.shimmer} ${styles.moduleSkeletonDay}`} />
+        ))}
+      </div>
+      <div className={styles.moduleSkeletonCards}>
+        {[1, 2, 3].map(i => (
+          <div key={i} className={styles.moduleSkeletonCard}>
+            <div className={`${styles.shimmer} ${styles.moduleSkeletonImage}`} />
+            <div className={styles.moduleSkeletonBody}>
+              <div className={`${styles.shimmer} ${styles.moduleSkeletonLineLg}`} />
+              <div className={`${styles.shimmer} ${styles.moduleSkeletonLineSm}`} />
+              <div className={`${styles.shimmer} ${styles.moduleSkeletonButton}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PlansLoadingSkeleton() {
+  return (
+    <main className={styles.main}>
+      <div className={styles.dashboardSkeleton}>
+        <div className={styles.dashboardSkeletonHero}>
+          <div>
+            <div className={`${styles.shimmer} ${styles.dashboardSkeletonGreeting}`} />
+            <div className={`${styles.shimmer} ${styles.dashboardSkeletonSub}`} />
+          </div>
+          <div className={`${styles.shimmer} ${styles.dashboardSkeletonStreak}`} />
+        </div>
+        <PlanModuleSkeleton compact />
+      </div>
+    </main>
+  );
+}
 
 function MyPlansContent() {
   const router = useRouter();
@@ -116,10 +158,7 @@ function MyPlansContent() {
   if (authLoading || loading) {
     return (
       <div className={styles.page}>
-        <div className={styles.loadingContainer} style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
-          <div className={styles.loadingSpinner} />
-          <p style={{ color: 'rgba(255,255,255,0.5)' }}>Se încarcă planurile tale...</p>
-        </div>
+        <PlansLoadingSkeleton />
       </div>
     );
   }

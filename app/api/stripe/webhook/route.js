@@ -33,7 +33,7 @@ async function updateUserByCustomer(customerId, updates) {
     .from('users')
     .update(updates)
     .eq('stripe_customer_id', customerId)
-    .select('id, email, subscription_status, subscription_plan')
+    .select('id, email, account_type, subscription_status, subscription_plan')
     .maybeSingle();
 }
 
@@ -88,6 +88,7 @@ export async function POST(request) {
       const { error } = await getSupabase()
         .from('users')
         .update({
+          account_type: 'paid',
           subscription_status: 'active',
           subscription_id: subscriptionId,
           subscribed_at: new Date().toISOString(),
@@ -121,7 +122,8 @@ export async function POST(request) {
       const customerId = stripeId(subscription.customer);
 
       const { data: user, error } = await updateUserByCustomer(customerId, {
-        subscription_status: 'cancelled',
+        account_type: 'free',
+        subscription_status: 'free',
         subscription_id: null,
       });
 
@@ -150,11 +152,18 @@ export async function POST(request) {
       const updates = {};
 
       if (subscription.status === 'active') {
+        updates.account_type = 'paid';
         updates.subscription_status = 'active';
       }
 
       if (subscription.status === 'past_due' || subscription.status === 'unpaid') {
-        updates.subscription_status = 'expired';
+        updates.account_type = 'free';
+        updates.subscription_status = 'free';
+      }
+
+      if (subscription.status === 'canceled') {
+        updates.account_type = 'free';
+        updates.subscription_status = 'free';
       }
 
       if (verifiedPlanType) {
@@ -190,7 +199,8 @@ export async function POST(request) {
       const customerId = stripeId(invoice.customer);
 
       const { data: user, error } = await updateUserByCustomer(customerId, {
-        subscription_status: 'expired',
+        account_type: 'free',
+        subscription_status: 'free',
       });
 
       if (error) throw error;

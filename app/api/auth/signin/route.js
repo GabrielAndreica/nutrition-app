@@ -7,6 +7,8 @@ import { getJwtSecret } from '@/app/lib/jwtSecret';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import { resolveUserOnboardingCompletion } from '@/app/lib/onboardingStatus';
 
+const AUTH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
+
 const validateEmail = (email) => {
   if (!email) return 'Adresa de email este obligatorie';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return 'Format de email invalid';
@@ -72,6 +74,7 @@ export async function POST(request) {
       endpoint: 'auth-signin-ip',
       maxRequests: 30,
       windowMinutes: 15,
+      failClosed: true,
     });
     if (ipLimit) return ipLimit;
 
@@ -80,6 +83,7 @@ export async function POST(request) {
       endpoint: 'auth-signin-email',
       maxRequests: 10,
       windowMinutes: 15,
+      failClosed: true,
     });
     if (emailLimit) {
       await logActivity({ action: 'auth.signin', status: 'blocked', email, ipAddress: ip, userAgent, details: { reason: 'rate_limited' } });
@@ -89,7 +93,7 @@ export async function POST(request) {
     // Get user from database
     const { data: user, error: dbError } = await supabase
       .from('users')
-      .select('id, name, email, password, role, status, subscription_status, subscription_plan, trial_ends_at')
+      .select('id, name, email, password, role, status, account_type, subscription_status, subscription_plan')
       .eq('email', email.toLowerCase())
       .single();
 
@@ -140,9 +144,12 @@ export async function POST(request) {
       );
     }
 
-    // Check onboarding completion for 'user' role
+    const accountType = user.account_type || (user.subscription_status === 'active' ? 'paid' : 'free');
+    const subscriptionStatus = user.subscription_status || accountType;
+
+    // Check onboarding completion for B2C users
     let onboardingCompleted = false;
-    if (user.role === 'user') {
+    if (user.role === 'user' || user.role === 'client') {
       onboardingCompleted = await resolveUserOnboardingCompletion(supabase, user.id);
     }
 
@@ -153,10 +160,10 @@ export async function POST(request) {
         id: user.id, 
         email: user.email,
         name: user.name,
-        role: user.role,
-        subscription_status: user.subscription_status || 'trial',
+        role: user.role || 'user',
+        account_type: accountType,
+        subscription_status: subscriptionStatus,
         subscription_plan: user.subscription_plan || null,
-        trial_ends_at: user.trial_ends_at || null,
       },
       getJwtSecret(),
       { expiresIn: '7d' }
@@ -164,23 +171,36 @@ export async function POST(request) {
 
     await logActivity({ action: 'auth.signin', status: 'success', userId: user.id, email, ipAddress: ip, userAgent });
 
-    return new Response(
-      JSON.stringify({ 
+    const response = new Response(
+      JSON.stringify({
         message: 'Autentificare reușită.',
         token,
         user: { 
           id: user.id, 
           name: user.name, 
           email: user.email,
-          role: user.role,
-          subscription_status: user.subscription_status || 'trial',
+          role: user.role || 'user',
+          account_type: accountType,
+          subscription_status: subscriptionStatus,
           subscription_plan: user.subscription_plan || null,
-          trial_ends_at: user.trial_ends_at || null,
           onboarding_completed: onboardingCompleted,
         }
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
+    response.headers.append(
+      'Set-Cookie',
+      [
+        `token=${token}`,
+        'Path=/',
+        `Max-Age=${AUTH_COOKIE_MAX_AGE}`,
+        'SameSite=Lax',
+        'HttpOnly',
+        process.env.NODE_ENV === 'production' ? 'Secure' : '',
+      ].filter(Boolean).join('; ')
+    );
+
+    return response;
   } catch (error) {
     console.error('Sign in error:', error);
 

@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 // ── Constante statusuri subscripție ───────────────────────────────────────
 export const SUB_STATUS = /** @type {const} */ ({
-  TRIAL:     'trial',
+  FREE:      'free',
   ACTIVE:    'active',
   CANCELLED: 'cancelled',
   INACTIVE:  'inactive',
@@ -16,7 +16,7 @@ export const SUB_PLAN = /** @type {const} */ ({
 });
 
 export const MAX_CLIENTS = {
-  trial:   3,
+  free:    0,
   starter: 10,
   pro:     30,
 };
@@ -53,7 +53,7 @@ export function invalidateSubscriptionCache(userId) {
  *   allowed: boolean,
  *   status: string,
  *   plan: string|null,
- *   trialEndsAt: string|null,
+ *   accountType: string,
  *   totalClientsCreated: number,
  *   maxClients: number,
  *   reason?: string,
@@ -74,7 +74,7 @@ export async function checkSubscription(userId) {
 
   const { data: user, error } = await supabase
     .from('users')
-    .select('subscription_status, subscription_plan, trial_ends_at, total_clients_created')
+    .select('account_type, subscription_status, subscription_plan, total_clients_created')
     .eq('id', uid)
     .single();
 
@@ -82,43 +82,28 @@ export async function checkSubscription(userId) {
     return _denied('user_not_found', 401, 'USER_NOT_FOUND', 'Cont negăsit sau eroare internă.');
   }
 
-  const { subscription_status, subscription_plan, trial_ends_at, total_clients_created } = user;
+  const {
+    account_type,
+    subscription_status,
+    subscription_plan,
+    total_clients_created
+  } = user;
+  const accountType = account_type || (subscription_status === SUB_STATUS.ACTIVE ? 'paid' : 'free');
+  const normalizedStatus = subscription_status || accountType;
 
-  // Determine max clients
-  let maxClients = MAX_CLIENTS.trial;
-  if (subscription_status === SUB_STATUS.ACTIVE) {
+  // Legacy client limits. B2C flow does not consume these.
+  let maxClients = MAX_CLIENTS.free;
+  if (normalizedStatus === SUB_STATUS.ACTIVE) {
     maxClients = subscription_plan === SUB_PLAN.PRO ? MAX_CLIENTS.pro : MAX_CLIENTS.starter;
   }
 
   const base = {
-    status: subscription_status,
+    status: normalizedStatus,
+    accountType,
     plan: subscription_plan ?? null,
-    trialEndsAt: trial_ends_at ?? null,
     totalClientsCreated: total_clients_created ?? 0,
     maxClients,
   };
-
-  // Trial expired
-  if (subscription_status === SUB_STATUS.TRIAL) {
-    if (trial_ends_at && new Date(trial_ends_at) < new Date()) {
-      const result = _denied('trial_expired', 403, 'TRIAL_EXPIRED',
-        'Perioada de trial a expirat. Alege un plan pentru a continua.', base);
-      _cacheSet(uid, result);
-      return result;
-    }
-  }
-
-  // Subscription inactive / cancelled
-  if (
-    subscription_status === SUB_STATUS.CANCELLED
-    || subscription_status === SUB_STATUS.INACTIVE
-    || subscription_status === SUB_STATUS.EXPIRED
-  ) {
-    const result = _denied('subscription_inactive', 403, 'SUBSCRIPTION_INACTIVE',
-      'Abonamentul tău este inactiv. Reactivează-l pentru a continua.', base);
-    _cacheSet(uid, result);
-    return result;
-  }
 
   const result = { allowed: true, ...base };
   _cacheSet(uid, result);
@@ -130,8 +115,8 @@ function _denied(reason, httpStatus, code, message, base = {}) {
   return {
     allowed: false,
     status:               base.status  ?? 'unknown',
+    accountType:          base.accountType ?? 'free',
     plan:                 base.plan    ?? null,
-    trialEndsAt:          base.trialEndsAt ?? null,
     totalClientsCreated:  base.totalClientsCreated ?? 0,
     maxClients:           base.maxClients ?? 0,
     reason,

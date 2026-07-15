@@ -87,7 +87,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Utilizatorul nu a fost găsit.' }, { status: 404 });
   }
 
-  if (user.role !== 'trainer') {
+  if (user.role !== 'user' && user.role !== 'client') {
     await logActivity({
       action: 'billing.checkout_sync',
       status: 'blocked',
@@ -95,9 +95,9 @@ export async function POST(request) {
       email: auth.email,
       ipAddress: ip,
       userAgent,
-      details: { reason: 'non_trainer_role', role: user.role, sessionId },
+      details: { reason: 'non_b2c_role', role: user.role, sessionId },
     });
-    return NextResponse.json({ error: 'Doar antrenorii pot sincroniza abonamente.' }, { status: 403 });
+    return NextResponse.json({ error: 'Acest cont nu poate sincroniza abonamente B2C.' }, { status: 403 });
   }
 
   try {
@@ -171,6 +171,7 @@ export async function POST(request) {
 
     const updates = {
       subscription_status: subscriptionStatus,
+      account_type: subscriptionStatus === 'active' ? 'paid' : 'free',
       subscription_id: subscriptionId,
       subscribed_at: new Date().toISOString(),
       subscription_plan: verifiedPlanType,
@@ -202,9 +203,9 @@ export async function POST(request) {
     });
 
     const payload = {
+      account_type: updates.account_type,
       subscription_status: updates.subscription_status,
       subscription_plan: updates.subscription_plan,
-      trial_ends_at: null,
     };
 
     const res = NextResponse.json(payload);

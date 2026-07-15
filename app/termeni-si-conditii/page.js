@@ -2,7 +2,7 @@ import LegalPage from '@/app/components/LegalPage';
 
 export const metadata = {
   title: 'Termeni și condiții',
-  description: 'Termenii de utilizare pentru Trevano, aplicația pentru antrenori de fitness.',
+  description: 'Termenii de utilizare pentru Trevano, aplicația B2C de nutriție și antrenament.',
   alternates: {
     canonical: '/termeni-si-conditii',
   },
@@ -28,12 +28,12 @@ export default function TermsPage() {
         {
           title: '2. Descrierea serviciului',
           body: [
-            'Trevano este o platformă SaaS (Software as a Service) destinată antrenorilor personali, care oferă:',
+            'Trevano este o platformă SaaS (Software as a Service) destinată utilizatorilor care vor planuri alimentare, antrenamente și progres urmărit într-un singur loc, care oferă:',
           ],
           items: [
             'Generare automată de planuri alimentare personalizate prin inteligență artificială',
             'Generare automată de planuri de antrenament personalizate prin inteligență artificială',
-            'Portal pentru clienți — vizualizare planuri și trimitere progres',
+            'Dashboard personal pentru vizualizare planuri și trimitere progres',
             'Sistem de urmărire și ajustare automată a planurilor în funcție de progres',
             'Export PDF al planurilor',
           ],
@@ -49,19 +49,19 @@ export default function TermsPage() {
             'Notificarea imediată a oricărui acces neautorizat la: contact@trevano.app',
           ],
           after: [
-            'Nu poți crea conturi multiple pentru a beneficia de perioade de trial repetate. Rezervăm dreptul de a suspenda conturile create abuziv.',
+            'Nu poți crea conturi multiple pentru a abuza de beneficiile planului gratuit sau de recompensele aplicației. Rezervăm dreptul de a suspenda conturile create abuziv.',
           ],
         },
         {
-          title: '4. Perioada de trial și abonament',
+          title: '4. Plan gratuit și abonament',
           body: [
-            '4.1. Trial gratuit',
-            'La înregistrare, beneficiezi de 14 zile de acces complet, gratuit, fără obligația de a introduce date de card. La expirarea trialului, accesul este suspendat până la subscrierea unui plan.',
+            '4.1. Plan gratuit',
+            'La înregistrare, contul pornește pe planul gratuit. Anumite funcții, rețete sau beneficii pot necesita un plan plătit.',
             '4.2. Planuri disponibile',
           ],
           items: [
-            'Starter — 149 RON/lună — până la 10 clienți activi',
-            'Pro — 249 RON/lună — până la 30 clienți activi',
+            'Starter — 149 RON/lună — funcții extinse pentru utilizator',
+            'Pro — 249 RON/lună — beneficii avansate și varietate extinsă',
           ],
           after: [
             '4.3. Facturare',
@@ -82,15 +82,15 @@ export default function TermsPage() {
           ],
         },
         {
-          title: '6. Datele clienților antrenorilor',
-          body: ['Ca antrenor, ești responsabil pentru:'],
+          title: '6. Datele utilizatorilor',
+          body: ['Ca utilizator, ești responsabil pentru:'],
           items: [
-            'Obținerea consimțământului clienților tăi pentru prelucrarea datelor lor personale prin Trevano',
-            'Informarea clienților cu privire la utilizarea datelor lor',
-            'Respectarea GDPR în relația cu clienții tăi',
+            'Furnizarea unor date corecte în onboarding și în actualizările de progres',
+            'Protejarea accesului la contul tău',
+            'Folosirea aplicației în mod responsabil și conform scopului ei',
           ],
           after: [
-            'Trevano procesează datele clienților tăi ca împuternicit al tău, în baza instrucțiunilor tale.',
+            'Trevano procesează datele tale pentru a putea genera și adapta experiența din aplicație.',
           ],
         },
         {
@@ -109,7 +109,7 @@ export default function TermsPage() {
         {
           title: '8. Proprietate intelectuală',
           body: [
-            'Platforma Trevano, codul sursă, designul și conținutul sunt proprietatea exclusivă a ANDREICA GABRIEL-IOAN PFA. Planurile generate pentru clienții tăi îți aparțin ție ca utilizator.',
+            'Platforma Trevano, codul sursă, designul și conținutul sunt proprietatea exclusivă a ANDREICA GABRIEL-IOAN PFA. Planurile generate pentru contul tău îți sunt puse la dispoziție pentru uz personal.',
           ],
         },
         {

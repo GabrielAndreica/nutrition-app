@@ -47,7 +47,7 @@ export async function POST(request) {
   const supabase = getSupabase();
   const { data: user, error: userError } = await supabase
     .from('users')
-    .select('id, role, stripe_customer_id, subscription_id, subscription_status, subscription_plan, plan, trial_ends_at, subscribed_at')
+    .select('id, role, stripe_customer_id, subscription_id, account_type, subscription_status, subscription_plan, plan, subscribed_at')
     .eq('id', auth.userId)
     .single();
 
@@ -64,7 +64,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Utilizatorul nu a fost găsit.' }, { status: 404 });
   }
 
-  if (user.role !== 'trainer') {
+  if (user.role !== 'user' && user.role !== 'client') {
     await logActivity({
       action: 'billing.subscription_sync',
       status: 'blocked',
@@ -72,16 +72,16 @@ export async function POST(request) {
       email: auth.email,
       ipAddress: ip,
       userAgent,
-      details: { reason: 'non_trainer_role', role: user.role },
+      details: { reason: 'non_b2c_role', role: user.role },
     });
-    return NextResponse.json({ error: 'Doar antrenorii pot sincroniza abonamente.' }, { status: 403 });
+    return NextResponse.json({ error: 'Acest cont nu poate sincroniza abonamente B2C.' }, { status: 403 });
   }
 
   if (!user.stripe_customer_id) {
     return NextResponse.json({
+      account_type: user.account_type || (user.subscription_status === 'active' ? 'paid' : 'free'),
       subscription_status: user.subscription_status,
       subscription_plan: user.subscription_plan ?? user.plan ?? null,
-      trial_ends_at: user.trial_ends_at ?? null,
     });
   }
 
@@ -97,9 +97,9 @@ export async function POST(request) {
     const subscription = pickRelevantSubscription(subscriptions.data || []);
     if (!subscription) {
       return NextResponse.json({
+        account_type: user.account_type || (user.subscription_status === 'active' ? 'paid' : 'free'),
         subscription_status: user.subscription_status,
         subscription_plan: user.subscription_plan ?? user.plan ?? null,
-        trial_ends_at: user.trial_ends_at ?? null,
       });
     }
 
@@ -108,14 +108,15 @@ export async function POST(request) {
 
     if (!subscriptionStatus) {
       return NextResponse.json({
+        account_type: user.account_type || (user.subscription_status === 'active' ? 'paid' : 'free'),
         subscription_status: user.subscription_status,
         subscription_plan: user.subscription_plan ?? user.plan ?? null,
-        trial_ends_at: user.trial_ends_at ?? null,
       });
     }
 
     const updates = {
       subscription_status: subscriptionStatus,
+      account_type: subscriptionStatus === 'active' ? 'paid' : 'free',
       subscription_id: subscription.id,
     };
 
@@ -160,9 +161,9 @@ export async function POST(request) {
     }
 
     const payload = {
+      account_type: updates.account_type,
       subscription_status: updates.subscription_status,
       subscription_plan: updates.subscription_plan ?? user.subscription_plan ?? user.plan ?? null,
-      trial_ends_at: null,
     };
 
     const res = NextResponse.json(payload);

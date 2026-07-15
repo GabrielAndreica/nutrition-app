@@ -17,6 +17,12 @@ function countDone(status) {
   return Object.values(normalizeStatus(status)).filter(Boolean).length;
 }
 
+function parseValidDate(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 function evaluateFinishedDay(state, dayIndex) {
   const mealDone = state.mealStatus[String(dayIndex)] === true;
   const workoutDone = state.workoutStatus[String(dayIndex)] === true;
@@ -54,6 +60,16 @@ function evaluateFinishedDay(state, dayIndex) {
   state.streakRecoveryDay = true;
 }
 
+function resetWeeklyProgress(state, calendarPlanDay, now) {
+  state.currentPlanDay = calendarPlanDay;
+  state.currentPlanDayDueAt = getNextPlanMidnightIso(now);
+  state.mealStatus = {};
+  state.workoutStatus = {};
+  state.streakAwardedDay = -1;
+  state.weeklyPlanDueAt = null;
+  state.changed = true;
+}
+
 export function reconcileDailyPlanProgress(clientRow, now = new Date()) {
   const calendarPlanDay = getCurrentPlanDayIndex(now);
   const state = {
@@ -70,6 +86,35 @@ export function reconcileDailyPlanProgress(clientRow, now = new Date()) {
     weeklyPlanDueAt: clientRow?.weekly_plan_due_at || null,
     changed: false,
   };
+
+  const crossedIntoNewWeek = state.currentPlanDay >= 7 || state.currentPlanDay > calendarPlanDay;
+
+  if (crossedIntoNewWeek) {
+    resetWeeklyProgress(state, calendarPlanDay, now);
+  } else if (state.currentPlanDay < 7 && state.currentPlanDay !== calendarPlanDay) {
+    state.currentPlanDay = calendarPlanDay;
+    state.currentPlanDayDueAt = getNextPlanMidnightIso(now);
+    state.changed = true;
+  }
+
+  const currentDueAt = parseValidDate(state.currentPlanDayDueAt);
+  const staleCurrentDayDueAt = state.currentPlanDay < 7
+    && state.currentPlanDay === calendarPlanDay
+    && currentDueAt
+    && currentDueAt <= now;
+
+  if (staleCurrentDayDueAt && calendarPlanDay === 0) {
+    resetWeeklyProgress(state, calendarPlanDay, now);
+  } else if (state.currentPlanDay < 7 && state.currentPlanDay === calendarPlanDay && (!currentDueAt || currentDueAt <= now)) {
+    state.currentPlanDayDueAt = getNextPlanMidnightIso(now);
+    state.changed = true;
+  }
+
+  const weeklyDueAt = parseValidDate(state.weeklyPlanDueAt);
+  if (calendarPlanDay !== 6 && weeklyDueAt && weeklyDueAt <= now) {
+    state.weeklyPlanDueAt = null;
+    state.changed = true;
+  }
 
   if (!state.currentPlanDayDueAt && state.currentPlanDay < 7) {
     state.currentPlanDayDueAt = getNextPlanMidnightIso(now);
@@ -98,12 +143,6 @@ export function reconcileDailyPlanProgress(clientRow, now = new Date()) {
 
     state.currentPlanDayDueAt = getNextPlanMidnightIso(new Date(dueAt.getTime() + 1000));
     guard += 1;
-  }
-
-  if (state.currentPlanDay < 7 && state.currentPlanDay !== calendarPlanDay) {
-    state.currentPlanDay = calendarPlanDay;
-    state.currentPlanDayDueAt = getNextPlanMidnightIso(now);
-    state.changed = true;
   }
 
   return state;

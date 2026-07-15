@@ -44,7 +44,7 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Utilizatorul nu a fost găsit.' }, { status: 404 });
   }
 
-  if (user.role !== 'trainer') {
+  if (user.role !== 'user' && user.role !== 'client') {
     await logActivity({
       action: 'billing.portal_create',
       status: 'blocked',
@@ -52,9 +52,9 @@ export async function POST(request) {
       email: auth.email,
       ipAddress: ip,
       userAgent,
-      details: { reason: 'non_trainer_role', role: user.role },
+      details: { reason: 'non_b2c_role', role: user.role },
     });
-    return NextResponse.json({ error: 'Doar antrenorii pot gestiona abonamente.' }, { status: 403 });
+    return NextResponse.json({ error: 'Acest cont nu poate gestiona abonamente B2C.' }, { status: 403 });
   }
 
   if (!user.stripe_customer_id) {
@@ -73,7 +73,7 @@ export async function POST(request) {
   try {
     const session = await getStripe().billingPortal.sessions.create({
       customer: user.stripe_customer_id,
-      return_url: `${APP_URL}/dashboard`,
+      return_url: `${APP_URL}/client/dashboard`,
     });
 
     await logActivity({

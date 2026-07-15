@@ -105,7 +105,7 @@ const FOCUS_GROUPS = {
   push:      ['chest', 'shoulders', 'triceps', 'arms'],
   pull:      ['back', 'biceps', 'rear_delts', 'arms'],
   legs:      LOWER_BODY_GROUP_VALUES,
-  upper:     ['chest', 'back', 'shoulders', 'arms', 'core'],
+  upper:     ['chest', 'back', 'shoulders', 'triceps', 'biceps', 'rear_delts', 'arms', 'core'],
   lower:     LOWER_BODY_GROUP_VALUES,
   fullBody:  null,
   chest:     ['chest'],
@@ -119,6 +119,33 @@ const FOCUS_GROUPS = {
 const FOCUS_COUNTS_BASE = {
   push: 6, pull: 6, legs: 7, upper: 7, lower: 6,
   fullBody: 6, chest: 7, back: 7, shoulders: 6, arms: 6, core: 5,
+};
+
+const FOCUS_REQUIRED_SLOTS = {
+  fullBody: ['quads', 'posterior', 'chest', 'back', 'shoulders', 'core'],
+  push: ['chest', 'shoulders', 'triceps'],
+  pull: ['back', 'biceps', 'rear_delts'],
+  upper: ['chest', 'back', 'shoulders', 'triceps', 'biceps'],
+  lower: ['quads', 'posterior', 'calves'],
+  legs: ['quads', 'posterior', 'calves'],
+  chest: ['chest'],
+  back: ['back'],
+  shoulders: ['shoulders'],
+  arms: ['biceps', 'triceps'],
+  core: ['core'],
+};
+
+const REQUIRED_SLOT_LABELS = {
+  quads: 'cvadriceps',
+  posterior: 'fesieri/femurali',
+  chest: 'piept',
+  back: 'spate',
+  shoulders: 'umeri',
+  triceps: 'triceps',
+  biceps: 'biceps',
+  rear_delts: 'umeri posteriori',
+  calves: 'gambe',
+  core: 'core',
 };
 
 function normalizeTrainingSplit(value) {
@@ -163,9 +190,10 @@ function getSessionFrequency(focus, trainingSplit) {
  */
 function getFocusCount(focus, frequency) {
   const base = FOCUS_COUNTS_BASE[focus] || 6;
-  if (frequency >= 3) return Math.max(4, Math.round(base * 0.67)); // 3×/week → ~4 exercises
-  if (frequency === 1) return base;                                  // 1×/week → full list
-  return Math.max(5, Math.round(base * 0.83));                      // 2×/week → ~5 exercises
+  const requiredCount = FOCUS_REQUIRED_SLOTS[focus]?.length || 0;
+  if (frequency >= 3) return Math.max(requiredCount, Math.round(base * 0.67)); // 3×/week, but never below required coverage
+  if (frequency === 1) return Math.max(requiredCount, base);                   // 1×/week → full list
+  return Math.max(requiredCount, 5, Math.round(base * 0.83));                  // 2×/week → ~5 exercises
 }
 
 function getSessionFocuses(trainingSplit, workoutsPerWeek = 3) {
@@ -216,30 +244,39 @@ function getSessionFocuses(trainingSplit, workoutsPerWeek = 3) {
   return Array.from({ length: workouts }, (_, idx) => (idx % 2 === 0 ? 'upper' : 'lower'));
 }
 
+function getWorkoutWeekSchedule(workoutsPerWeek = 3) {
+  const workouts = Math.max(2, Math.min(6, Number(workoutsPerWeek) || 3));
+  const schedules = {
+    2: [0, 3],
+    3: [0, 2, 4],
+    4: [0, 1, 3, 4],
+    5: [0, 1, 2, 3, 4],
+    6: [0, 1, 2, 3, 4, 5],
+  };
+  return schedules[workouts] || schedules[3];
+}
+
 function resolveAutoFocus(trainingSplit, currentPlanDay = 0, workoutsPerWeek = 3) {
-  const dayIndex = Math.max(0, Number(currentPlanDay) || 0);
+  const dayIndex = Math.max(0, Math.min(6, Number(currentPlanDay) || 0));
+  const scheduledWorkoutDays = getWorkoutWeekSchedule(workoutsPerWeek);
+  const workoutSlotIndex = scheduledWorkoutDays.indexOf(dayIndex);
+
+  if (workoutSlotIndex === -1) {
+    return {
+      focus: 'rest',
+      isRestDay: true,
+      workoutSlotIndex: null,
+      scheduledWorkoutDays,
+    };
+  }
+
   const focuses = getSessionFocuses(trainingSplit, workoutsPerWeek);
-  return focuses[dayIndex % focuses.length] || focuses[0] || 'fullBody';
-}
-
-function normalizeWorkoutDayStatus(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
-  const result = {};
-  for (let i = 0; i < 7; i += 1) {
-    if (value[String(i)] === true || value[i] === true) result[String(i)] = true;
-  }
-  return result;
-}
-
-function resolveNextWorkoutDayIndex(currentPlanDay = 0, workoutDayStatus = {}) {
-  const status = normalizeWorkoutDayStatus(workoutDayStatus);
-  const start = Math.max(0, Math.min(6, Number(currentPlanDay) || 0));
-
-  for (let day = start; day < 7; day += 1) {
-    if (status[String(day)] !== true) return day;
-  }
-
-  return start;
+  return {
+    focus: focuses[workoutSlotIndex % focuses.length] || focuses[0] || 'fullBody',
+    isRestDay: false,
+    workoutSlotIndex,
+    scheduledWorkoutDays,
+  };
 }
 
 /**
@@ -647,15 +684,19 @@ const LARGE_MUSCLE_GROUPS = {
 const FOCUS_GROUP_PRIORITY = {
   lower: ['quads', 'legs', 'glutes', 'hamstrings', 'calves', 'core'],
   legs: ['quads', 'legs', 'glutes', 'hamstrings', 'calves', 'core'],
-  upper: ['chest', 'back', 'shoulders', 'arms', 'core'],
+  upper: ['chest', 'back', 'shoulders', 'triceps', 'biceps', 'rear_delts', 'arms', 'core'],
   push: ['chest', 'shoulders', 'triceps', 'arms'],
   pull: ['back', 'biceps', 'rear_delts', 'arms'],
-  fullBody: ['quads', 'legs', 'glutes', 'chest', 'back', 'shoulders', 'core', 'arms'],
+  fullBody: ['quads', 'legs', 'glutes', 'hamstrings', 'chest', 'back', 'shoulders', 'core', 'triceps', 'biceps', 'arms'],
 };
 
 const FOCUS_GROUP_LIMITS = {
   lower: { quads: 2, legs: 2, glutes: 1, hamstrings: 1, calves: 1, core: 1 },
   legs: { quads: 2, legs: 2, glutes: 1, hamstrings: 1, calves: 1, core: 1 },
+  push: { chest: 2, shoulders: 2, triceps: 2, arms: 1 },
+  pull: { back: 2, biceps: 2, rear_delts: 1, arms: 1 },
+  upper: { chest: 2, back: 2, shoulders: 1, triceps: 1, biceps: 1, rear_delts: 1, arms: 1, core: 1 },
+  fullBody: { quads: 1, legs: 1, glutes: 1, hamstrings: 1, chest: 1, back: 1, shoulders: 1, core: 1, triceps: 1, biceps: 1, arms: 1 },
 };
 
 function rowIdentity(row) {
@@ -676,9 +717,68 @@ function pickRowFromGroup(groupRows, usedRows, preferCompound = null) {
   return available[0];
 }
 
+function rowSearchText(row) {
+  return normalizeTextKey([
+    row?.name,
+    row?.name_ro,
+    row?.muscle_group,
+  ].filter(Boolean).join(' '));
+}
+
+function textHasAny(text, terms) {
+  return terms.some(term => text.includes(normalizeTextKey(term)));
+}
+
+function rowMatchesSlot(row, slot) {
+  const group = normalizeMuscleGroup(row?.muscle_group);
+  const text = rowSearchText(row);
+
+  switch (slot) {
+    case 'chest':
+      return group === 'chest' || textHasAny(text, ['piept', 'bench', 'impins', 'flotari', 'pec deck', 'crossover', 'fluturari']);
+    case 'back':
+      return ['back', 'lats', 'traps'].includes(group) || textHasAny(text, ['spate', 'ramat', 'row', 'pulldown', 'tractiuni', 'pull over']);
+    case 'shoulders':
+      return group === 'shoulders' || textHasAny(text, ['press militar', 'presa umeri', 'shoulder press', 'ridicari laterale', 'lateral raise']);
+    case 'rear_delts':
+      return group === 'rear_delts' || textHasAny(text, ['umeri posteriori', 'deltoid posterior', 'face pull', 'reverse fly', 'fluturari inverse']);
+    case 'triceps':
+      return group === 'triceps' || (group === 'arms' && textHasAny(text, ['triceps', 'dips', 'extensii', 'pushdown', 'skull']));
+    case 'biceps':
+      return group === 'biceps' || (group === 'arms' && textHasAny(text, ['biceps', 'flexii', 'curl', 'hammer']));
+    case 'quads':
+      return ['quads', 'quadriceps'].includes(group) || textHasAny(text, ['cvadriceps', 'genuflexiuni', 'squat', 'leg press', 'presa picioare', 'fandari', 'split squat', 'step up', 'leg extension', 'extensii picioare']);
+    case 'posterior':
+      return ['hamstrings', 'glutes'].includes(group) || textHasAny(text, ['femural', 'biceps femural', 'leg curl', 'flexii femurale', 'hip thrust', 'pod fesier', 'glute', 'fesier', 'rdl', 'deadlift', 'indreptari']);
+    case 'calves':
+      return group === 'calves' || textHasAny(text, ['gambe', 'calf', 'ridicari pe varfuri', 'varfuri']);
+    case 'core':
+      return ['core', 'abs'].includes(group) || textHasAny(text, ['abdomen', 'plank', 'crunch', 'dead bug', 'mountain climber']);
+    default:
+      return group === slot;
+  }
+}
+
+function slotPrefersCompound(slot) {
+  if (['chest', 'back', 'shoulders', 'quads', 'posterior'].includes(slot)) return true;
+  if (['biceps', 'triceps', 'rear_delts', 'calves', 'core'].includes(slot)) return false;
+  return null;
+}
+
+function pickRowForSlot(rows, slot, usedRows) {
+  const matchingRows = shuffle((rows || []).filter(row => rowMatchesSlot(row, slot)));
+  return pickRowFromGroup(matchingRows, usedRows, slotPrefersCompound(slot));
+}
+
+function getMissingRequiredSlots(rows, focus) {
+  const requiredSlots = FOCUS_REQUIRED_SLOTS[focus] || [];
+  return requiredSlots.filter(slot => !rows.some(row => rowMatchesSlot(row, slot)));
+}
+
 function selectBalancedDbExercises(rows, focus, targetCount) {
   const largeGroups = LARGE_MUSCLE_GROUPS[focus] || new Set();
   const priority = FOCUS_GROUP_PRIORITY[focus] || shuffle([...new Set(rows.map(row => normalizeMuscleGroup(row.muscle_group)))]);
+  const requiredSlots = FOCUS_REQUIRED_SLOTS[focus] || [];
   const byMuscle = {};
 
   for (const row of rows) {
@@ -700,7 +800,13 @@ function selectBalancedDbExercises(rows, focus, targetCount) {
     return true;
   };
 
+  for (const slot of requiredSlots) {
+    const row = pickRowForSlot(rows, slot, usedRows);
+    addRow(row, slotPrefersCompound(slot) === true);
+  }
+
   for (const group of priority) {
+    if (selected.length >= targetCount) break;
     const row = pickRowFromGroup(byMuscle[group], usedRows, largeGroups.has(group) ? true : null);
     addRow(row, largeGroups.has(group));
   }
@@ -941,12 +1047,12 @@ async function getWorkoutContext(supabase, userId, requestedFocus = 'auto') {
   const fitnessGoal = userRow?.fitness_goal || 'muscle_gain';
   const trainingSplit = normalizeTrainingSplit(userRow?.training_split || 'Push/Pull/Legs');
   const workoutsPerWeek = Number(userRow?.workouts_per_week) || 3;
-  const workoutDayIndex = resolveNextWorkoutDayIndex(dailyState.currentPlanDay, dailyState.workoutStatus);
-  const focus = requestedFocus === 'auto'
-    ? resolveAutoFocus(trainingSplit, workoutDayIndex, workoutsPerWeek)
-    : requestedFocus;
+  const workoutDayIndex = Math.max(0, Math.min(6, Number(dailyState.currentPlanDay) || 0));
+  const autoFocus = resolveAutoFocus(trainingSplit, workoutDayIndex, workoutsPerWeek);
+  const isRestDay = requestedFocus === 'auto' && autoFocus.isRestDay;
+  const focus = requestedFocus === 'auto' ? autoFocus.focus : requestedFocus;
   const frequency = getSessionFrequency(focus, trainingSplit);
-  const targetCount = getFocusCount(focus, frequency);
+  const targetCount = isRestDay ? 0 : getFocusCount(focus, frequency);
 
   return {
     fitnessLevel,
@@ -955,6 +1061,9 @@ async function getWorkoutContext(supabase, userId, requestedFocus = 'auto') {
     trainingSplit,
     workoutsPerWeek,
     workoutDayIndex,
+    workoutSlotIndex: requestedFocus === 'auto' ? autoFocus.workoutSlotIndex : null,
+    scheduledWorkoutDays: requestedFocus === 'auto' ? autoFocus.scheduledWorkoutDays : getWorkoutWeekSchedule(workoutsPerWeek),
+    isRestDay,
     focus,
     frequency,
     targetCount,
@@ -967,10 +1076,25 @@ async function generateWorkoutExercises(supabase, context) {
     availableEquipment,
     fitnessGoal,
     trainingSplit,
+    isRestDay,
     focus,
     frequency,
     targetCount,
   } = context;
+
+  if (isRestDay) {
+    return {
+      response: NextResponse.json({
+        isRestDay: true,
+        focus: 'rest',
+        trainingSplit,
+        workoutDayIndex: context.workoutDayIndex,
+        scheduledWorkoutDays: context.scheduledWorkoutDays,
+        exerciseCount: 0,
+        message: 'Azi este zi de odihnă.',
+      }),
+    };
+  }
 
   const equipmentFilter = EQUIPMENT_FILTER[availableEquipment] || null;
   const muscleGroups = FOCUS_GROUPS[focus] || null;
@@ -1054,6 +1178,17 @@ async function generateWorkoutExercises(supabase, context) {
   }
 
   const selected = selectBalancedDbExercises(rows, focus, targetCount);
+  const missingRequiredSlots = getMissingRequiredSlots(selected.map(({ row }) => row), focus);
+  if (missingRequiredSlots.length > 0) {
+    return {
+      response: NextResponse.json(
+        {
+          error: `Nu există exerciții cu video pentru toate grupele obligatorii: ${missingRequiredSlots.map(slot => REQUIRED_SLOT_LABELS[slot] || slot).join(', ')}.`,
+        },
+        { status: 409 }
+      ),
+    };
+  }
 
   const exercises = await Promise.all(selected.slice(0, targetCount).map(async ({ row, isPaired }, i) => {
     const { sets, reps, restSeconds } = prescribe(row, fitnessLevel, fitnessGoal, frequency, isPaired);
@@ -1117,10 +1252,14 @@ export async function GET(request) {
 
   if (searchParams.get('preview') === '1') {
     return NextResponse.json({
+      isRestDay: context.isRestDay,
       focus: context.focus,
       trainingSplit: context.trainingSplit,
       workoutDayIndex: context.workoutDayIndex,
+      workoutSlotIndex: context.workoutSlotIndex,
+      scheduledWorkoutDays: context.scheduledWorkoutDays,
       exerciseCount: context.targetCount,
+      message: context.isRestDay ? 'Azi este zi de odihnă.' : null,
     });
   }
 
@@ -1157,6 +1296,15 @@ export async function POST(request) {
 
   if (generate) {
     const context = await getWorkoutContext(supabase, auth.userId, focus || 'auto');
+    if (context.isRestDay) {
+      return NextResponse.json({
+        error: 'Azi este zi de odihnă. Bifează recuperarea în loc să începi un antrenament.',
+        isRestDay: true,
+        focus: 'rest',
+        workoutDayIndex: context.workoutDayIndex,
+        scheduledWorkoutDays: context.scheduledWorkoutDays,
+      }, { status: 409 });
+    }
     const generated = await generateWorkoutExercises(supabase, context);
     if (generated.response) return generated.response;
     resolvedFocus = context.focus;

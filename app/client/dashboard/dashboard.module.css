@@ -1080,6 +1080,256 @@
   height: 260px;
 }
 
+.dashboardSkeleton {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.dashboardSkeletonHero,
+.dashboardSkeletonProgress,
+.dashboardSkeletonMission,
+.dashboardSkeletonActionCard,
+.dashboardSkeletonBottom,
+.moduleSkeleton,
+.moduleSkeletonCard {
+  border: 1px solid rgba(10, 10, 10, 0.08);
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 14px;
+}
+
+.dashboardSkeletonHero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+}
+
+.dashboardSkeletonGreeting {
+  width: 180px;
+  height: 26px;
+}
+
+.dashboardSkeletonSub {
+  width: 130px;
+  height: 13px;
+  margin-top: 9px;
+  border-radius: 999px;
+}
+
+.dashboardSkeletonStreak {
+  width: 74px;
+  height: 34px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(183, 255, 0, 0.22) 25%, rgba(183, 255, 0, 0.12) 50%, rgba(183, 255, 0, 0.22) 75%) !important;
+  background-size: 800px 100% !important;
+}
+
+.dashboardSkeletonProgress {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  padding: 28px 20px;
+}
+
+.dashboardSkeletonCircle {
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, #fff 0 45%, transparent 46%),
+    conic-gradient(rgba(183, 255, 0, 0.22), rgba(10, 10, 10, 0.08)) !important;
+}
+
+.dashboardSkeletonProgressText {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dashboardSkeletonLineLg {
+  width: 170px;
+  height: 17px;
+}
+
+.dashboardSkeletonLineSm {
+  width: 118px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.dashboardSkeletonMissions {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.dashboardSkeletonMission {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.dashboardSkeletonDot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: linear-gradient(90deg, rgba(183, 255, 0, 0.24) 25%, rgba(183, 255, 0, 0.12) 50%, rgba(183, 255, 0, 0.24) 75%) !important;
+  background-size: 800px 100% !important;
+}
+
+.dashboardSkeletonMissionLine {
+  width: min(360px, 72%);
+  height: 14px;
+  border-radius: 999px;
+}
+
+.dashboardSkeletonCards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.dashboardSkeletonActionCard {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  min-height: 150px;
+}
+
+.dashboardSkeletonAction {
+  width: 86px;
+  height: 34px;
+  margin-top: auto;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(183, 255, 0, 0.24) 25%, rgba(183, 255, 0, 0.12) 50%, rgba(183, 255, 0, 0.24) 75%) !important;
+  background-size: 800px 100% !important;
+}
+
+.dashboardSkeletonBottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding: 14px;
+}
+
+.dashboardSkeletonWater,
+.dashboardSkeletonXp {
+  height: 58px;
+  border-radius: 12px;
+}
+
+.moduleSkeleton {
+  width: 100%;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.moduleSkeletonCompact {
+  margin: 10px 0;
+}
+
+.moduleSkeletonTop,
+.moduleSkeletonHeader,
+.moduleSkeletonDays {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.moduleSkeletonBack {
+  width: 82px;
+  height: 32px;
+  border-radius: 999px;
+}
+
+.moduleSkeletonPill,
+.moduleSkeletonBadge {
+  width: 110px;
+  height: 36px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(183, 255, 0, 0.22) 25%, rgba(183, 255, 0, 0.12) 50%, rgba(183, 255, 0, 0.22) 75%) !important;
+  background-size: 800px 100% !important;
+}
+
+.moduleSkeletonTitle {
+  width: 170px;
+  height: 22px;
+}
+
+.moduleSkeletonSubtitle {
+  width: 230px;
+  height: 12px;
+  margin-top: 8px;
+  border-radius: 999px;
+}
+
+.moduleSkeletonDays {
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(10, 10, 10, 0.035);
+  border: 1px solid rgba(10, 10, 10, 0.06);
+}
+
+.moduleSkeletonDay {
+  flex: 1;
+  height: 30px;
+  border-radius: 8px;
+}
+
+.moduleSkeletonCards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.moduleSkeletonCard {
+  min-height: 190px;
+  overflow: hidden;
+}
+
+.moduleSkeletonImage {
+  height: 74px;
+  border-radius: 0;
+}
+
+.moduleSkeletonBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+}
+
+.moduleSkeletonLineLg {
+  width: 78%;
+  height: 16px;
+}
+
+.moduleSkeletonLineSm {
+  width: 58%;
+  height: 11px;
+  border-radius: 999px;
+}
+
+.moduleSkeletonButton {
+  width: 74px;
+  height: 30px;
+  margin-top: 8px;
+  border-radius: 9px;
+  background: linear-gradient(90deg, rgba(183, 255, 0, 0.22) 25%, rgba(183, 255, 0, 0.12) 50%, rgba(183, 255, 0, 0.22) 75%) !important;
+  background-size: 800px 100% !important;
+}
+
 @media (max-width: 768px) {
   .skeletonWrap {
     padding: 0;
@@ -1118,6 +1368,61 @@
   .skeletonRightColumn { gap: 18px; }
 
   .skeletonMealsGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboardSkeleton {
+    gap: 14px;
+  }
+
+  .dashboardSkeletonHero {
+    padding: 15px;
+  }
+
+  .dashboardSkeletonGreeting {
+    width: 150px;
+    height: 24px;
+  }
+
+  .dashboardSkeletonProgress {
+    flex-direction: column;
+    gap: 14px;
+    padding: 22px 16px;
+  }
+
+  .dashboardSkeletonCircle {
+    width: 108px;
+    height: 108px;
+  }
+
+  .dashboardSkeletonProgressText {
+    align-items: center;
+  }
+
+  .dashboardSkeletonCards,
+  .dashboardSkeletonBottom {
+    grid-template-columns: 1fr;
+  }
+
+  .moduleSkeleton {
+    padding: 14px;
+    gap: 13px;
+  }
+
+  .moduleSkeletonBadge {
+    display: none;
+  }
+
+  .moduleSkeletonSubtitle {
+    width: 180px;
+  }
+
+  .moduleSkeletonDays {
+    gap: 5px;
+    padding: 6px;
+  }
+
+  .moduleSkeletonCards {
     grid-template-columns: 1fr;
   }
 }
@@ -1863,6 +2168,394 @@
   overflow: visible !important;
 }
 
+.dashboardTodayHero {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 26px 24px 22px;
+  background: #ffffff;
+  border: 1px solid #e8e8ed;
+  border-radius: 20px;
+}
+
+.dashboardTodayLabel {
+  display: block;
+  margin-bottom: 8px;
+  color: #6e6e73;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.dashboardTodayTitle {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 46px;
+  line-height: 0.96;
+  font-weight: 950;
+  letter-spacing: -1.8px;
+}
+
+.dashboardTodayMessage {
+  margin: 14px 0 0;
+  max-width: 460px;
+  color: rgba(10, 10, 10, 0.64);
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
+.dashboardGoalDistance {
+  display: inline-flex;
+  align-items: center;
+  margin: 18px 0 0;
+  padding: 9px 12px;
+  border-radius: 999px;
+  background: rgba(183, 255, 0, 0.16);
+  color: #0a0a0a;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.dashboardTopLine {
+  display: block;
+  margin-bottom: 24px;
+}
+
+.dashboardGreeting {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 34px;
+  line-height: 1.02;
+  font-weight: 920;
+  letter-spacing: -1.1px;
+}
+
+.dailyProgressHero {
+  display: grid;
+  justify-items: center;
+  gap: 14px;
+  margin-bottom: 22px;
+  padding: 24px 18px 22px;
+  border: 1px solid rgba(183, 255, 0, 0.28);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, rgba(183, 255, 0, 0.055), rgba(255, 255, 255, 0) 34%),
+    #ffffff;
+}
+
+.dailyProgressCircle {
+  --daily-progress: 0%;
+  width: 174px;
+  height: 174px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle, #ffffff 0 61%, transparent 62%),
+    conic-gradient(#b7ff00 var(--daily-progress), #ececef 0);
+  transition: background 0.5s cubic-bezier(0.22, 1, 0.36, 1), transform 0.2s ease;
+}
+
+.dailyProgressHeroDone .dailyProgressCircle {
+  animation: dailyProgressPop 0.55s ease both;
+}
+
+.dailyProgressCircleInner {
+  width: 122px;
+  height: 122px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 1px rgba(10, 10, 10, 0.04);
+}
+
+.dailyProgressCircleInner strong {
+  color: #0a0a0a;
+  font-size: 34px;
+  font-weight: 930;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.dailyProgressCircleInner span {
+  margin-top: 7px;
+  color: rgba(10, 10, 10, 0.48);
+  font-size: 12px;
+  font-weight: 760;
+  text-transform: none;
+}
+
+.dailyProgressMessage {
+  margin: 0;
+  color: rgba(10, 10, 10, 0.68);
+  font-size: 15px;
+  font-weight: 450;
+  text-align: center;
+  line-height: 1.4;
+}
+
+.dailyMissionList {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dailyMissionItem {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 12px 13px;
+  border: 1px solid #ececef;
+  border-radius: 12px;
+  color: rgba(10, 10, 10, 0.54);
+  background: #fafafa;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+}
+
+.dailyMissionItemDone {
+  color: #0a0a0a;
+  background: rgba(183, 255, 0, 0.14);
+  border-color: rgba(183, 255, 0, 0.55);
+}
+
+.dailyMissionCheck {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 1px solid #d8d8de;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.dailyMissionItemDone .dailyMissionCheck {
+  border-color: #b7ff00;
+  background: #b7ff00;
+  color: #0a0a0a;
+}
+
+.dashboardActionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.dashboardActionCard {
+  min-height: 178px;
+  padding: 20px;
+  border: 1px solid #e8e8ed;
+  border-radius: 20px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 22px;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.14s ease;
+}
+
+.dashboardActionCard:hover {
+  transform: translateY(-1px);
+  border-color: #d8d8de;
+}
+
+.dashboardActionCard h2 {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 22px;
+  line-height: 1.08;
+  font-weight: 900;
+  letter-spacing: -0.7px;
+}
+
+.dashboardActionCard p {
+  margin: 9px 0 0;
+  color: rgba(10, 10, 10, 0.55);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+.dashboardActionCardDone {
+  background: linear-gradient(180deg, rgba(183, 255, 0, 0.16), #ffffff 58%);
+  border-color: rgba(183, 255, 0, 0.68);
+}
+
+.dashboardActionCardDone p {
+  color: rgba(10, 10, 10, 0.64);
+}
+
+.dashboardDoneMark {
+  align-self: flex-start;
+  font-size: 21px;
+  line-height: 1;
+}
+
+.dashboardActionBtn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(10, 10, 10, 0.12);
+  border-radius: 999px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  padding: 11px 13px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 850;
+  cursor: pointer;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.dashboardActionBtn:hover {
+  opacity: 0.86;
+}
+
+.dashboardWaterPanel {
+  margin: 0 0 18px;
+  padding: 18px;
+  border: 1px solid #e8e8ed;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.dashboardWaterPanelDone {
+  border-color: rgba(183, 255, 0, 0.68);
+  background: linear-gradient(180deg, rgba(183, 255, 0, 0.12), #ffffff 70%);
+}
+
+.dashboardWaterHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 13px;
+}
+
+.dashboardWaterHead h2 {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 18px;
+  line-height: 1.1;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+.dashboardWaterHead p {
+  margin: 5px 0 0;
+  color: rgba(10, 10, 10, 0.55);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.dashboardWaterBtn {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  padding: 9px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.dashboardWaterBtn:disabled {
+  cursor: not-allowed;
+  opacity: 0.34;
+}
+
+.dashboardWaterTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: #ececef;
+  overflow: hidden;
+}
+
+.dashboardWaterFill {
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: #b7ff00;
+  transition: width 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dashboardXpPanel {
+  padding: 18px;
+  border: 1px solid rgba(183, 255, 0, 0.22);
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.dashboardXpLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+  color: #0a0a0a;
+  font-size: 14px;
+  font-weight: 780;
+}
+
+.dashboardXpLine > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.dashboardXpLine .levelEmoji {
+  font-size: 21px;
+  transform: none;
+}
+
+.dashboardXpLine strong {
+  color: rgba(10, 10, 10, 0.48);
+  font-size: 12px;
+  font-weight: 720;
+  white-space: nowrap;
+}
+
+.dashboardXpTrack {
+  height: 10px;
+  border-radius: 999px;
+  background: #ececef;
+  overflow: hidden;
+}
+
+.dashboardXpFill {
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: #b7ff00;
+  transition: width 0.55s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes dailyProgressPop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.045); }
+  100% { transform: scale(1); }
+}
+
 /* Single-column layout aligned with meal/workout modules */
 .journeyLayout {
   width: 100%;
@@ -1870,6 +2563,157 @@
   grid-template-columns: 1fr;
   gap: 14px;
   align-items: start;
+}
+
+.weeklyCheckInCard {
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 22px;
+  background: #ffffff;
+  border: 1px solid #e8e8ed;
+  border-radius: 20px;
+}
+
+.weeklyCheckInHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.weeklyCheckInEyebrow {
+  display: block;
+  margin-bottom: 6px;
+  color: #6e6e73;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.weeklyCheckInTitle {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 24px;
+  line-height: 1.08;
+  font-weight: 900;
+}
+
+.weeklyCheckInForm {
+  display: grid;
+  gap: 14px;
+}
+
+.weeklyCheckInField {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  color: #3c3c43;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.weeklyCheckInField input[type="number"] {
+  grid-column: 1 / -1;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid #e5e5e7;
+  border-radius: 12px;
+  background: #f8f8f6;
+  color: #0a0a0a;
+  font: inherit;
+  outline: none;
+}
+
+.weeklyCheckInField input[type="number"]:focus {
+  border-color: rgba(183, 255, 0, 0.95);
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.22);
+}
+
+.weeklyCheckInChoiceGroup {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.weeklyCheckInChoiceBtn {
+  min-height: 42px;
+  border: 1px solid #e5e5e7;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #6e6e73;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 750;
+  cursor: pointer;
+  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.weeklyCheckInChoiceBtn:hover {
+  border-color: #cfcfd4;
+  color: #0a0a0a;
+}
+
+.weeklyCheckInChoiceBtnActive {
+  background: rgba(183, 255, 0, 0.14);
+  border-color: rgba(183, 255, 0, 0.95);
+  color: #0a0a0a;
+}
+
+.weeklyCheckInMiniGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.weeklyCheckInSubmit {
+  width: 100%;
+  margin-top: 4px;
+  padding: 14px 18px;
+  border: 0;
+  border-radius: 12px;
+  background: #0a0a0a;
+  color: #B7FF00;
+  font-size: 14px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.weeklyCheckInSubmit:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.weeklyCheckInError {
+  margin: 0;
+  color: #dc2626;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.weeklyCheckInResult {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(183, 255, 0, 0.16);
+  color: #0a0a0a;
+}
+
+.weeklyCheckInResult p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.weeklyCheckInResult span {
+  color: rgba(10, 10, 10, 0.58);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 /* ── Left panel: missions ──────────────────────────────── */
@@ -1960,6 +2804,32 @@
   color: #b0b0b8;
   text-decoration: line-through;
   text-decoration-color: #c8c8d0;
+}
+
+.journeyFinishDayBtn {
+  width: 100%;
+  margin-top: 14px;
+  border: none;
+  border-radius: 14px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  padding: 14px 16px;
+  font-size: 14px;
+  font-weight: 850;
+  font-family: inherit;
+  letter-spacing: -0.2px;
+  cursor: pointer;
+  transition: transform 0.14s ease, opacity 0.14s ease;
+}
+
+.journeyFinishDayBtn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+
+.journeyFinishDayBtn:disabled {
+  cursor: wait;
+  opacity: 0.64;
 }
 
 /* ── Cards ─────────────────────────────────────────────── */
@@ -2118,6 +2988,199 @@
   opacity: 0.3;
   cursor: not-allowed;
   transform: none;
+}
+
+/* ── Recipe Shop ─────────────────────────────────────────── */
+.shopPage {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 0 24px;
+}
+
+.shopHeader {
+  margin-bottom: 24px;
+}
+
+.shopBackBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #86868b;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 18px;
+  font-family: inherit;
+  letter-spacing: -0.1px;
+  transition: color 0.15s ease;
+}
+
+.shopBackBtn:hover {
+  color: #1c1c1e;
+}
+
+.shopTitleRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.shopTitle {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: -1.8px;
+}
+
+.shopSubtitle {
+  margin: 8px 0 0;
+  color: #86868b;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.shopWallet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 13px;
+  border-radius: 14px;
+  background: rgba(250, 204, 21, 0.1);
+  border: 1px solid rgba(250, 204, 21, 0.28);
+  flex-shrink: 0;
+}
+
+.shopGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.shopRecipeCard {
+  background: #fff;
+  border: 1px solid #e8e8ed;
+  border-radius: 18px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shopRecipeImageWrap,
+.shopRecipeImageEmpty {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #f5f5f7;
+  overflow: hidden;
+}
+
+.shopRecipeImage {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shopRecipeImageEmpty {
+  display: grid;
+  place-items: center;
+  color: #86868b;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.shopRecipeBody {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.shopRecipeType {
+  color: #86868b;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.shopRecipeName {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 19px;
+  font-weight: 850;
+  line-height: 1.12;
+  letter-spacing: -0.55px;
+}
+
+.shopRecipeMeta {
+  margin: 0;
+  color: #5f5f66;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.shopBuyBtn {
+  margin-top: auto;
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  border: none;
+  border-radius: 12px;
+  padding: 13px 14px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+
+.shopBuyBtn:hover:not(:disabled) {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.shopBuyBtn:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.shopState,
+.shopError {
+  border-radius: 16px;
+  padding: 18px;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+
+.shopState {
+  background: #f5f5f7;
+  color: #5f5f66;
+}
+
+.shopError {
+  margin-bottom: 14px;
+  background: rgba(239, 68, 68, 0.08);
+  color: #b91c1c;
+  border: 1px solid rgba(239, 68, 68, 0.18);
 }
 
 /* Rest day variant for workout card */
@@ -2282,9 +3345,49 @@
   flex-direction: column;
   align-items: center;
   gap: 16px;
-  padding: 60px 0;
+  padding: 34px 0;
   color: #86868b;
   font-size: 14px;
+}
+
+.wsLoadingSkeleton {
+  width: 100%;
+  border: 1px solid rgba(10, 10, 10, 0.08);
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.wsLoadingVideo {
+  height: 220px;
+  border-radius: 0;
+}
+
+.wsLoadingLines {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+}
+
+.wsLoadingTitle {
+  width: 68%;
+  height: 20px;
+}
+
+.wsLoadingSub {
+  width: 48%;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.wsLoadingButton {
+  width: 94px;
+  height: 34px;
+  margin-top: 8px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(183, 255, 0, 0.22) 25%, rgba(183, 255, 0, 0.12) 50%, rgba(183, 255, 0, 0.22) 75%) !important;
+  background-size: 800px 100% !important;
 }
 
 .wsHeader {
@@ -2807,9 +3910,102 @@
     overflow: visible !important;
   }
 
+  .dashboardTodayHero {
+    padding: 22px 18px 18px;
+    border-radius: 18px;
+  }
+
+  .dashboardTopLine {
+    align-items: flex-start;
+    margin-bottom: 18px;
+  }
+
+  .dashboardGreeting {
+    font-size: 27px;
+  }
+
+  .dailyProgressHero {
+    margin-bottom: 18px;
+    padding: 16px 8px 18px;
+    border-radius: 20px;
+  }
+
+  .dailyProgressCircle {
+    width: 154px;
+    height: 154px;
+  }
+
+  .dailyProgressCircleInner {
+    width: 110px;
+    height: 110px;
+  }
+
+  .dailyProgressCircleInner strong {
+    font-size: 30px;
+  }
+
+  .dailyMissionList {
+    grid-template-columns: 1fr;
+    padding: 0 8px;
+  }
+
+  .dashboardActionGrid {
+    gap: 10px;
+  }
+
+  .dashboardActionCard {
+    min-height: 162px;
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .dashboardActionCard h2 {
+    font-size: 18px;
+  }
+
+  .dashboardActionCard p,
+  .dashboardActionBtn {
+    font-size: 13px;
+  }
+
+  .dashboardXpLine {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .dashboardTodayTitle {
+    font-size: 38px;
+    letter-spacing: -1.2px;
+  }
+
+  .dashboardTodayMessage {
+    font-size: 14px;
+  }
+
+  .dashboardGoalDistance {
+    width: 100%;
+    justify-content: center;
+    text-align: center;
+  }
+
   .journeyLayout {
     grid-template-columns: 1fr;
     gap: 14px;
+  }
+
+  .weeklyCheckInCard {
+    padding: 18px;
+    border-radius: 18px;
+  }
+
+  .weeklyCheckInHead {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .weeklyCheckInMiniGrid {
+    grid-template-columns: 1fr;
   }
 
   .journeyCards {
@@ -2819,5 +4015,36 @@
 
   .jCard {
     padding: 20px 18px 16px;
+  }
+
+  .shopPage {
+    padding-bottom: 80px;
+  }
+
+  .shopTitleRow {
+    align-items: flex-start;
+  }
+
+  .shopTitle {
+    font-size: 38px;
+  }
+
+  .shopSubtitle {
+    font-size: 13px;
+  }
+
+  .shopGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 390px) {
+  .dashboardTopLine {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .dashboardActionGrid {
+    grid-template-columns: 1fr;
   }
 }

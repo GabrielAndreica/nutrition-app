@@ -7,8 +7,16 @@
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS age integer,
   ADD COLUMN IF NOT EXISTS weight numeric(6,2),
+  ADD COLUMN IF NOT EXISTS target_weight numeric(6,2),
   ADD COLUMN IF NOT EXISTS height numeric(5,2),
   ADD COLUMN IF NOT EXISTS gender varchar(1),
+  ADD COLUMN IF NOT EXISTS phone text,
+  ADD COLUMN IF NOT EXISTS status text DEFAULT 'confirmed',
+  ADD COLUMN IF NOT EXISTS confirmation_token text,
+  ADD COLUMN IF NOT EXISTS confirmation_token_expires_at timestamptz,
+  ADD COLUMN IF NOT EXISTS account_type text DEFAULT 'free',
+  ADD COLUMN IF NOT EXISTS subscription_status text DEFAULT 'free',
+  ADD COLUMN IF NOT EXISTS subscription_plan text,
   ADD COLUMN IF NOT EXISTS fitness_level text,
   ADD COLUMN IF NOT EXISTS fitness_goal text,
   ADD COLUMN IF NOT EXISTS goal text,
@@ -47,11 +55,35 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS weekly_plan_due_at timestamptz,
   ADD COLUMN IF NOT EXISTS weekly_plan_generation_started_at timestamptz,
   ADD COLUMN IF NOT EXISTS weekly_plan_generation_error text,
+  ADD COLUMN IF NOT EXISTS nutrition_target_calories integer,
+  ADD COLUMN IF NOT EXISTS nutrition_target_protein_g integer,
+  ADD COLUMN IF NOT EXISTS nutrition_target_carbs_g integer,
+  ADD COLUMN IF NOT EXISTS nutrition_target_fat_g integer,
+  ADD COLUMN IF NOT EXISTS last_weekly_checkin_at timestamptz,
   ADD COLUMN IF NOT EXISTS updated_at timestamptz DEFAULT NOW();
 
 -- 4. Adauga coloana onboarding_completed
 ALTER TABLE users
   ADD COLUMN IF NOT EXISTS onboarding_completed boolean DEFAULT false;
+
+UPDATE users
+SET account_type = CASE
+    WHEN subscription_status = 'active' THEN 'paid'
+    ELSE 'free'
+  END
+WHERE account_type IS NULL;
+
+UPDATE users
+SET subscription_status = 'free'
+WHERE subscription_status IS NULL
+   OR subscription_status IN ('trial', 'expired', 'cancelled', 'inactive');
+
+ALTER TABLE users
+  DROP COLUMN IF EXISTS trial_ends_at;
+
+CREATE INDEX IF NOT EXISTS idx_users_confirmation_token
+  ON users(confirmation_token)
+  WHERE confirmation_token IS NOT NULL;
 
 UPDATE users
 SET hydration_target_ml = LEAST(

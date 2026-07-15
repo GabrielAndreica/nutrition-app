@@ -15,6 +15,7 @@ const ALLOWED_LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
 const ALLOWED_EQUIPMENT = new Set(['no equipment', 'dumbbells only', 'full gym']);
 const ALLOWED_GOALS = new Set(['muscle gain', 'weight loss', 'maintenance', 'strength', 'endurance']);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const USER_ID_RE = /^\d+$/;
 const OPENAI_WORKOUT_TIMEOUT_MS = 90000;
 const WORKOUT_AI_MODEL = process.env.OPENAI_WORKOUT_MODEL || 'gpt-4o-mini';
 const WORKOUT_MAX_TOKENS = 2500;
@@ -1476,14 +1477,14 @@ export async function POST(request) {
     }
 
     const rawClientId = body?.clientId ? String(body.clientId).trim() : '';
-    if (rawClientId && !UUID_RE.test(rawClientId)) {
+    if (rawClientId && !UUID_RE.test(rawClientId) && !USER_ID_RE.test(rawClientId)) {
       return NextResponse.json({ error: 'clientId invalid.' }, { status: 400 });
     }
 
     let ownedClient = null;
     if (rawClientId) {
       // In B2C: clientId === userId; verifică ownership
-      if ((auth.role === 'user' || auth.role === 'client') && rawClientId !== auth.userId) {
+      if ((auth.role === 'user' || auth.role === 'client') && rawClientId !== String(auth.userId)) {
         return NextResponse.json({ error: 'Clientul nu a fost găsit sau nu îți aparține.' }, { status: 404 });
       }
       const clientQuery = supabase

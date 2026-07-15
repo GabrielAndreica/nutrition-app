@@ -1,12 +1,22 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 // GET /api/auth/confirm/[token]
 export async function GET(request, { params }) {
   const supabase = getSupabase();
   const { ip, userAgent } = getRequestMeta(request);
   const { token } = await params;
+
+  const confirmLimit = await enforceRateLimit(request, {
+    identifier: `ip:${ip}`,
+    endpoint: 'auth-confirm-email',
+    maxRequests: 30,
+    windowMinutes: 15,
+    failClosed: true,
+  });
+  if (confirmLimit) return confirmLimit;
 
   if (!token) {
     return NextResponse.json({ error: 'Token lipsă.' }, { status: 400 });
@@ -35,16 +45,16 @@ export async function GET(request, { params }) {
     return NextResponse.json({ error: 'Link-ul de confirmare a expirat. Înregistrează-te din nou.' }, { status: 410 });
   }
 
-  // Mark as confirmed and start 14-day trial
-  const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+  // Mark as confirmed. B2C accounts start on the free plan.
   const { error: updateError } = await supabase
     .from('users')
     .update({
       status: 'confirmed',
       confirmation_token: null,
       confirmation_token_expires_at: null,
-      subscription_status: 'trial',
-      trial_ends_at: trialEndsAt,
+      account_type: 'free',
+      subscription_status: 'free',
+      subscription_plan: null,
     })
     .eq('id', user.id);
 

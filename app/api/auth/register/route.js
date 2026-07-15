@@ -4,6 +4,7 @@ import bcrypt from 'bcrypt';
 import { Resend } from 'resend';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeEmail, sanitizeName } from '@/app/lib/sanitize';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 // ── Validation helpers ──────────────────────────────────────────────────────
 
@@ -45,24 +46,14 @@ export async function POST(request) {
   const { ip, userAgent } = getRequestMeta(request);
 
   // Rate limit: max 3 înregistrări per zi per IP
-  try {
-    const { data: rl } = await supabase.rpc('check_rate_limit', {
-      p_user_id: ip || 'unknown',
-      p_endpoint: 'auth-register',
-      p_max_requests: 3,
-      p_window_minutes: 1440, // 24 ore
-    });
-    if (rl?.[0]?.allowed === false) {
-      const mins = Math.ceil((new Date(rl[0].reset_at) - new Date()) / 60000);
-      const hours = Math.ceil(mins / 60);
-      return NextResponse.json(
-        { error: `Prea multe conturi create din această rețea. Încearcă din nou în ${hours} ${hours === 1 ? 'oră' : 'ore'}.` },
-        { status: 429 }
-      );
-    }
-  } catch (e) {
-    console.error('[register] rate-limit error:', e);
-  }
+  const registerLimit = await enforceRateLimit(request, {
+    identifier: `ip:${ip}`,
+    endpoint: 'auth-register',
+    maxRequests: 3,
+    windowMinutes: 1440,
+    failClosed: true,
+  });
+  if (registerLimit) return registerLimit;
 
   let body;
   try {
@@ -131,6 +122,9 @@ export async function POST(request) {
     password: hashedPassword,
     role: 'user',
     status: 'pending',
+    account_type: 'free',
+    subscription_status: 'free',
+    subscription_plan: null,
     confirmation_token: confirmationToken,
     confirmation_token_expires_at: tokenExpiresAt,
     created_at: new Date().toISOString(),

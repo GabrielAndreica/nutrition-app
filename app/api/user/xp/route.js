@@ -36,7 +36,7 @@ export async function POST(request) {
     const body = await request.json();
     const parsed = Number(body?.amount);
     if (Number.isFinite(parsed) && parsed > 0 && parsed <= 500) amount = parsed;
-    if (['meals', 'workout', 'exercise', 'progress_update', 'onboarding'].includes(body?.type)) {
+    if (['meals', 'workout', 'day', 'exercise', 'progress_update', 'onboarding'].includes(body?.type)) {
       type = body.type;
     }
     const parsedDayIndex = Number(body?.dayIndex);
@@ -66,7 +66,9 @@ export async function POST(request) {
       streak_state,
       streak_recovery_day,
       streak_awarded_day,
-      weekly_plan_due_at
+      weekly_plan_due_at,
+      last_weekly_checkin_at,
+      hydration_target_ml
     `)
     .eq('id', auth.userId)
     .maybeSingle();
@@ -105,6 +107,64 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Această zi nu este disponibilă încă.' }, { status: 409 });
   }
 
+  const progressDate = getCurrentPlanDateKey(now);
+  let dayProgress = null;
+  if (type === 'day') {
+    const effectiveDayIndex = dailyState.currentPlanDay;
+    if (dayIndex !== null && dayIndex !== effectiveDayIndex) {
+      return NextResponse.json({ error: 'Poți finaliza doar ziua curentă.' }, { status: 409 });
+    }
+    if (dailyState.mealStatus[String(effectiveDayIndex)] !== true) {
+      return NextResponse.json({ error: 'Mai întâi finalizează mesele zilei.' }, { status: 409 });
+    }
+    if (dailyState.workoutStatus[String(effectiveDayIndex)] !== true) {
+      return NextResponse.json({ error: 'Mai întâi finalizează antrenamentul zilei.' }, { status: 409 });
+    }
+
+    const { data: progressRow, error: progressError } = await supabase
+      .from('daily_user_progress')
+      .select('id, water_ml, day_finalized, day_finalized_plan_day')
+      .eq('user_id', auth.userId)
+      .eq('progress_date', progressDate)
+      .maybeSingle();
+
+    if (progressError) {
+      console.error('[user/xp] daily progress read error:', progressError);
+      return NextResponse.json({ error: 'Nu am putut verifica progresul zilei.' }, { status: 500 });
+    }
+
+    const hydrationTargetMl = Math.max(0, Number(clientRow.hydration_target_ml) || 0);
+    if (!hydrationTargetMl || Math.max(0, Number(progressRow?.water_ml) || 0) < hydrationTargetMl) {
+      return NextResponse.json({ error: 'Mai întâi atinge targetul de apă.' }, { status: 409 });
+    }
+    if (progressRow?.day_finalized === true) {
+      return NextResponse.json({ error: 'Ziua este deja finalizată.' }, { status: 409 });
+    }
+
+    const { data: markedDay, error: markDayError } = await supabase
+      .from('daily_user_progress')
+      .update({
+        day_finalized: true,
+        day_finalized_plan_day: effectiveDayIndex,
+        day_finalized_at: now.toISOString(),
+      })
+      .eq('user_id', auth.userId)
+      .eq('progress_date', progressDate)
+      .eq('day_finalized', false)
+      .select('day_finalized, day_finalized_plan_day, day_finalized_at')
+      .maybeSingle();
+
+    if (markDayError) {
+      console.error('[user/xp] daily progress finalize error:', markDayError);
+      return NextResponse.json({ error: 'Nu am putut finaliza ziua.' }, { status: 500 });
+    }
+    if (!markedDay) {
+      return NextResponse.json({ error: 'Ziua este deja finalizată.' }, { status: 409 });
+    }
+
+    dayProgress = markedDay;
+  }
+
   const newXp = (clientRow.xp || 0) + amount;
   const info = getLevelInfo(newXp);
   const leveledUp = info.level > (Number(clientRow.level) || 1);
@@ -128,14 +188,45 @@ export async function POST(request) {
     updatePayload.weekly_plan_due_at = midnightIso;
   }
 
-  const { error: updateError } = await supabase
+  let updateQuery = supabase
     .from('users')
     .update(updatePayload)
     .eq('id', auth.userId);
 
+  if (completionType === 'meals') {
+    updateQuery = updateQuery.or(`meals_cooldown_until.is.null,meals_cooldown_until.lte.${now.toISOString()}`);
+  }
+  if (completionType === 'workout') {
+    updateQuery = updateQuery.or(`workout_cooldown_until.is.null,workout_cooldown_until.lte.${now.toISOString()}`);
+  }
+
+  const { data: updatedUser, error: updateError } = await updateQuery
+    .select('id')
+    .maybeSingle();
+
   if (updateError) {
     console.error('[user/xp] update error:', updateError);
+    if (type === 'day') {
+      await supabase
+        .from('daily_user_progress')
+        .update({ day_finalized: false, day_finalized_plan_day: null, day_finalized_at: null })
+        .eq('user_id', auth.userId)
+        .eq('progress_date', progressDate);
+    }
     return NextResponse.json({ error: 'Eroare la actualizarea XP.' }, { status: 500 });
+  }
+  if (!updatedUser) {
+    if (type === 'day') {
+      await supabase
+        .from('daily_user_progress')
+        .update({ day_finalized: false, day_finalized_plan_day: null, day_finalized_at: null })
+        .eq('user_id', auth.userId)
+        .eq('progress_date', progressDate);
+    }
+    return NextResponse.json(
+      { error: completionType === 'meals' ? 'Ziua de mese a fost deja finalizată.' : 'Antrenamentul a fost deja finalizat.' },
+      { status: 409 }
+    );
   }
 
   const coinAwards = [];
@@ -147,7 +238,7 @@ export async function POST(request) {
       : type === 'onboarding'
         ? `onboarding:${auth.userId}`
         : type === 'progress_update'
-          ? `progress_update:${getCurrentPlanDateKey(now)}`
+          ? `progress_update:${progressDate}`
           : null;
 
     const award = await awardAppCoins({
@@ -197,5 +288,8 @@ export async function POST(request) {
     workoutCompletedDays: nextWorkoutDays,
     ...getDayStatusPayload(dailyState),
     weeklyPlanDueAt: updatePayload.weekly_plan_due_at || clientRow.weekly_plan_due_at || null,
+    dayFinalized: type === 'day' ? dayProgress?.day_finalized === true : undefined,
+    dayFinalizedPlanDay: type === 'day' ? dayProgress?.day_finalized_plan_day : undefined,
+    dayFinalizedAt: type === 'day' ? (dayProgress?.day_finalized_at || null) : undefined,
   });
 }

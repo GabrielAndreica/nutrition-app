@@ -38,5 +38,17 @@ export async function POST(request) {
     userAgent,
   });
 
-  return Response.json({ ok: true });
+  const response = Response.json({ ok: true });
+  response.headers.append(
+    'Set-Cookie',
+    [
+      'token=',
+      'Path=/',
+      'Max-Age=0',
+      'SameSite=Lax',
+      'HttpOnly',
+      process.env.NODE_ENV === 'production' ? 'Secure' : '',
+    ].filter(Boolean).join('; ')
+  );
+  return response;
 }

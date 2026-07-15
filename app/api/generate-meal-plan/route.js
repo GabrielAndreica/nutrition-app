@@ -1773,10 +1773,17 @@ export async function POST(request) {
 
     // Dacă avem clientId, folosim strict câmpurile de nutriție din tabela users.
     const rawClientId = clientData?.clientId ? String(clientData.clientId).trim() : '';
+    if ((auth.role === 'user' || auth.role === 'client') && !rawClientId) {
+      return NextResponse.json(
+        { error: 'Profilul utilizatorului este obligatoriu pentru generarea planului alimentar.' },
+        { status: 400 }
+      );
+    }
+
     if (rawClientId) {
       const supabase = getSupabase();
       // In B2C: clientId === userId; verifică ownership
-      if ((auth.role === 'user' || auth.role === 'client') && rawClientId !== auth.userId) {
+      if ((auth.role === 'user' || auth.role === 'client') && rawClientId !== String(auth.userId)) {
         return NextResponse.json(
           { error: 'Clientul nu a fost găsit sau nu ai acces la el.' },
           { status: 404 }

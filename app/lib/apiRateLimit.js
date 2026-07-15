@@ -6,6 +6,13 @@ function normalizeIdentifier(value) {
   return String(value || 'unknown').trim().slice(0, 160);
 }
 
+function rateLimitsDisabledForLocalTesting() {
+  if (process.env.NODE_ENV === 'production') return false;
+  return ['1', 'true', 'yes', 'on'].includes(
+    String(process.env.DISABLE_RATE_LIMITS || '').trim().toLowerCase()
+  );
+}
+
 export async function enforceRateLimit(request, {
   identifier,
   userId,
@@ -19,6 +26,10 @@ export async function enforceRateLimit(request, {
     identifier || (userId ? `user:${userId}` : `ip:${ip}`)
   );
   const rateLimitEndpoint = normalizeIdentifier(endpoint || 'api');
+
+  if (rateLimitsDisabledForLocalTesting()) {
+    return null;
+  }
 
   try {
     const supabase = getSupabase();

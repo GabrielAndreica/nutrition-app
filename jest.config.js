@@ -11,6 +11,7 @@ module.exports = createJestConfig({
     '\\.module\\.css$': 'identity-obj-proxy',
     '\\.css$': 'identity-obj-proxy',
   },
+  modulePathIgnorePatterns: ['<rootDir>/.next/'],
   testPathIgnorePatterns: ['/node_modules/', '/.next/'],
   testMatch: ['**/__tests__/**/*.test.js'],
   coverageDirectory: 'coverage',

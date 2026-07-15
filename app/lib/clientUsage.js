@@ -18,7 +18,7 @@ export function hashClientKey(value) {
 }
 
 function planLabel(subscription) {
-  if (subscription.status === 'trial') return 'Trial';
+  if (subscription.status === 'free') return 'Free';
   if (subscription.plan === 'pro') return 'Pro';
   if (subscription.plan === 'starter') return 'Starter';
   return 'abonamentul curent';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { ProtectedRoute } from '@/app/components/ProtectedRoute';
@@ -37,22 +37,12 @@ const fireConfetti = async () => {
 // Dynamic import cu ssr: false pentru MealPlan (folosește jsPDF)
 const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPlan'), {
   ssr: false,
-  loading: () => (
-    <div className={styles.loadingContainer}>
-      <div className={styles.loadingSpinner} />
-      <p>Se încarcă planul...</p>
-    </div>
-  )
+  loading: () => <PlanModuleSkeleton compact />
 });
 
 const WorkoutPlan = dynamic(() => import('@/app/components/WorkoutPlanGenerator/WorkoutPlan'), {
   ssr: false,
-  loading: () => (
-    <div className={styles.loadingContainer}>
-      <div className={styles.loadingSpinner} />
-      <p>Se încarcă planul de antrenament...</p>
-    </div>
-  )
+  loading: () => <PlanModuleSkeleton compact />
 });
 
 const fireSmallConfetti = async () => {
@@ -61,6 +51,96 @@ const fireSmallConfetti = async () => {
 };
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+
+const RECIPE_MEAL_TYPE_LABELS = {
+  breakfast: 'Mic dejun',
+  lunch: 'Prânz',
+  dinner: 'Cină',
+  snack: 'Gustare',
+};
+const SHOW_RECIPE_SHOP = false;
+const SHOW_APP_COINS = false;
+
+function PlanModuleSkeleton({ compact = false }) {
+  return (
+    <div className={`${styles.moduleSkeleton} ${compact ? styles.moduleSkeletonCompact : ''}`}>
+      <div className={styles.moduleSkeletonTop}>
+        <div className={`${styles.shimmer} ${styles.moduleSkeletonBack}`} />
+        <div className={`${styles.shimmer} ${styles.moduleSkeletonPill}`} />
+      </div>
+      <div className={styles.moduleSkeletonHeader}>
+        <div>
+          <div className={`${styles.shimmer} ${styles.moduleSkeletonTitle}`} />
+          <div className={`${styles.shimmer} ${styles.moduleSkeletonSubtitle}`} />
+        </div>
+        <div className={`${styles.shimmer} ${styles.moduleSkeletonBadge}`} />
+      </div>
+      <div className={styles.moduleSkeletonDays}>
+        {[1, 2, 3, 4, 5, 6, 7].map(i => (
+          <div key={i} className={`${styles.shimmer} ${styles.moduleSkeletonDay}`} />
+        ))}
+      </div>
+      <div className={styles.moduleSkeletonCards}>
+        {[1, 2, 3].map(i => (
+          <div key={i} className={styles.moduleSkeletonCard}>
+            <div className={`${styles.shimmer} ${styles.moduleSkeletonImage}`} />
+            <div className={styles.moduleSkeletonBody}>
+              <div className={`${styles.shimmer} ${styles.moduleSkeletonLineLg}`} />
+              <div className={`${styles.shimmer} ${styles.moduleSkeletonLineSm}`} />
+              <div className={`${styles.shimmer} ${styles.moduleSkeletonButton}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DashboardLoadingSkeleton() {
+  return (
+    <div className={styles.dashboardSkeleton}>
+      <div className={styles.dashboardSkeletonHero}>
+        <div>
+          <div className={`${styles.shimmer} ${styles.dashboardSkeletonGreeting}`} />
+          <div className={`${styles.shimmer} ${styles.dashboardSkeletonSub}`} />
+        </div>
+        <div className={`${styles.shimmer} ${styles.dashboardSkeletonStreak}`} />
+      </div>
+
+      <div className={styles.dashboardSkeletonProgress}>
+        <div className={`${styles.shimmer} ${styles.dashboardSkeletonCircle}`} />
+        <div className={styles.dashboardSkeletonProgressText}>
+          <div className={`${styles.shimmer} ${styles.dashboardSkeletonLineLg}`} />
+          <div className={`${styles.shimmer} ${styles.dashboardSkeletonLineSm}`} />
+        </div>
+      </div>
+
+      <div className={styles.dashboardSkeletonMissions}>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className={styles.dashboardSkeletonMission}>
+            <div className={`${styles.shimmer} ${styles.dashboardSkeletonDot}`} />
+            <div className={`${styles.shimmer} ${styles.dashboardSkeletonMissionLine}`} />
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.dashboardSkeletonCards}>
+        {[1, 2].map(i => (
+          <div key={i} className={styles.dashboardSkeletonActionCard}>
+            <div className={`${styles.shimmer} ${styles.dashboardSkeletonLineLg}`} />
+            <div className={`${styles.shimmer} ${styles.dashboardSkeletonLineSm}`} />
+            <div className={`${styles.shimmer} ${styles.dashboardSkeletonAction}`} />
+          </div>
+        ))}
+      </div>
+
+      <div className={styles.dashboardSkeletonBottom}>
+        <div className={`${styles.shimmer} ${styles.dashboardSkeletonWater}`} />
+        <div className={`${styles.shimmer} ${styles.dashboardSkeletonXp}`} />
+      </div>
+    </div>
+  );
+}
 
 function getLevelInfoFromXp(xp) {
   const totalXp = Math.max(0, Number(xp) || 0);
@@ -149,6 +229,10 @@ const WORKOUT_FOCUS_COPY = {
   core: {
     title: 'Core',
     description: 'Sesiune pentru abdomen și stabilitate, cu mișcări care susțin postura și controlul întregului corp.',
+  },
+  rest: {
+    title: 'Rest Day',
+    description: 'Zi de recuperare: păstrează mișcarea ușoară, hidratarea bună și somnul serios. Pauza face parte din progres.',
   },
 };
 
@@ -264,12 +348,25 @@ function ClientDashboardContent() {
   const [waterMl, setWaterMl] = useState(0);
   const [waterLoaded, setWaterLoaded] = useState(false);
   const [waterSaving, setWaterSaving] = useState(false);
+  const [dayFinalized, setDayFinalized] = useState(false);
   const [streakCount, setStreakCount] = useState(0);
   const [streakState, setStreakState] = useState('normal');
   const [weeklyPlanRegenerating, setWeeklyPlanRegenerating] = useState(false);
   const [weeklyRegenProgress, setWeeklyRegenProgress] = useState(6);
   const [weeklyRegenStep, setWeeklyRegenStep] = useState(0);
   const [weeklyRegenMessage, setWeeklyRegenMessage] = useState('Pregătim planurile noi...');
+  const [weeklyCheckInDue, setWeeklyCheckInDue] = useState(false);
+  const [weeklyCheckInStatus, setWeeklyCheckInStatus] = useState(null);
+  const [weeklyCheckInForm, setWeeklyCheckInForm] = useState({
+    weightKg: '',
+    mealAdherencePct: null,
+    workoutAdherencePct: null,
+    workoutDifficulty: null,
+    hungerLevel: null,
+  });
+  const [weeklyCheckInSubmitting, setWeeklyCheckInSubmitting] = useState(false);
+  const [weeklyCheckInError, setWeeklyCheckInError] = useState('');
+  const [weeklyCheckInResult, setWeeklyCheckInResult] = useState(null);
   const [progressFormOpen, setProgressFormOpen] = useState(false);
   const [allNotifications, setAllNotifications] = useState([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -287,6 +384,7 @@ function ClientDashboardContent() {
   const [workoutSession, setWorkoutSession] = useState(null);
   // null | { exercises, focus } — shown before timer starts (pre-flight)
   const [workoutStartScreen, setWorkoutStartScreen] = useState(null);
+  const [workoutTodayPreview, setWorkoutTodayPreview] = useState(null);
   // true when a paused session exists in DB (shows "Continuă" button)
   const [hasActivePausedSession, setHasActivePausedSession] = useState(false);
   const [confirmAbandonWorkout, setConfirmAbandonWorkout] = useState(false);
@@ -306,6 +404,11 @@ function ClientDashboardContent() {
   const [finishReward, setFinishReward] = useState(null);
   const [pendingLevelUp, setPendingLevelUp] = useState(null);
   const [levelUpReward, setLevelUpReward] = useState(null);
+  const [shopRecipes, setShopRecipes] = useState([]);
+  const [shopLoading, setShopLoading] = useState(false);
+  const [shopError, setShopError] = useState('');
+  const [shopAppCoins, setShopAppCoins] = useState(0);
+  const [purchasingRecipeId, setPurchasingRecipeId] = useState(null);
 
   const applyUserPlansSnapshot = (profileData) => {
     if (!profileData?.client) return false;
@@ -327,6 +430,7 @@ function ClientDashboardContent() {
       name: c.name || 'Tu',
       age: c.age ? String(c.age) : undefined,
       weight: c.weight ? String(c.weight) : undefined,
+      targetWeight: c.target_weight ? String(c.target_weight) : undefined,
       height: c.height ? String(c.height) : undefined,
       gender: c.gender,
       goal: c.goal,
@@ -348,6 +452,85 @@ function ClientDashboardContent() {
     return response.json();
   };
 
+  const loadWeeklyCheckInStatus = async (token) => {
+    if (!token) return null;
+    try {
+      const response = await fetch('/api/user/weekly-checkin', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nu am putut citi check-in-ul.');
+      setWeeklyCheckInStatus(data);
+      setWeeklyCheckInDue(!!data.due);
+      return data;
+    } catch (err) {
+      console.error('Weekly check-in status failed:', err);
+      return null;
+    }
+  };
+
+  const refreshWorkoutTodayPreview = async (token) => {
+    if (!token) return null;
+    try {
+      const response = await fetch('/api/user/workout-session?focus=auto&preview=1', {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+      if (!response.ok) return null;
+      const data = await response.json().catch(() => null);
+      setWorkoutTodayPreview(data);
+      return data;
+    } catch {
+      return null;
+    }
+  };
+
+  const fetchShopRecipes = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setShopLoading(true);
+    setShopError('');
+    try {
+      const response = await fetch('/api/user/recipes', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nu am putut încărca magazinul.');
+
+      setShopRecipes((data.recipes || []).filter(recipe => recipe.unlocked !== true));
+      setShopAppCoins(Math.max(0, Number(data.appCoins) || 0));
+      setUserLevel(prev => prev ? { ...prev, appCoins: data.appCoins } : prev);
+    } catch (err) {
+      setShopError(err.message || 'Nu am putut încărca magazinul.');
+    } finally {
+      setShopLoading(false);
+    }
+  }, []);
+
+  const handlePurchaseRecipe = async (recipeId) => {
+    const token = localStorage.getItem('token');
+    if (!token || purchasingRecipeId) return;
+
+    setPurchasingRecipeId(recipeId);
+    setShopError('');
+    try {
+      const response = await fetch(`/api/user/recipes/${recipeId}/purchase`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nu am putut cumpăra rețeta.');
+
+      setShopRecipes(prev => prev.filter(recipe => String(recipe.id) !== String(recipeId)));
+      setShopAppCoins(Math.max(0, Number(data.appCoins) || 0));
+      setUserLevel(prev => prev ? { ...prev, appCoins: data.appCoins } : prev);
+    } catch (err) {
+      setShopError(err.message || 'Nu am putut cumpăra rețeta.');
+    } finally {
+      setPurchasingRecipeId(null);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'plan') return undefined;
 
@@ -367,6 +550,11 @@ function ClientDashboardContent() {
 
     return undefined;
   }, [activeTab, currentPlanDay, mealPlan]);
+
+  useEffect(() => {
+    if (activeTab !== 'shop') return;
+    fetchShopRecipes();
+  }, [activeTab, fetchShopRecipes]);
 
   useEffect(() => {
     if (!weeklyPlanRegenerating) return;
@@ -613,6 +801,7 @@ function ClientDashboardContent() {
           name: c.name || plan_data.clientName,
           age: c.age ? String(c.age) : undefined,
           weight: c.weight ? String(c.weight) : undefined,
+          targetWeight: c.target_weight ? String(c.target_weight) : undefined,
           height: c.height ? String(c.height) : undefined,
           gender: c.gender,
           goal: c.goal,
@@ -692,6 +881,8 @@ function ClientDashboardContent() {
       .then(data => { if (data?.activeSession) setHasActivePausedSession(true); })
       .catch(() => {});
 
+    refreshWorkoutTodayPreview(tok2);
+
     // Verifică reward pending de la onboarding
     try {
       const raw = localStorage.getItem('pendingOnboardingReward');
@@ -699,12 +890,14 @@ function ClientDashboardContent() {
         localStorage.removeItem('pendingOnboardingReward');
         const reward = JSON.parse(raw);
         setTimeout(() => {
-          fireConfetti();
           if (reward.type === 'levelUp') {
             setLevelUpReward({ fromLevel: reward.fromLevel, toLevel: reward.toLevel, levelInfo: reward.levelInfo });
           } else {
             setFinishReward({ type: 'onboarding', levelInfo: reward.levelInfo });
           }
+          setTimeout(() => {
+            fireConfetti();
+          }, 120);
         }, 600);
       }
     } catch { /* ignore */ }
@@ -767,6 +960,7 @@ function ClientDashboardContent() {
           name: c.name || plan_data.clientName,
           age: c.age ? String(c.age) : undefined,
           weight: c.weight ? String(c.weight) : undefined,
+          targetWeight: c.target_weight ? String(c.target_weight) : undefined,
           height: c.height ? String(c.height) : undefined,
           gender: c.gender,
           goal: c.goal,
@@ -799,10 +993,10 @@ function ClientDashboardContent() {
         setStreakCount(Math.max(0, Number(data?.streakCount) || 0));
         setStreakState(data?.streakState === 'warning' ? 'warning' : 'normal');
         if (data?.weeklyPlanDue && !data?.weeklyPlanRegenerating) {
-          startWeeklyPlanRegenerationRef.current?.(token);
-          return;
+          setWeeklyCheckInDue(true);
         }
         setWeeklyPlanRegenerating(!!data?.weeklyPlanRegenerating);
+        loadWeeklyCheckInStatus(token);
         setLoading(false);
       })
       .catch(err => {
@@ -982,6 +1176,7 @@ function ClientDashboardContent() {
   const firstName = user?.name?.split(' ')[0] || user?.name || '';
   const todayKey = String(currentPlanDay);
   const mealsDoneToday = mealDayStatus?.[todayKey] === true;
+  const isWorkoutRestDayToday = !hasActivePausedSession && workoutTodayPreview?.isRestDay === true;
   const workoutDoneToday = workoutDayStatus?.[todayKey] === true;
   const hydrationTargetMl = Number(clientData?.hydrationTargetMl) || null;
   const hydrationTargetLoaded = Number.isFinite(hydrationTargetMl) && hydrationTargetMl > 0;
@@ -1007,17 +1202,59 @@ function ClientDashboardContent() {
     : [];
   const waterDoneToday = hydrationTargetLoaded && waterLoaded && waterMl >= hydrationTargetMl;
   const hasWorkoutInProgress = hasActivePausedSession || workoutSession?.phase === 'active';
-  const dayDoneToday = workoutDoneToday && mealsDoneToday && waterDoneToday;
-  const todayMissionDoneCount = [workoutDoneToday, mealsDoneToday, waterDoneToday, dayDoneToday].filter(Boolean).length;
+  const dayDoneToday = dayFinalized === true;
   const weeklyDoneCount =
     Object.values(mealDayStatus || {}).filter(Boolean).length +
     Object.values(workoutDayStatus || {}).filter(Boolean).length;
   const weeklyCompletionPct = Math.min(100, Math.round((weeklyDoneCount / 14) * 100));
+  const dailyMissions = [
+    {
+      key: 'workout',
+      label: isWorkoutRestDayToday ? 'Bifează recuperarea zilei' : 'Finalizează antrenamentul de azi',
+      done: workoutDoneToday,
+    },
+    {
+      key: 'meals',
+      label: 'Respectă mesele zilei',
+      done: mealsDoneToday,
+    },
+    {
+      key: 'water',
+      label: hydrationTargetLoaded ? `Bea ${hydrationTargetLiters} L apă` : 'Bea apa zilei',
+      done: waterDoneToday,
+    },
+    {
+      key: 'day',
+      label: 'Finalizează ziua',
+      done: dayDoneToday,
+    },
+  ];
+  const dailyMissionDoneCount = dailyMissions.filter(mission => mission.done).length;
+  const dailyMissionTotal = dailyMissions.length;
+  const dailyProgressPct = Math.round((dailyMissionDoneCount / dailyMissionTotal) * 100);
+  const dailyProgressMessage = dailyMissionDoneCount === dailyMissionTotal
+    ? 'Zi completă. Ai luat XP-ul pentru consecvență.'
+    : dailyMissionDoneCount === dailyMissionTotal - 1
+      ? 'Mai ai un pas pentru ziua de azi.'
+      : `Mai ai ${dailyMissionTotal - dailyMissionDoneCount} pași pentru ziua de azi.`;
+  const workoutMetaText = isWorkoutRestDayToday
+    ? 'Zi de recuperare. Bifeaz-o când ai respectat pauza.'
+    : 'Deschide sesiunea pregătită pentru azi.';
+  const waterProgressPct = hydrationTargetLoaded && waterLoaded
+    ? Math.min(100, Math.round((waterMl / hydrationTargetMl) * 100))
+    : 0;
+  const waterProgressText = hydrationTargetLoaded && waterLoaded
+    ? `${waterMl} / ${hydrationTargetMl} ml`
+    : 'Se încarcă progresul de apă';
+  const xpLevel = userLevel || getLevelInfoFromXp(0);
+  const nextLevel = (Number(xpLevel?.level) || 1) + 1;
   const finishRewardTitle = finishReward
     ? (finishReward.type === 'onboarding'
       ? 'Înregistrare finalizată!'
       : finishReward.type === 'meals'
       ? 'Mese finalizate'
+      : finishReward.type === 'day'
+      ? 'Zi finalizată'
       : finishReward.isRecovery
       ? 'Recuperare bifată'
       : 'Antrenament finalizat')
@@ -1027,6 +1264,8 @@ function ClientDashboardContent() {
       ? 'Bine ai venit! Ai câștigat primii 50 XP pentru că ți-ai completat profilul.'
       : finishReward.type === 'meals'
       ? 'Bravo, ai închis ziua alimentar cum trebuie. +50 XP pentru consecvență.'
+      : finishReward.type === 'day'
+      ? 'Ai închis toate misiunile zilei. +50 XP pentru consecvență.'
       : finishReward.isRecovery
       ? 'Foarte bine. Recuperarea contează la fel de mult ca efortul. +50 XP adăugați.'
       : 'Excelent. Ai dus antrenamentul până la capăt și ai câștigat +50 XP.')
@@ -1041,16 +1280,22 @@ function ClientDashboardContent() {
         const token = localStorage.getItem('token');
         if (!token) throw new Error('Token lipsă.');
 
-        const response = await fetch('/api/user/daily-progress', {
+        const response = await fetch(`/api/user/daily-progress?planDay=${encodeURIComponent(currentPlanDay)}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(data.error || 'Nu am putut citi apa de azi.');
 
-        if (!cancelled) setWaterMl(Math.max(0, Number(data.waterMl) || 0));
+        if (!cancelled) {
+          setWaterMl(Math.max(0, Number(data.waterMl) || 0));
+          setDayFinalized(data.dayFinalized === true);
+        }
       } catch (err) {
         console.error('Daily water sync load failed:', err);
-        if (!cancelled) setWaterMl(0);
+        if (!cancelled) {
+          setWaterMl(0);
+          setDayFinalized(false);
+        }
       } finally {
         if (!cancelled) setWaterLoaded(true);
       }
@@ -1058,7 +1303,7 @@ function ClientDashboardContent() {
 
     loadDailyWater();
     return () => { cancelled = true; };
-  }, [user?.id]);
+  }, [currentPlanDay, user?.id]);
   const closeFinishReward = () => {
     setFinishReward(null);
     if (pendingLevelUp) {
@@ -1071,7 +1316,7 @@ function ClientDashboardContent() {
   const handleLogout = () => { logout(); router.push('/'); };
   const handleTabChange = (tab) => { setActiveTab(tab); setSidebarOpen(false); };
   const handleAddWater = async () => {
-    if (!hydrationTargetLoaded || !waterLoaded || waterSaving || waterDoneToday) return;
+    if (!hydrationTargetLoaded || !waterLoaded || waterSaving || waterDoneToday || dayFinalized) return;
 
     const previous = waterMl;
     const next = Math.min(hydrationTargetMl, previous + 250);
@@ -1088,7 +1333,7 @@ function ClientDashboardContent() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ waterMl: next }),
+        body: JSON.stringify({ waterMl: next, planDay: currentPlanDay }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Nu am putut salva apa de azi.');
@@ -1098,6 +1343,57 @@ function ClientDashboardContent() {
       setWaterMl(previous);
     } finally {
       setWaterSaving(false);
+    }
+  };
+
+  const handleWeeklyCheckInChange = (field, value) => {
+    setWeeklyCheckInForm(prev => ({ ...prev, [field]: value }));
+    setWeeklyCheckInError('');
+  };
+
+  const handleWeeklyCheckInSubmit = async (event) => {
+    event.preventDefault();
+    if (weeklyCheckInSubmitting) return;
+
+    setWeeklyCheckInSubmitting(true);
+    setWeeklyCheckInError('');
+    setWeeklyCheckInResult(null);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Token lipsă.');
+
+      const response = await fetch('/api/user/weekly-checkin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          weightKg: weeklyCheckInForm.weightKg,
+          mealAdherencePct: weeklyCheckInForm.mealAdherencePct,
+          workoutAdherencePct: weeklyCheckInForm.workoutAdherencePct,
+          workoutDifficulty: weeklyCheckInForm.workoutDifficulty,
+          hungerLevel: weeklyCheckInForm.hungerLevel,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nu am putut salva check-in-ul.');
+
+      setWeeklyCheckInResult(data);
+      setWeeklyCheckInDue(false);
+      setWeeklyCheckInStatus(prev => ({ ...(prev || {}), due: false, latestCheckIn: data }));
+      if (data.targetsAfter) setNutritionalNeeds(data.targetsAfter);
+      if (data.planAdjusted) {
+        const snapshot = await fetchUserPlansSnapshot(token);
+        applyUserPlansSnapshot(snapshot);
+      } else {
+        setClientData(prev => prev ? { ...prev, weight: String(weeklyCheckInForm.weightKg || prev.weight) } : prev);
+      }
+    } catch (err) {
+      setWeeklyCheckInError(err.message || 'Check-in-ul nu a putut fi salvat.');
+    } finally {
+      setWeeklyCheckInSubmitting(false);
     }
   };
 
@@ -1121,120 +1417,302 @@ function ClientDashboardContent() {
     handleStartWorkoutSession();
   };
 
-  const renderMissionBullet = (done) => (
-    <span className={`${styles.journeyBullet} ${done ? styles.journeyBulletDone : ''}`}>
-      {done ? (
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-          <polyline points="20 6 9 17 4 12" />
-        </svg>
-      ) : null}
-    </span>
-  );
-
-  const renderJourneyDashboard = () => (
-    <div className={`${styles.dummyPlanScreen} ${styles.dummyPlanScreenDash}`}>
-      <div className={styles.journeyLayout}>
-        <section className={styles.journeyPanel}>
-          <div className={styles.journeyPanelHead}>
-            <span className={styles.journeyPanelLabel}>Misiunile de azi</span>
-            <span className={styles.journeyPanelCount}>{todayMissionDoneCount}<small>/4</small></span>
+  const renderRecipeShop = () => (
+    <div className={styles.shopPage}>
+      <div className={styles.shopHeader}>
+        <button className={styles.shopBackBtn} onClick={() => handleTabChange('home')}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Înapoi
+        </button>
+        <div className={styles.shopTitleRow}>
+          <div>
+            <h1 className={styles.shopTitle}>Magazin</h1>
+            <p className={styles.shopSubtitle}>Deblochează mese noi pentru planurile tale viitoare.</p>
           </div>
-          <div className={styles.journeyMissionRows}>
-            <div className={styles.journeyMissionRow}>
-              {renderMissionBullet(workoutDoneToday)}
-              <span className={`${styles.journeyMissionText} ${workoutDoneToday ? styles.journeyMissionTextDone : ''}`}>
-                Finalizează antrenamentul
-              </span>
-            </div>
-            <div className={styles.journeyMissionRow}>
-              {renderMissionBullet(mealsDoneToday)}
-              <span className={`${styles.journeyMissionText} ${mealsDoneToday ? styles.journeyMissionTextDone : ''}`}>
-                Respectă mesele zilei
-              </span>
-            </div>
-            <div className={styles.journeyMissionRow}>
-              {renderMissionBullet(waterDoneToday)}
-              <span className={`${styles.journeyMissionText} ${waterDoneToday ? styles.journeyMissionTextDone : ''}`}>
-                {hydrationTargetLoaded ? `Bea ${hydrationTargetLiters} L apă` : 'Încarcă targetul de apă'}
-              </span>
-            </div>
-            <div className={styles.journeyMissionRow}>
-              {renderMissionBullet(dayDoneToday)}
-              <span className={`${styles.journeyMissionText} ${dayDoneToday ? styles.journeyMissionTextDone : ''}`}>
-                Finalizează ziua
-              </span>
-            </div>
+          <div className={styles.shopWallet}>
+            <CoinAmount amount={userLevel?.appCoins ?? shopAppCoins} />
           </div>
-        </section>
+        </div>
+      </div>
 
-        <section>
-          <div className={styles.journeyCards}>
-            <article className={`${styles.jCard} ${workoutDoneToday ? styles.jCardDone : ''}`}>
-              <h2 className={styles.jCardTitle}>Antrenament</h2>
-              <p className={styles.jCardSub}>
-                {workoutDoneToday ? 'Antrenamentul de azi este bifat.' : hasActivePausedSession ? 'Ai un antrenament început.' : 'Pornește sesiunea de azi.'}
-              </p>
-              <div className={styles.jCardFoot}>
-                {workoutDoneToday ? (
-                  <span className={styles.jCardStatusDone}>✓ Finalizat</span>
+      {shopError && (
+        <div className={styles.shopError}>{shopError}</div>
+      )}
+
+      {shopLoading ? (
+        <div className={styles.shopState}>Se încarcă rețetele...</div>
+      ) : shopRecipes.length === 0 ? (
+        <div className={styles.shopState}>Ai deblocat toate rețetele disponibile momentan.</div>
+      ) : (
+        <div className={styles.shopGrid}>
+          {shopRecipes.map(recipe => {
+            const canAfford = (Number(userLevel?.appCoins ?? shopAppCoins) || 0) >= Number(recipe.coinPrice || 0);
+            const isPurchasing = purchasingRecipeId === recipe.id;
+            return (
+              <article key={recipe.id} className={styles.shopRecipeCard}>
+                {recipe.imageUrl ? (
+                  <div className={styles.shopRecipeImageWrap}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      className={styles.shopRecipeImage}
+                      src={recipe.imageUrl}
+                      alt={recipe.name}
+                      loading="lazy"
+                      decoding="async"
+                      onError={(event) => {
+                        if (recipe.imageFallbackUrl && event.currentTarget.src !== recipe.imageFallbackUrl) {
+                          event.currentTarget.src = recipe.imageFallbackUrl;
+                        }
+                      }}
+                    />
+                  </div>
                 ) : (
-                  <button className={styles.jCardGenBtn} onClick={openWorkoutPlan}>
-                    {hasActivePausedSession ? (
+                  <div className={styles.shopRecipeImageEmpty}>
+                    <span>{RECIPE_MEAL_TYPE_LABELS[recipe.mealType] || 'Masă'}</span>
+                  </div>
+                )}
+                <div className={styles.shopRecipeBody}>
+                  <span className={styles.shopRecipeType}>{RECIPE_MEAL_TYPE_LABELS[recipe.mealType] || recipe.mealType}</span>
+                  <h2 className={styles.shopRecipeName}>{recipe.name}</h2>
+                  {recipe.proteinSource && (
+                    <p className={styles.shopRecipeMeta}>{recipe.proteinSource}</p>
+                  )}
+                  <button
+                    className={styles.shopBuyBtn}
+                    onClick={() => handlePurchaseRecipe(recipe.id)}
+                    disabled={!canAfford || isPurchasing}
+                    title={!canAfford ? 'Nu ai suficiente monede.' : undefined}
+                  >
+                    {isPurchasing ? 'Se cumpără...' : (
                       <>
-                        <WorkoutButtonIcon />
-                        Continuă
-                      </>
-                    ) : workoutPlan ? 'Deschide' : (
-                      <>
-                        <WorkoutButtonIcon />
-                        Începe
+                        Deblochează
+                        <CoinAmount amount={recipe.coinPrice || 0} compact />
                       </>
                     )}
                   </button>
-                )}
-              </div>
-            </article>
-
-            <article className={`${styles.jCard} ${mealsDoneToday ? styles.jCardDone : ''}`}>
-              <h2 className={styles.jCardTitle}>Mese</h2>
-              <p className={styles.jCardSub}>
-                {mealsDoneToday ? 'Ai închis ziua alimentar.' : 'Vezi mesele zilei.'}
-              </p>
-              <div className={styles.jCardFoot}>
-                {mealsDoneToday ? (
-                  <span className={styles.jCardStatusDone}>✓ Finalizat</span>
-                ) : (
-                  <button className={styles.jCardGenBtn} onClick={openMealPlan}>
-                    Vezi mesele
-                  </button>
-                )}
-              </div>
-            </article>
-
-            <article className={`${styles.jCard} ${waterDoneToday ? styles.jCardDone : ''}`}>
-              <h2 className={styles.jCardTitle}>Apă</h2>
-              <p className={styles.jCardSub}>
-                {hydrationTargetLoaded && waterLoaded
-                  ? `${waterMl} / ${hydrationTargetMl} ml azi`
-                  : 'Se încarcă progresul de apă...'}
-              </p>
-              <div className={styles.jCardFoot}>
-                <div className={styles.jCardWaterRow}>
-                  <div className={styles.jCardWaterTrack}>
-                    <div
-                      className={`${styles.jCardWaterFill} ${waterDoneToday ? styles.jCardWaterFillDone : ''}`}
-                      style={{ width: `${hydrationTargetLoaded && waterLoaded ? Math.min(100, Math.round((waterMl / hydrationTargetMl) * 100)) : 0}%` }}
-                    />
-                  </div>
-                  <button className={styles.jCardWaterBtn} onClick={handleAddWater} disabled={!hydrationTargetLoaded || !waterLoaded || waterSaving || waterDoneToday}>
-                    {waterSaving ? '...' : '+250ml'}
-                  </button>
                 </div>
-              </div>
-            </article>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
+  const renderWeeklyCheckInChoices = (field, options) => (
+    <div className={styles.weeklyCheckInChoiceGroup}>
+      {options.map(option => {
+        const active = Number(weeklyCheckInForm[field]) === Number(option.value);
+        return (
+          <button
+            key={`${field}-${option.label}`}
+            type="button"
+            className={`${styles.weeklyCheckInChoiceBtn} ${active ? styles.weeklyCheckInChoiceBtnActive : ''}`}
+            onClick={() => handleWeeklyCheckInChange(field, option.value)}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
+  const renderWeeklyCheckInCard = () => {
+    if (!weeklyCheckInDue && !weeklyCheckInResult) return null;
+    const weeklyWeight = Number(weeklyCheckInForm.weightKg);
+    const weeklyCheckInComplete = Number.isFinite(weeklyWeight)
+      && weeklyWeight >= 30
+      && weeklyWeight <= 300
+      && weeklyCheckInForm.mealAdherencePct !== null
+      && weeklyCheckInForm.workoutAdherencePct !== null
+      && weeklyCheckInForm.workoutDifficulty !== null
+      && weeklyCheckInForm.hungerLevel !== null;
+    const goalLabel = (weeklyCheckInStatus?.goal || clientData?.goal) === 'weight_loss'
+      ? 'slăbit'
+      : (weeklyCheckInStatus?.goal || clientData?.goal) === 'muscle_gain'
+        ? 'masă musculară'
+        : 'menținere';
+
+    return (
+      <section className={styles.weeklyCheckInCard}>
+        <div className={styles.weeklyCheckInHead}>
+          <div>
+            <span className={styles.weeklyCheckInEyebrow}>Check-in săptămânal</span>
+            <h2 className={styles.weeklyCheckInTitle}>Cum a mers săptămâna?</h2>
           </div>
-        </section>
-      </div>
+        </div>
+
+        {weeklyCheckInResult ? (
+          <div className={styles.weeklyCheckInResult}>
+            <p>{weeklyCheckInResult.recommendation}</p>
+            {weeklyCheckInResult.planAdjusted ? (
+              <span>Planul alimentar a fost ajustat pentru săptămâna următoare.</span>
+            ) : (
+              <span>Targeturile rămân neschimbate. Obiectiv: {goalLabel}.</span>
+            )}
+          </div>
+        ) : (
+          <form className={styles.weeklyCheckInForm} onSubmit={handleWeeklyCheckInSubmit}>
+            <label className={styles.weeklyCheckInField}>
+              <span>Greutatea de azi (kg)</span>
+              <input
+                type="number"
+                min="30"
+                max="300"
+                step="0.1"
+                value={weeklyCheckInForm.weightKg}
+                onChange={(event) => handleWeeklyCheckInChange('weightKg', event.target.value)}
+                required
+              />
+            </label>
+
+            <div className={styles.weeklyCheckInField}>
+              <span>Cât te-ai ținut de mese?</span>
+              {renderWeeklyCheckInChoices('mealAdherencePct', [
+                { label: 'Deloc', value: 0 },
+                { label: 'Parțial', value: 50 },
+                { label: 'Complet', value: 100 },
+              ])}
+            </div>
+
+            <div className={styles.weeklyCheckInField}>
+              <span>Cât te-ai ținut de antrenamente?</span>
+              {renderWeeklyCheckInChoices('workoutAdherencePct', [
+                { label: 'Deloc', value: 0 },
+                { label: 'Parțial', value: 50 },
+                { label: 'Complet', value: 100 },
+              ])}
+            </div>
+
+            <div className={styles.weeklyCheckInMiniGrid}>
+              <div className={styles.weeklyCheckInField}>
+                <span>Cât de grele au fost antrenamentele?</span>
+                {renderWeeklyCheckInChoices('workoutDifficulty', [
+                  { label: 'Ușoare', value: 1 },
+                  { label: 'Normale', value: 3 },
+                  { label: 'Grele', value: 5 },
+                ])}
+              </div>
+
+              <div className={styles.weeklyCheckInField}>
+                <span>Cât de foame ți-a fost?</span>
+                {renderWeeklyCheckInChoices('hungerLevel', [
+                  { label: 'Foarte', value: 5 },
+                  { label: 'Normal', value: 3 },
+                  { label: 'Deloc', value: 1 },
+                ])}
+              </div>
+            </div>
+
+            {weeklyCheckInError && <p className={styles.weeklyCheckInError}>{weeklyCheckInError}</p>}
+
+            {weeklyCheckInComplete && (
+              <button className={styles.weeklyCheckInSubmit} type="submit" disabled={weeklyCheckInSubmitting}>
+                {weeklyCheckInSubmitting ? 'Se salvează...' : 'Finalizează check-in'}
+              </button>
+            )}
+          </form>
+        )}
+      </section>
+    );
+  };
+
+  const renderJourneyDashboard = () => (
+    <div className={`${styles.dummyPlanScreen} ${styles.dummyPlanScreenDash}`}>
+      {renderWeeklyCheckInCard()}
+      <section className={styles.dashboardTopLine}>
+        <h1 className={styles.dashboardGreeting}>Bună, {firstName || 'campion'} <span aria-hidden="true">👋</span></h1>
+      </section>
+
+      <section className={`${styles.dailyProgressHero} ${dailyProgressPct === 100 ? styles.dailyProgressHeroDone : ''}`}>
+        <div
+          className={styles.dailyProgressCircle}
+          style={{ '--daily-progress': `${dailyProgressPct}%` }}
+          aria-label={`${dailyMissionDoneCount} din ${dailyMissionTotal} misiuni completate`}
+        >
+          <div className={styles.dailyProgressCircleInner}>
+            <strong>{dailyMissionDoneCount} / {dailyMissionTotal}</strong>
+            <span>misiuni</span>
+          </div>
+        </div>
+        <p className={styles.dailyProgressMessage}>{dailyProgressMessage}</p>
+        <div className={styles.dailyMissionList}>
+          {dailyMissions.map(mission => (
+            <div key={mission.key} className={`${styles.dailyMissionItem} ${mission.done ? styles.dailyMissionItemDone : ''}`}>
+              <span className={styles.dailyMissionCheck}>{mission.done ? '✓' : ''}</span>
+              <span>{mission.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.dashboardActionGrid}>
+        <article className={`${styles.dashboardActionCard} ${workoutDoneToday ? styles.dashboardActionCardDone : ''}`}>
+          <div>
+            <h2>{isWorkoutRestDayToday ? 'Recuperare azi' : 'Antrenament azi'}</h2>
+            <p>{workoutDoneToday ? 'Completat' : workoutMetaText}</p>
+          </div>
+          {workoutDoneToday ? (
+            <span className={styles.dashboardDoneMark}>✅</span>
+          ) : isWorkoutRestDayToday ? (
+            <button
+              className={styles.dashboardActionBtn}
+              onClick={() => setConfirmFinish({ type: 'workout', dayIndex: currentPlanDay, isRecovery: true })}
+            >
+              START
+            </button>
+          ) : (
+            <button className={styles.dashboardActionBtn} onClick={openWorkoutPlan}>
+              START
+            </button>
+          )}
+        </article>
+
+        <article className={`${styles.dashboardActionCard} ${mealsDoneToday ? styles.dashboardActionCardDone : ''}`}>
+          <div>
+            <h2>Mese de azi</h2>
+            <p>{mealsDoneToday ? 'Completat' : 'Vezi ce mese ai pregătite pentru azi.'}</p>
+          </div>
+          {mealsDoneToday ? (
+            <span className={styles.dashboardDoneMark}>✅</span>
+          ) : (
+            <button className={styles.dashboardActionBtn} onClick={openMealPlan}>
+              VEZI
+            </button>
+          )}
+        </article>
+      </section>
+
+      <section className={`${styles.dashboardWaterPanel} ${waterDoneToday ? styles.dashboardWaterPanelDone : ''}`}>
+        <div className={styles.dashboardWaterHead}>
+          <div>
+            <h2>Apă</h2>
+            <p>{waterProgressText}</p>
+          </div>
+          <button
+            className={styles.dashboardWaterBtn}
+            onClick={handleAddWater}
+            disabled={!hydrationTargetLoaded || !waterLoaded || waterSaving || waterDoneToday}
+          >
+            {waterSaving ? '...' : '+250ml'}
+          </button>
+        </div>
+        <div className={styles.dashboardWaterTrack}>
+          <div className={styles.dashboardWaterFill} style={{ width: `${waterProgressPct}%` }} />
+        </div>
+      </section>
+
+      <section className={styles.dashboardXpPanel}>
+        <div className={styles.dashboardXpLine}>
+          <span><LevelLabel level={xpLevel.level} /> · {xpLevel.totalXp} XP</span>
+          <strong>{xpLevel.progressPct}% spre Level {nextLevel}</strong>
+        </div>
+        <div className={styles.dashboardXpTrack}>
+          <div className={styles.dashboardXpFill} style={{ width: `${xpLevel.progressPct}%` }} />
+        </div>
+      </section>
     </div>
   );
 
@@ -1285,10 +1763,13 @@ function ClientDashboardContent() {
         setWorkoutSession(null);
         return;
       }
+      setWorkoutTodayPreview(focusData);
       // Show pre-flight start screen
       setWorkoutSession(null);
       setWorkoutStartScreen({
         focus: focusData.focus,
+        isRestDay: focusData.isRestDay === true,
+        message: focusData.message,
         trainingSplit: focusData.trainingSplit,
         workoutDayIndex: focusData.workoutDayIndex,
         exerciseCount: focusData.exerciseCount,
@@ -1602,35 +2083,7 @@ function ClientDashboardContent() {
                 </div>
               </div>
             ) : (
-            <div className={styles.skeletonWrap}>
-              <div className={styles.skeletonClientHeader}>
-                <div className={styles.skeletonNameBlock}>
-                  <div className={`${styles.shimmer} ${styles.skeletonName}`} />
-                  <div className={`${styles.shimmer} ${styles.skeletonSub}`} />
-                </div>
-                <div className={styles.skeletonStats}>
-                  {[1, 2, 3, 4].map(i => (
-                    <div key={i} className={`${styles.shimmer} ${styles.skeletonStat}`} />
-                  ))}
-                </div>
-              </div>
-              <div className={styles.skeletonRightColumn}>
-                <div className={styles.skeletonTabsRow}>
-                  <div className={styles.skeletonTabGroup}>
-                    {[1, 2, 3, 4, 5, 6, 7].map(i => (
-                      <div key={i} className={`${styles.shimmer} ${styles.skeletonTab}`} />
-                    ))}
-                  </div>
-                  <div className={`${styles.shimmer} ${styles.skeletonDownload}`} />
-                </div>
-                <div className={styles.skeletonBar} />
-                <div className={styles.skeletonMealsGrid}>
-                  {[1, 2, 3, 4].map(i => (
-                    <div key={i} className={`${styles.shimmer} ${styles.skeletonMealCard}`} />
-                  ))}
-                </div>
-              </div>
-            </div>
+            <DashboardLoadingSkeleton />
             )}
           </main>
         </div>
@@ -1660,7 +2113,7 @@ function ClientDashboardContent() {
             </div>
           </div>
         )}
-        {userLevel && (
+        {SHOW_APP_COINS && userLevel && (
           <div className={styles.mobileCoinPill}>
             <CoinAmount amount={userLevel.appCoins || 0} compact />
           </div>
@@ -1717,6 +2170,25 @@ function ClientDashboardContent() {
               <span className={styles.sidebarDot} />
             )}
           </div>
+
+          {SHOW_RECIPE_SHOP && (
+            <div
+              className={`${styles.sidebarItem} ${activeTab === 'shop' ? styles.sidebarItemActive : ''}`}
+              onClick={() => {
+                setNotificationsOpen(false);
+                handleTabChange('shop');
+              }}
+            >
+              <div className={styles.sidebarIcon}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z" />
+                  <path d="M3 6h18" />
+                  <path d="M16 10a4 4 0 0 1-8 0" />
+                </svg>
+              </div>
+              <span className={styles.sidebarLabel}>Magazin</span>
+            </div>
+          )}
 
           {notificationsOpen && (
             <div className={styles.notificationsPanel} ref={notificationsPanelRef}>
@@ -1829,7 +2301,7 @@ function ClientDashboardContent() {
                 </div>
               </div>
             )}
-            {userLevel && (
+            {SHOW_APP_COINS && userLevel && (
               <div className={styles.sidebarCoinBlock}>
                 <CoinAmount amount={userLevel.appCoins || 0} />
               </div>
@@ -1856,7 +2328,14 @@ function ClientDashboardContent() {
           {workoutSession?.phase === 'loading' && (
             <div className={styles.wsWrap}>
               <div className={styles.wsLoading}>
-                <div className={styles.loadingSpinner} />
+                <div className={styles.wsLoadingSkeleton}>
+                  <div className={`${styles.shimmer} ${styles.wsLoadingVideo}`} />
+                  <div className={styles.wsLoadingLines}>
+                    <div className={`${styles.shimmer} ${styles.wsLoadingTitle}`} />
+                    <div className={`${styles.shimmer} ${styles.wsLoadingSub}`} />
+                    <div className={`${styles.shimmer} ${styles.wsLoadingButton}`} />
+                  </div>
+                </div>
                 <p>Se pregătește antrenamentul...</p>
               </div>
             </div>
@@ -1893,28 +2372,64 @@ function ClientDashboardContent() {
                   <p className={styles.workoutStartMuscles}>{workoutStartMuscles}</p>
                 )}
                 <p className={styles.workoutStartDesc}>
-                  {workoutStartCopy?.description}
+                  {workoutStartScreen.isRestDay
+                    ? (workoutStartScreen.message || workoutStartCopy?.description)
+                    : workoutStartCopy?.description}
                 </p>
-                <div className={styles.workoutStartMeta}>
-                  <div className={styles.workoutStartMetaItem}>
-                    <span className={styles.workoutStartMetaVal}>{workoutStartExerciseCount}</span>
-                    <span className={styles.workoutStartMetaLbl}>Exerciții</span>
+                {workoutStartScreen.isRestDay ? (
+                  <div className={styles.workoutStartMeta}>
+                    <div className={styles.workoutStartMetaItem}>
+                      <span className={styles.workoutStartMetaVal}>0</span>
+                      <span className={styles.workoutStartMetaLbl}>Exerciții</span>
+                    </div>
+                    <div className={styles.workoutStartMetaDivider} />
+                    <div className={styles.workoutStartMetaItem}>
+                      <span className={styles.workoutStartMetaVal}>+50</span>
+                      <span className={styles.workoutStartMetaLbl}>XP recuperare</span>
+                    </div>
+                    <div className={styles.workoutStartMetaDivider} />
+                    <div className={styles.workoutStartMetaItem}>
+                      <span className={styles.workoutStartMetaVal}>Somn</span>
+                      <span className={styles.workoutStartMetaLbl}>Prioritate</span>
+                    </div>
                   </div>
-                  <div className={styles.workoutStartMetaDivider} />
-                  <div className={styles.workoutStartMetaItem}>
-                    <span className={styles.workoutStartMetaVal}>+{workoutStartExerciseCount * 15}</span>
-                    <span className={styles.workoutStartMetaLbl}>XP posibil</span>
+                ) : (
+                  <div className={styles.workoutStartMeta}>
+                    <div className={styles.workoutStartMetaItem}>
+                      <span className={styles.workoutStartMetaVal}>{workoutStartExerciseCount}</span>
+                      <span className={styles.workoutStartMetaLbl}>Exerciții</span>
+                    </div>
+                    <div className={styles.workoutStartMetaDivider} />
+                    <div className={styles.workoutStartMetaItem}>
+                      <span className={styles.workoutStartMetaVal}>+{workoutStartExerciseCount * 15}</span>
+                      <span className={styles.workoutStartMetaLbl}>XP posibil</span>
+                    </div>
+                    <div className={styles.workoutStartMetaDivider} />
+                    <div className={styles.workoutStartMetaItem}>
+                      <span className={styles.workoutStartMetaVal}>~{Math.round(workoutStartExerciseCount * 4)}</span>
+                      <span className={styles.workoutStartMetaLbl}>Min</span>
+                    </div>
                   </div>
-                  <div className={styles.workoutStartMetaDivider} />
-                  <div className={styles.workoutStartMetaItem}>
-                    <span className={styles.workoutStartMetaVal}>~{Math.round(workoutStartExerciseCount * 4)}</span>
-                    <span className={styles.workoutStartMetaLbl}>Min</span>
-                  </div>
-                </div>
-                <button className={styles.workoutStartBtn} onClick={handleStartActualSession}>
-                  <WorkoutButtonIcon />
-                  Începe antrenament
-                </button>
+                )}
+                {workoutStartScreen.isRestDay ? (
+                  <button
+                    className={styles.workoutStartBtn}
+                    onClick={() => {
+                      setConfirmFinish({
+                        type: 'workout',
+                        dayIndex: workoutStartScreen.workoutDayIndex ?? currentPlanDay,
+                        isRecovery: true,
+                      });
+                    }}
+                  >
+                    Bifează recuperarea
+                  </button>
+                ) : (
+                  <button className={styles.workoutStartBtn} onClick={handleStartActualSession}>
+                    <WorkoutButtonIcon />
+                    Începe antrenament
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -2163,6 +2678,8 @@ function ClientDashboardContent() {
             </div>
           ) : activeTab === 'home' ? (
             renderJourneyDashboard()
+          ) : SHOW_RECIPE_SHOP && activeTab === 'shop' ? (
+            renderRecipeShop()
           ) : (
           <>
           {/* Tab navigation */}
@@ -2281,7 +2798,11 @@ function ClientDashboardContent() {
                   onMouseLeave={e => { e.currentTarget.style.opacity = '1'; e.currentTarget.style.transform = ''; }}
                 >
                   <WorkoutButtonIcon />
-                  {hasActivePausedSession ? 'Continuă antrenamentul' : 'Începe Antrenament'}
+                  {hasActivePausedSession
+                    ? 'Continuă antrenamentul'
+                    : isWorkoutRestDayToday
+                      ? 'Vezi recuperarea'
+                      : 'Începe Antrenament'}
                 </button>
               </div>
               {workoutPlan ? (
@@ -2328,6 +2849,7 @@ function ClientDashboardContent() {
                   const { type, dayIndex, isRecovery } = confirmFinish;
                   const previousLevelInfo = userLevel;
                   setConfirmFinish(null);
+                  if (isRecovery) setWorkoutStartScreen(null);
                   fireConfetti();
                   const optimisticLevel = previousLevelInfo ? getLevelInfoFromXp((Number(previousLevelInfo.totalXp) || 0) + 50) : null;
                   setFinishReward({ type, dayIndex, isRecovery, levelInfo: optimisticLevel });
@@ -2340,6 +2862,8 @@ function ClientDashboardContent() {
                     if (data.level) {
                       setFinishReward(prev => prev ? { ...prev, levelInfo: data } : prev);
                     }
+                    const token = localStorage.getItem('token');
+                    if (token && type === 'workout') refreshWorkoutTodayPreview(token);
                   });
                 }}
               >
@@ -2380,9 +2904,7 @@ function ClientDashboardContent() {
             <div className={styles.rewardIcon}>
               <span>{finishReward.type === 'onboarding' ? '🎉' : finishReward.type === 'meals' ? '💪' : '🔥'}</span>
             </div>
-            <div className={styles.rewardXpBadge}>
-              +50 XP{finishReward.levelInfo?.coinsAwarded ? ` · +${finishReward.levelInfo.coinsAwarded} monede` : ''}
-            </div>
+            <div className={styles.rewardXpBadge}>+50 XP</div>
             <h3>{finishRewardTitle}</h3>
             <p>{finishRewardMessage}</p>
             {(finishReward.levelInfo || userLevel) && (
@@ -2410,9 +2932,7 @@ function ClientDashboardContent() {
             <div className={styles.rewardIcon}>
               <span>💪</span>
             </div>
-            <div className={styles.rewardXpBadge}>
-              LEVEL UP{levelUpReward.levelInfo?.coinsAwarded ? ` · +${levelUpReward.levelInfo.coinsAwarded} monede` : ''}
-            </div>
+            <div className={styles.rewardXpBadge}>LEVEL UP</div>
             <h3>Nivel {levelUpReward.toLevel}</h3>
             <p>Excelent. Ai trecut de la nivelul {levelUpReward.fromLevel} la nivelul {levelUpReward.toLevel}. Se vede consecvența.</p>
             <div className={styles.rewardLevelLine}>

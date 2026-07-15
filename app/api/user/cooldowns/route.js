@@ -32,7 +32,8 @@ export async function GET(request) {
       streak_awarded_day,
       weekly_plan_due_at,
       weekly_plan_generation_started_at,
-      weekly_plan_generation_error
+      weekly_plan_generation_error,
+      last_weekly_checkin_at
     `)
     .eq('id', auth.userId)
     .maybeSingle();
@@ -60,7 +61,8 @@ export async function GET(request) {
         streak_state,
         streak_recovery_day,
         streak_awarded_day,
-        weekly_plan_due_at
+        weekly_plan_due_at,
+        last_weekly_checkin_at
       `)
       .maybeSingle();
     if (updatedRow) dailyState = reconcileDailyPlanProgress(updatedRow, now);

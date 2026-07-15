@@ -15,14 +15,11 @@ const PLAN_PRICES_RON = {
 function UpgradeContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { logout, token, user } = useAuth();
+  const { token } = useAuth();
   const reason = searchParams.get('reason');
   const payment = searchParams.get('payment');
   const [loadingPlan, setLoadingPlan] = useState(null);
   const [checkoutError, setCheckoutError] = useState('');
-  const trialExpired = user?.trial_ends_at ? new Date(user.trial_ends_at) < new Date() : false;
-  const subscriptionInactive = ['expired', 'cancelled', 'inactive'].includes(user?.subscription_status);
-  const mustChoosePlan = reason === 'trial_expired' || reason === 'subscription_inactive' || trialExpired || subscriptionInactive;
 
   useEffect(() => {
     const resetCheckoutState = () => {
@@ -39,20 +36,13 @@ function UpgradeContent() {
   }, [payment]);
 
   const handleHeaderAction = async () => {
-    if (!mustChoosePlan) {
-      router.push('/dashboard');
-      return;
-    }
-
-    await logout();
-    router.replace('/auth');
+    router.push('/client/dashboard');
   };
 
   function getBannerText() {
-    if (reason === 'trial_expired') return 'Perioada de trial a expirat. Alege un plan pentru a continua.';
-    if (reason === 'subscription_inactive') return 'Abonamentul tău este inactiv. Reactivează-l pentru a continua.';
+    if (reason === 'paid_required') return 'Această funcție este disponibilă pe planul plătit.';
     if (payment === 'cancelled') return 'Plata a fost anulată. Poți alege oricând un plan.';
-    return 'Alege planul potrivit pentru tine.';
+    return 'Alege planul care ți se potrivește.';
   }
 
   async function handlePlanClick(planType) {
@@ -96,13 +86,13 @@ function UpgradeContent() {
       {/* Header */}
       <header className={styles.header}>
         <button className={styles.backBtn} onClick={handleHeaderAction}>
-          {mustChoosePlan ? 'Ieșire' : 'Înapoi la dashboard'}
+          Înapoi la dashboard
         </button>
         <div className={styles.logo}>trevano</div>
       </header>
 
       {/* Status banner */}
-      <div className={reason === 'trial_expired' || reason === 'subscription_inactive' ? styles.bannerExpired : styles.bannerInfo}>
+      <div className={reason === 'paid_required' ? styles.bannerExpired : styles.bannerInfo}>
         {getBannerText()}
       </div>
 
@@ -115,7 +105,7 @@ function UpgradeContent() {
       {/* Page title */}
       <div className={styles.titleSection}>
         <h1 className={styles.title}>Alege planul tău</h1>
-        <p className={styles.subtitle}>Clienți, planuri și progres într-un singur loc.</p>
+        <p className={styles.subtitle}>Deblochează mai multă varietate, progres și flexibilitate în planul tău.</p>
       </div>
 
       {/* Pricing cards */}
@@ -131,10 +121,10 @@ function UpgradeContent() {
             <span className={styles.period}>/lună</span>
           </div>
           <ul className={styles.features}>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Până la <strong>10 clienți</strong></li>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Planuri nutriționale pe fiecare client</li>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Planuri de antrenament pe fiecare client</li>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Monitorizare progres</li>
+            <li className={styles.feature}><span className={styles.check}>✓</span> Mai multe rețete deblocabile</li>
+            <li className={styles.feature}><span className={styles.check}>✓</span> Plan alimentar cu varietate extinsă</li>
+            <li className={styles.feature}><span className={styles.check}>✓</span> Antrenamente personalizate</li>
+            <li className={styles.feature}><span className={styles.check}>✓</span> Monitorizare progres și XP</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Suport email</li>
           </ul>
           <button className={styles.btnPrimary} onClick={() => handlePlanClick('starter')} disabled={loadingPlan !== null}>
@@ -152,7 +142,7 @@ function UpgradeContent() {
             <span className={styles.period}>/lună</span>
           </div>
           <ul className={styles.features}>
-            <li className={styles.feature}><span className={styles.check}>✓</span> Până la <strong>30 de clienți</strong></li>
+            <li className={styles.feature}><span className={styles.check}>✓</span> Experiență completă pentru progres</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Tot ce include Starter</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Statistici avansate</li>
             <li className={styles.feature}><span className={styles.check}>✓</span> Suport prioritar</li>

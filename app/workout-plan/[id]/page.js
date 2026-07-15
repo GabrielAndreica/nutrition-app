@@ -16,24 +16,33 @@ const WorkoutPlan = dynamic(() => import('@/app/components/WorkoutPlanGenerator/
 
 function SkeletonWorkoutPlan() {
   return (
-    <div className={styles.skeletonWrap}>
-      <div className={styles.skeletonClientHeader}>
-        <div className={styles.skeletonNameBlock}>
-          <div className={`${styles.shimmer} ${styles.skeletonName}`} />
-          <div className={`${styles.shimmer} ${styles.skeletonSub}`} />
-        </div>
-        <div className={styles.skeletonStats}>
-          {[1, 2, 3].map(i => (
-            <div key={i} className={`${styles.shimmer} ${styles.skeletonStat}`} />
-          ))}
-        </div>
+    <div className={shellStyles.skeletonWrap}>
+      <div className={shellStyles.skeletonTopRow}>
+        <div className={`${shellStyles.shimmer} ${shellStyles.skeletonBack}`} />
+        <div className={`${shellStyles.shimmer} ${shellStyles.skeletonKcalPill}`} />
       </div>
-      <div className={styles.skeletonTabsRow}>
+      <div className={shellStyles.skeletonTitleBlock}>
+        <div className={`${shellStyles.shimmer} ${shellStyles.skeletonTitle}`} />
+        <div className={`${shellStyles.shimmer} ${shellStyles.skeletonSubtitle}`} />
+      </div>
+      <div className={shellStyles.skeletonDaysRow}>
         {[1, 2, 3, 4, 5, 6, 7].map(i => (
-          <div key={i} className={`${styles.shimmer} ${styles.skeletonTab}`} />
+          <div key={i} className={`${shellStyles.shimmer} ${shellStyles.skeletonDay}`} />
         ))}
       </div>
-      <div className={`${styles.shimmer} ${styles.skeletonCard}`} />
+      <div className={shellStyles.skeletonModuleGrid}>
+        {[1, 2, 3].map(i => (
+          <div key={i} className={shellStyles.skeletonModuleCard}>
+            <div className={`${shellStyles.shimmer} ${shellStyles.skeletonCardImage}`} />
+            <div className={shellStyles.skeletonCardBody}>
+              <div className={`${shellStyles.shimmer} ${shellStyles.skeletonLineLg}`} />
+              <div className={`${shellStyles.shimmer} ${shellStyles.skeletonLineMd}`} />
+              <div className={`${shellStyles.shimmer} ${shellStyles.skeletonLineSm}`} />
+            </div>
+            <div className={`${shellStyles.shimmer} ${shellStyles.skeletonCardAction}`} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

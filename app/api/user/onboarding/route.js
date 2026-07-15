@@ -4,7 +4,13 @@ import { verifyToken } from '@/app/lib/verifyToken';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import { resolveUserOnboardingCompletion } from '@/app/lib/onboardingStatus';
 import { calculateHydrationTargetMl } from '@/app/lib/hydrationTarget';
-import { createAutomaticMealPlanForUser } from '@/app/lib/automaticMealPlan';
+import {
+  claimAutomaticMealPlanGenerationLock,
+  calculateMacros,
+  calculateTargetCalories,
+  createAutomaticMealPlanForUser,
+  releaseAutomaticMealPlanGenerationLock,
+} from '@/app/lib/automaticMealPlan';
 import { getLevelInfo } from '@/app/api/user/level/route';
 import {
   APP_COIN_REWARDS,
@@ -16,11 +22,18 @@ import { getCurrentPlanDayIndex, getNextPlanMidnightIso } from '@/app/lib/weekly
 // Allowed enum values
 const ALLOWED_FITNESS_LEVELS = ['beginner', 'intermediate', 'advanced'];
 const ALLOWED_TRAINING_LOCATIONS = ['gym', 'home_dumbbells', 'home'];
-const ALLOWED_GOALS = ['muscle_gain', 'weight_loss', 'maintenance', 'endurance', 'flexibility'];
 const ALLOWED_DIET_TYPES = ['omnivore', 'vegetarian', 'vegan', 'pescatarian', 'keto', 'paleo'];
 const ALLOWED_GENDERS = ['M', 'F'];
 const ALLOWED_WORKOUTS_PER_WEEK = [2, 3, 4, 5, 6];
 const ONBOARDING_XP_REWARD = 50;
+
+function deriveGoalFromTargetWeight(currentWeight, targetWeight) {
+  const diffKg = Number(targetWeight) - Number(currentWeight);
+  if (!Number.isFinite(diffKg)) return 'maintenance';
+  if (diffKg <= -1) return 'weight_loss';
+  if (diffKg >= 1) return 'muscle_gain';
+  return 'maintenance';
+}
 
 async function awardOnboardingReward({ supabase, userId, previousUserRow }) {
   if (!previousUserRow || previousUserRow.onboarding_completed === true) return null;
@@ -113,6 +126,7 @@ export async function POST(request) {
     endpoint: 'user-onboarding',
     maxRequests: 10,
     windowMinutes: 60,
+    failClosed: true,
   });
   if (rl) return rl;
 
@@ -127,8 +141,9 @@ export async function POST(request) {
     name,
     age, height, weight, gender,
     fitnessLevel, workoutsPerWeek, trainingLocation,
-    goal, dietType, allergies, foodPreferences,
+    targetWeight, desiredWeight, dietType, allergies, foodPreferences,
   } = body;
+  const targetWeightValue = targetWeight ?? desiredWeight;
 
   // Validare câmpuri obligatorii
   const missingFields = [];
@@ -139,7 +154,7 @@ export async function POST(request) {
   if (!fitnessLevel) missingFields.push('nivel fitness');
   if (!workoutsPerWeek) missingFields.push('antrenamente/săptămână');
   if (!trainingLocation) missingFields.push('locație antrenament');
-  if (!goal) missingFields.push('obiectiv');
+  if (!targetWeightValue) missingFields.push('greutate dorită');
 
   if (missingFields.length > 0) {
     return NextResponse.json(
@@ -152,6 +167,7 @@ export async function POST(request) {
   const ageNum = Number(age);
   const heightNum = Number(height);
   const weightNum = Number(weight);
+  const targetWeightNum = Number(targetWeightValue);
   const workoutsNum = Number(workoutsPerWeek);
 
   if (!Number.isFinite(ageNum) || ageNum < 14 || ageNum > 100)
@@ -160,6 +176,8 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Înălțimea trebuie să fie între 100 și 250 cm.', field: 'height' }, { status: 400 });
   if (!Number.isFinite(weightNum) || weightNum < 30 || weightNum > 300)
     return NextResponse.json({ error: 'Greutatea trebuie să fie între 30 și 300 kg.', field: 'weight' }, { status: 400 });
+  if (!Number.isFinite(targetWeightNum) || targetWeightNum < 30 || targetWeightNum > 300)
+    return NextResponse.json({ error: 'Greutatea dorită trebuie să fie între 30 și 300 kg.', field: 'targetWeight' }, { status: 400 });
   if (!ALLOWED_WORKOUTS_PER_WEEK.includes(workoutsNum))
     return NextResponse.json({ error: 'Număr de antrenamente invalid (2–6).', field: 'workoutsPerWeek' }, { status: 400 });
 
@@ -171,9 +189,8 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Nivel fitness invalid.', field: 'fitnessLevel' }, { status: 400 });
   if (!ALLOWED_TRAINING_LOCATIONS.includes(trainingLocation))
     return NextResponse.json({ error: 'Locație antrenament invalidă.', field: 'trainingLocation' }, { status: 400 });
-  if (!ALLOWED_GOALS.includes(goal))
-    return NextResponse.json({ error: 'Obiectiv invalid.', field: 'goal' }, { status: 400 });
   const dietTypeSafe = dietType && ALLOWED_DIET_TYPES.includes(dietType) ? dietType : 'omnivore';
+  const goal = deriveGoalFromTargetWeight(weightNum, targetWeightNum);
 
   // Mapare locație antrenament → echipament disponibil
   const equipmentMap = {
@@ -208,6 +225,16 @@ export async function POST(request) {
     activityLevel,
     goal,
   });
+  const targetCalories = calculateTargetCalories({
+    weight: weightNum,
+    targetWeight: targetWeightNum,
+    height: heightNum,
+    age: ageNum,
+    gender: genderNorm,
+    activityLevel,
+    goal,
+  });
+  const macroTargets = calculateMacros({ weight: weightNum, goal }, targetCalories);
   const now = new Date();
   const currentPlanDay = getCurrentPlanDayIndex(now);
 
@@ -229,6 +256,7 @@ export async function POST(request) {
       name: userName,
       age: ageNum,
       weight: weightNum,
+      target_weight: targetWeightNum,
       height: heightNum,
       gender: genderNorm,
       fitness_level: fitnessLevel,
@@ -241,6 +269,10 @@ export async function POST(request) {
       diet_type: dietTypeSafe,
       meals_per_day: 5,
       hydration_target_ml: hydrationTargetMl,
+      nutrition_target_calories: Math.round(targetCalories),
+      nutrition_target_protein_g: Math.round(macroTargets.protein),
+      nutrition_target_carbs_g: Math.round(macroTargets.carbs),
+      nutrition_target_fat_g: Math.round(macroTargets.fat),
       food_preferences: typeof foodPreferences === 'string' ? foodPreferences : '',
       allergies: Array.isArray(allergies) ? allergies.join(', ') : (typeof allergies === 'string' ? allergies : ''),
       meals_completed_days: 0,
@@ -264,32 +296,61 @@ export async function POST(request) {
   let automaticMealPlan = null;
   let automaticMealPlanWarning = null;
   let onboardingReward = null;
+  let mealPlanLock = { claimed: true, degraded: true };
   try {
-    automaticMealPlan = await createAutomaticMealPlanForUser({
-      supabase,
-      userId: auth.userId,
-      freeOnly: true,
-      profile: {
-        name: userName,
-        age: ageNum,
-        weight: weightNum,
-        height: heightNum,
-        gender: genderNorm,
-        goal,
-        activityLevel,
-        dietType: dietTypeSafe,
-        allergies,
-        foodPreferences,
-      },
-    });
-    onboardingReward = await awardOnboardingReward({
-      supabase,
-      userId: auth.userId,
-      previousUserRow: userRow,
-    });
+    mealPlanLock = await claimAutomaticMealPlanGenerationLock({ supabase, userId: auth.userId });
+    if (!mealPlanLock.claimed) {
+      automaticMealPlanWarning = 'Planul alimentar se pregătește deja. Revino în câteva momente.';
+    } else {
+      automaticMealPlan = await createAutomaticMealPlanForUser({
+        supabase,
+        userId: auth.userId,
+        freeOnly: true,
+        profile: {
+          name: userName,
+          age: ageNum,
+          weight: weightNum,
+          targetWeight: targetWeightNum,
+          target_weight: targetWeightNum,
+          height: heightNum,
+          gender: genderNorm,
+          goal,
+          activityLevel,
+          dietType: dietTypeSafe,
+          allergies,
+          foodPreferences,
+        },
+      });
+    }
+    if (automaticMealPlan?.targets) {
+      await supabase
+        .from('users')
+        .update({
+          nutrition_target_calories: automaticMealPlan.targets.calories,
+          nutrition_target_protein_g: automaticMealPlan.targets.protein,
+          nutrition_target_carbs_g: automaticMealPlan.targets.carbs,
+          nutrition_target_fat_g: automaticMealPlan.targets.fat,
+        })
+        .eq('id', auth.userId);
+    }
+    if (automaticMealPlan?.mealPlanId) {
+      onboardingReward = await awardOnboardingReward({
+        supabase,
+        userId: auth.userId,
+        previousUserRow: userRow,
+      });
+    }
   } catch (mealPlanError) {
     automaticMealPlanWarning = mealPlanError?.message || 'Planul alimentar automat nu a putut fi generat.';
     console.error('[onboarding] automatic meal plan error:', mealPlanError);
+  } finally {
+    if (mealPlanLock.claimed && !mealPlanLock.degraded) {
+      await releaseAutomaticMealPlanGenerationLock({
+        supabase,
+        userId: auth.userId,
+        errorMessage: automaticMealPlan ? null : automaticMealPlanWarning,
+      });
+    }
   }
 
   // clientId = userId (pentru compatibilitate cu codul existent)

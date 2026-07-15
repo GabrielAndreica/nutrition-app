@@ -44,50 +44,37 @@ const MealPlan = dynamic(() => import('@/app/components/MealPlanGenerator/MealPl
 
 const InlineProgressView = dynamic(() => import('@/app/components/InlineProgressView'), {
   ssr: false,
-  loading: () => (
-    <div className={styles.loadingOverlay}>
-      <div className={styles.loadingSpinner} />
-    </div>
-  )
+  loading: () => <SkeletonMealPlan />
 });
 
 function SkeletonMealPlan() {
   return (
     <div className={styles.skeletonWrap}>
-      {/* Client header skeleton */}
-      <div className={styles.skeletonClientHeader}>
-        <div className={styles.skeletonNameBlock}>
-          <div className={`${styles.shimmer} ${styles.skeletonName}`} />
-          <div className={`${styles.shimmer} ${styles.skeletonSub}`} />
-        </div>
-        <div className={styles.skeletonStats}>
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className={`${styles.shimmer} ${styles.skeletonStat}`} />
-          ))}
-        </div>
+      <div className={styles.skeletonTopRow}>
+        <div className={`${styles.shimmer} ${styles.skeletonBack}`} />
+        <div className={`${styles.shimmer} ${styles.skeletonKcalPill}`} />
       </div>
-
-      {/* Right column */}
-      <div className={styles.skeletonRightColumn}>
-        {/* Tabs row */}
-        <div className={styles.skeletonTabsRow}>
-          <div className={styles.skeletonTabGroup}>
-            {[1, 2, 3, 4, 5, 6, 7].map(i => (
-              <div key={i} className={`${styles.shimmer} ${styles.skeletonTab}`} />
-            ))}
+      <div className={styles.skeletonTitleBlock}>
+        <div className={`${styles.shimmer} ${styles.skeletonTitle}`} />
+        <div className={`${styles.shimmer} ${styles.skeletonSubtitle}`} />
+      </div>
+      <div className={styles.skeletonDaysRow}>
+        {[1, 2, 3, 4, 5, 6, 7].map(i => (
+          <div key={i} className={`${styles.shimmer} ${styles.skeletonDay}`} />
+        ))}
+      </div>
+      <div className={styles.skeletonModuleGrid}>
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className={styles.skeletonModuleCard}>
+            <div className={`${styles.shimmer} ${styles.skeletonCardImage}`} />
+            <div className={styles.skeletonCardBody}>
+              <div className={`${styles.shimmer} ${styles.skeletonLineLg}`} />
+              <div className={`${styles.shimmer} ${styles.skeletonLineMd}`} />
+              <div className={`${styles.shimmer} ${styles.skeletonLineSm}`} />
+            </div>
+            <div className={`${styles.shimmer} ${styles.skeletonCardAction}`} />
           </div>
-          <div className={`${styles.shimmer} ${styles.skeletonDownload}`} />
-        </div>
-
-        {/* Day totals bar */}
-        <div className={styles.skeletonBar} />
-
-        {/* Meal cards grid */}
-        <div className={styles.skeletonMealsGrid}>
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className={`${styles.shimmer} ${styles.skeletonMealCard}`} />
-          ))}
-        </div>
+        ))}
       </div>
     </div>
   );

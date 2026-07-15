@@ -34,6 +34,38 @@ const DEFAULT_MIN_GRAMS = {
 };
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const FOOD_SELECT = [
+  'id',
+  'name',
+  'aliases',
+  'calories_per_100g',
+  'protein_per_100g',
+  'carbs_per_100g',
+  'fat_per_100g',
+  'category',
+  'diet_types',
+  'allergens',
+  'max_amount_per_meal',
+  'min_amount_per_meal',
+  'daily_max_amount',
+  'grams_per_unit',
+  'is_active',
+].join(', ');
+const RECIPE_SELECT = [
+  'id',
+  'name',
+  'meal_type',
+  'diet_types',
+  'protein_source',
+  'preparation',
+  'ingredients',
+  'is_free',
+  'coin_price',
+  'image_storage_bucket',
+  'image_storage_path',
+  'created_at',
+].join(', ');
+const DEFAULT_RECIPE_IMAGE_BUCKET = 'imagini-mancare';
 
 function normalizeName(value = '') {
   return String(value).toLowerCase()
@@ -49,6 +81,42 @@ function normalizeName(value = '') {
     .replace(/ş/g, 's').replace(/ţ/g, 't')
     .replace(/[()%]/g, '')
     .trim();
+}
+
+function getBooleanRpcResult(data) {
+  if (typeof data === 'boolean') return data;
+  if (Array.isArray(data)) return data[0]?.claimed === true || data[0] === true;
+  if (data && typeof data === 'object') return data.claimed === true;
+  return false;
+}
+
+export async function claimAutomaticMealPlanGenerationLock({ supabase, userId, timeoutMinutes = 10 } = {}) {
+  if (!supabase || !userId) return { claimed: false, degraded: true };
+
+  const { data, error } = await supabase.rpc('claim_meal_plan_generation_lock', {
+    p_user_id: userId,
+    p_lock_timeout_minutes: timeoutMinutes,
+  });
+
+  if (error) {
+    console.error('[automaticMealPlan] generation lock unavailable:', error);
+    return { claimed: true, degraded: true };
+  }
+
+  return { claimed: getBooleanRpcResult(data), degraded: false };
+}
+
+export async function releaseAutomaticMealPlanGenerationLock({ supabase, userId, errorMessage = null } = {}) {
+  if (!supabase || !userId) return;
+
+  const { error } = await supabase.rpc('release_meal_plan_generation_lock', {
+    p_user_id: userId,
+    p_error: errorMessage,
+  });
+
+  if (error) {
+    console.error('[automaticMealPlan] generation lock release failed:', error);
+  }
 }
 
 function normalizeForMatch(value = '') {
@@ -71,8 +139,9 @@ function shuffle(items) {
   return copy;
 }
 
-function calculateTargetCalories(profile) {
+export function calculateTargetCalories(profile) {
   const weight = Number(profile.weight) || 70;
+  const targetWeight = Number(profile.targetWeight ?? profile.target_weight);
   const height = Number(profile.height) || 175;
   const age = Number(profile.age) || 30;
   const gender = String(profile.gender || 'M').toUpperCase();
@@ -90,22 +159,34 @@ function calculateTargetCalories(profile) {
     very_active: 1.725,
   };
 
-  const goalAdjustments = {
-    weight_loss: 0.85,
-    muscle_gain: 1.1,
-    maintenance: 1,
-    recomposition: 0.95,
-    endurance: 1.05,
-  };
+  const maintenanceCalories = bmr * (activityMultipliers[activityLevel] || 1.55);
+  let adjustment = 0;
 
-  return Math.round(
-    bmr *
-    (activityMultipliers[activityLevel] || 1.55) *
-    (goalAdjustments[profile.goal] || 1)
-  );
+  if (Number.isFinite(targetWeight) && targetWeight >= 30 && targetWeight <= 300) {
+    const diffKg = targetWeight - weight;
+    const distance = Math.abs(diffKg);
+    if (diffKg <= -1) {
+      adjustment = -Math.min(500, Math.max(250, distance * 45));
+    } else if (diffKg >= 1) {
+      adjustment = Math.min(400, Math.max(180, distance * 35));
+    }
+  } else {
+    const fallbackAdjustments = {
+      weight_loss: -400,
+      muscle_gain: 300,
+      maintenance: 0,
+      recomposition: -150,
+      endurance: 150,
+    };
+    adjustment = fallbackAdjustments[profile.goal] || 0;
+  }
+
+  const minCalories = gender === 'M' ? 1500 : 1200;
+  const floor = Math.max(minCalories, bmr * 1.15);
+  return Math.round(Math.max(floor, maintenanceCalories + adjustment));
 }
 
-function calculateMacros(profile, targetCalories) {
+export function calculateMacros(profile, targetCalories) {
   const weight = Number(profile.weight) || 70;
   const goal = profile.goal || 'maintenance';
   const proteinPerKg = goal === 'weight_loss' || goal === 'recomposition' ? 2.25 : 1.9;
@@ -678,7 +759,7 @@ function makeRecipeFoodItem(food, amount) {
 function getRecipeImageMeta(recipe = {}) {
   const imageUrl = recipe.image_url || recipe.imageUrl || null;
   const imageStoragePath = recipe.image_storage_path || recipe.imageStoragePath || null;
-  const imageStorageBucket = recipe.image_storage_bucket || recipe.imageStorageBucket || null;
+  const imageStorageBucket = recipe.image_storage_bucket || recipe.imageStorageBucket || (imageStoragePath ? DEFAULT_RECIPE_IMAGE_BUCKET : null);
 
   return {
     imageUrl,
@@ -908,11 +989,15 @@ export async function createAutomaticMealPlanForUser({ supabase, userId, profile
     { data: unlockedRecipes, error: unlockedRecipesError },
   ] = await Promise.all([
     supabase
-    .from('foods')
-      .select('*'),
+      .from('foods')
+      .select(FOOD_SELECT)
+      .eq('is_active', true),
     supabase
       .from('recipes')
-      .select('*'),
+      .select(RECIPE_SELECT)
+      .in('meal_type', ['breakfast', 'lunch', 'dinner', 'snack'])
+      .order('meal_type', { ascending: true })
+      .order('created_at', { ascending: true }),
     supabase
       .from('user_recipe_unlocks')
       .select('recipe_id')

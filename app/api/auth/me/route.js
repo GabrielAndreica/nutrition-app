@@ -1,12 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
-import { MAX_CLIENTS } from '@/app/lib/checkSubscription';
 
 /**
  * GET /api/auth/me
- * Returnează datele live ale userului autentificat (subscription_status, trial_ends_at etc.)
- * Folosit de TrialBanner și AuthContext pentru a evita datele stale din JWT.
+ * Returnează datele live ale userului autentificat pentru cont B2C free/paid.
  *
  * Securitate:
  *  - Necesită JWT valid (verifyToken)
@@ -26,7 +24,7 @@ export async function GET(request) {
   const supabase = getSupabase();
   const { data: user, error } = await supabase
     .from('users')
-    .select('subscription_status, subscription_plan, plan, trial_ends_at')
+    .select('account_type, subscription_status, subscription_plan, plan')
     .eq('id', auth.userId)
     .single();
 
@@ -35,42 +33,13 @@ export async function GET(request) {
   }
 
   const plan = user.subscription_plan ?? user.plan ?? null;
-  const maxClients = user.subscription_status === 'active'
-    ? (plan === 'pro' ? MAX_CLIENTS.pro : MAX_CLIENTS.starter)
-    : MAX_CLIENTS.trial;
-
-  let monthlyClientUsage = null;
-  if (auth.role === 'trainer') {
-    const periodStart = new Date();
-    periodStart.setUTCDate(1);
-    periodStart.setUTCHours(0, 0, 0, 0);
-
-    try {
-      const { count, error: usageError } = await supabase
-        .from('client_usage_ledger')
-        .select('id', { count: 'exact', head: true })
-        .eq('trainer_id', auth.userId)
-        .eq('billing_period_start', periodStart.toISOString());
-
-      monthlyClientUsage = {
-        used: usageError ? 0 : (count ?? 0),
-        limit: maxClients,
-        period_start: periodStart.toISOString(),
-      };
-    } catch (usageError) {
-      console.error('[auth/me] monthly usage lookup failed:', usageError);
-    }
-  }
+  const accountType = user.account_type || (user.subscription_status === 'active' ? 'paid' : 'free');
 
   const payload = {
-    subscription_status: user.subscription_status,
+    account_type: accountType,
+    subscription_status: user.subscription_status || accountType,
     subscription_plan:   plan,
-    trial_ends_at:       user.trial_ends_at ?? null,
   };
-
-  if (monthlyClientUsage) {
-    payload.monthly_client_usage = monthlyClientUsage;
-  }
 
   const res = NextResponse.json(payload);
   res.headers.set('Cache-Control', 'no-store, max-age=0');

@@ -1,6 +1,6 @@
 -- ============================================================
 -- Progres zilnic sincronizat intre dispozitive
--- Apa bauta + mesele bifate pentru ziua curenta.
+-- Apa bauta + mesele bifate + zi finalizata pentru ziua curenta.
 -- ============================================================
 
 CREATE TABLE IF NOT EXISTS daily_user_progress (
@@ -9,10 +9,18 @@ CREATE TABLE IF NOT EXISTS daily_user_progress (
   progress_date date NOT NULL,
   meal_checks jsonb NOT NULL DEFAULT '{}',
   water_ml integer NOT NULL DEFAULT 0 CHECK (water_ml >= 0 AND water_ml <= 10000),
+  day_finalized boolean NOT NULL DEFAULT false,
+  day_finalized_plan_day integer,
+  day_finalized_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (user_id, progress_date)
 );
+
+ALTER TABLE daily_user_progress
+  ADD COLUMN IF NOT EXISTS day_finalized boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS day_finalized_plan_day integer,
+  ADD COLUMN IF NOT EXISTS day_finalized_at timestamptz;
 
 CREATE INDEX IF NOT EXISTS idx_daily_user_progress_user_date
   ON daily_user_progress(user_id, progress_date DESC);

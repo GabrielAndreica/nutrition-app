@@ -35,105 +35,115 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 18px;
 }
 
-/* ── Client header skeleton ─────────────────────────────────── */
-.skeletonClientHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  background: #fff;
-  border: 1px solid #e8e8ed;
-  border-radius: 16px;
-  padding: 20px 24px;
-  flex-wrap: wrap;
-}
-
-.skeletonNameBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 9px;
-}
-
-.skeletonName {
-  height: 22px;
-  width: 180px;
-}
-
-.skeletonSub {
-  height: 13px;
-  width: 120px;
-}
-
-.skeletonStats {
-  display: flex;
-  gap: 20px;
-}
-
-.skeletonStat {
-  height: 44px;
-  width: 50px;
-  border-radius: 10px;
-}
-
-/* ── Right column skeleton ──────────────────────────────────── */
-.skeletonRightColumn {
-  display: flex;
-  flex-direction: column;
-  gap: 28px;
-}
-
-/* ── Tabs row skeleton ──────────────────────────────────────── */
-.skeletonTabsRow {
+.skeletonTopRow {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.skeletonTabGroup {
+.skeletonBack {
+  width: 86px;
+  height: 34px;
+  border-radius: 999px;
+}
+
+.skeletonKcalPill {
+  width: 132px;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(183, 255, 0, 0.22) 25%, rgba(183, 255, 0, 0.12) 50%, rgba(183, 255, 0, 0.22) 75%) !important;
+  background-size: 800px 100% !important;
+}
+
+.skeletonTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 0 2px;
+}
+
+.skeletonTitle {
+  width: 170px;
+  height: 26px;
+  border-radius: 8px;
+}
+
+.skeletonSubtitle {
+  width: 230px;
+  height: 13px;
+  border-radius: 999px;
+}
+
+.skeletonDaysRow {
   display: flex;
   gap: 8px;
-  flex-wrap: wrap;
-  flex: 1;
-}
-
-.skeletonTab {
-  height: 36px;
-  width: 70px;
-  border-radius: 20px;
-}
-
-.skeletonDownload {
-  height: 36px;
-  width: 132px;
-  border-radius: 20px;
-  flex-shrink: 0;
-}
-
-/* ── Day totals bar skeleton ────────────────────────────────── */
-.skeletonBar {
-  height: 46px;
+  padding: 8px;
   border-radius: 12px;
-  background: linear-gradient(90deg, #2c2c2e 25%, #3a3a3c 50%, #2c2c2e 75%) !important;
-  background-size: 800px 100% !important;
-  animation: shimmer 1.5s ease infinite;
+  background: rgba(10, 10, 10, 0.035);
+  border: 1px solid rgba(10, 10, 10, 0.06);
 }
 
-/* ── Meal cards grid skeleton ───────────────────────────────── */
-.skeletonMealsGrid {
+.skeletonDay {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.skeletonModuleGrid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
 }
 
-.skeletonMealCard {
+.skeletonModuleCard {
   background: #fff;
   border: 1px solid #e8e8ed;
   border-radius: 16px;
-  height: 260px;
+  overflow: hidden;
+  min-height: 252px;
+}
+
+.skeletonCardImage {
+  height: 118px;
+  border-radius: 0;
+}
+
+.skeletonCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 16px;
+}
+
+.skeletonLineLg {
+  width: 70%;
+  height: 18px;
+}
+
+.skeletonLineMd {
+  width: 88%;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.skeletonLineSm {
+  width: 54%;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.skeletonCardAction {
+  width: calc(100% - 32px);
+  height: 36px;
+  margin: 0 16px 16px;
+  border-radius: 10px;
+  background: linear-gradient(90deg, rgba(183, 255, 0, 0.22) 25%, rgba(183, 255, 0, 0.12) 50%, rgba(183, 255, 0, 0.22) 75%) !important;
+  background-size: 800px 100% !important;
 }
 
 /* ── Error state ────────────────────────────────────────────── */
@@ -161,45 +171,24 @@
 @media (max-width: 768px) {
   .skeletonWrap {
     padding: 0;
-    gap: 18px;
+    gap: 14px;
   }
 
-  .skeletonClientHeader {
-    padding: 14px 16px;
-    flex-wrap: nowrap;
-    gap: 12px;
-  }
+  .skeletonBack { width: 72px; height: 32px; }
+  .skeletonKcalPill { width: 118px; height: 38px; }
 
-  .skeletonName  { width: 130px; height: 18px; }
-  .skeletonSub   { width: 90px;  height: 12px; }
+  .skeletonTitle { width: 138px; height: 24px; }
+  .skeletonSubtitle { width: 190px; height: 12px; }
 
-  .skeletonStats { gap: 12px; }
-  .skeletonStat  { height: 38px; width: 44px; }
+  .skeletonDaysRow { gap: 5px; padding: 6px; }
+  .skeletonDay { height: 30px; border-radius: 8px; }
 
-  .skeletonTabsRow { gap: 8px; }
-
-  .skeletonTabGroup { gap: 5px; }
-
-  .skeletonTab {
-    flex: 1;
-    min-width: 0;
-    width: auto;
-    height: 34px;
-    border-radius: 10px;
-  }
-
-  .skeletonDownload {
-    width: 40px;
-    border-radius: 12px;
-  }
-
-  .skeletonRightColumn { gap: 18px; }
-
-  .skeletonMealsGrid {
+  .skeletonModuleGrid {
     grid-template-columns: 1fr;
   }
 
-  .skeletonMealCard { height: 220px; }
+  .skeletonModuleCard { min-height: 218px; }
+  .skeletonCardImage { height: 96px; }
 
   .error { margin: 16px; }
 }
