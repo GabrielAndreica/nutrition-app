@@ -3,18 +3,18 @@ import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
+function isClientUser(role) {
+  return role === 'client' || role === 'user';
+}
+
 // XP formula: to go from level N to N+1 requires N*100 XP
 // Total XP to reach level N (from level 1): N*(N-1)/2 * 100
 export function getLevelInfo(xp) {
   const totalXp = Math.max(0, xp || 0);
 
-  // Determine current level from total XP
   // xpForLevel(N) = N*(N-1)/2 * 100
   // Solve: N*(N-1)/2 * 100 <= totalXp
-  let level = 1;
-  while (((level + 1) * level) / 2 * 100 <= totalXp) {
-    level++;
-  }
+  const level = Math.max(1, Math.floor((1 + Math.sqrt(1 + (8 * totalXp) / 100)) / 2));
 
   const xpStartOfLevel = (level * (level - 1)) / 2 * 100;
   const xpForNextLevel = level * 100; // XP needed to advance from current level
@@ -33,12 +33,16 @@ export function getLevelInfo(xp) {
 export async function GET(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  }
 
   const rl = await enforceRateLimit(request, {
     userId: auth.userId,
     endpoint: 'user-level-get',
     maxRequests: 60,
     windowMinutes: 1,
+    failClosed: true,
   });
   if (rl) return rl;
 

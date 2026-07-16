@@ -3,15 +3,23 @@ import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
+function isClientUser(role) {
+  return role === 'client' || role === 'user';
+}
+
 export async function GET(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  }
 
   const rl = await enforceRateLimit(request, {
     userId: auth.userId,
     endpoint: 'user-wallet-get',
     maxRequests: 60,
     windowMinutes: 1,
+    failClosed: true,
   });
   if (rl) return rl;
 

@@ -39,14 +39,20 @@ export async function awardAppCoins({
   if (!supabase || !userId || safeAmount === 0) {
     return { amountAwarded: 0, balance: null, transactionId: null };
   }
+  const safeReason = String(reason || 'Recompensă').slice(0, 180);
+  const safeSourceType = sourceType ? String(sourceType).slice(0, 80) : null;
+  const safeSourceKey = sourceKey ? String(sourceKey).slice(0, 180) : null;
+  const safeMetadata = metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+    ? metadata
+    : {};
 
   const { data, error } = await supabase.rpc('award_app_coins', {
     p_user_id: Number(userId),
     p_amount: safeAmount,
-    p_reason: reason || 'Recompensă',
-    p_source_type: sourceType,
-    p_source_key: sourceKey,
-    p_metadata: metadata || {},
+    p_reason: safeReason,
+    p_source_type: safeSourceType,
+    p_source_key: safeSourceKey,
+    p_metadata: safeMetadata,
   });
 
   if (error) {

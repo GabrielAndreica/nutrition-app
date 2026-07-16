@@ -134,10 +134,7 @@ function DashboardLoadingSkeleton() {
         ))}
       </div>
 
-      <div className={styles.dashboardSkeletonBottom}>
-        <div className={`${styles.shimmer} ${styles.dashboardSkeletonWater}`} />
-        <div className={`${styles.shimmer} ${styles.dashboardSkeletonXp}`} />
-      </div>
+      <div className={`${styles.shimmer} ${styles.dashboardSkeletonWater}`} />
     </div>
   );
 }
@@ -1246,8 +1243,6 @@ function ClientDashboardContent() {
   const waterProgressText = hydrationTargetLoaded && waterLoaded
     ? `${waterMl} / ${hydrationTargetMl} ml`
     : 'Se încarcă progresul de apă';
-  const xpLevel = userLevel || getLevelInfoFromXp(0);
-  const nextLevel = (Number(xpLevel?.level) || 1) + 1;
   const finishRewardTitle = finishReward
     ? (finishReward.type === 'onboarding'
       ? 'Înregistrare finalizată!'
@@ -1655,7 +1650,9 @@ function ClientDashboardContent() {
             <p>{workoutDoneToday ? 'Completat' : workoutMetaText}</p>
           </div>
           {workoutDoneToday ? (
-            <span className={styles.dashboardDoneMark}>✅</span>
+            <button className={`${styles.dashboardActionBtn} ${styles.dashboardActionBtnComplete}`} disabled>
+              COMPLET
+            </button>
           ) : isWorkoutRestDayToday ? (
             <button
               className={styles.dashboardActionBtn}
@@ -1675,13 +1672,9 @@ function ClientDashboardContent() {
             <h2>Mese de azi</h2>
             <p>{mealsDoneToday ? 'Completat' : 'Vezi ce mese ai pregătite pentru azi.'}</p>
           </div>
-          {mealsDoneToday ? (
-            <span className={styles.dashboardDoneMark}>✅</span>
-          ) : (
-            <button className={styles.dashboardActionBtn} onClick={openMealPlan}>
-              VEZI
-            </button>
-          )}
+          <button className={styles.dashboardActionBtn} onClick={openMealPlan}>
+            VEZI
+          </button>
         </article>
       </section>
 
@@ -1704,15 +1697,6 @@ function ClientDashboardContent() {
         </div>
       </section>
 
-      <section className={styles.dashboardXpPanel}>
-        <div className={styles.dashboardXpLine}>
-          <span><LevelLabel level={xpLevel.level} /> · {xpLevel.totalXp} XP</span>
-          <strong>{xpLevel.progressPct}% spre Level {nextLevel}</strong>
-        </div>
-        <div className={styles.dashboardXpTrack}>
-          <div className={styles.dashboardXpFill} style={{ width: `${xpLevel.progressPct}%` }} />
-        </div>
-      </section>
     </div>
   );
 

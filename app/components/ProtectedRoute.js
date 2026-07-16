@@ -18,13 +18,22 @@ function AuthGateSkeleton() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'radial-gradient(ellipse 80% 40% at 50% -5%, rgba(183, 255, 0, 0.09) 0%, transparent 65%), #fff',
-      fontFamily: 'var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      padding: 24,
-    }}>
-      <div style={{ width: '100%', maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+    <div className="authGateShell">
+      <div className="authGateMobileTopbar" aria-hidden="true">
+        <div className="authGateHamburger">
+          <span />
+          <span />
+          <span />
+        </div>
+        <div className="authGateLevelPill">
+          <div style={{ ...greenShimmer, width: 28, height: 18, borderRadius: 6 }} />
+          <div style={{ ...shimmer, width: '58%', height: 4, borderRadius: 999 }} />
+        </div>
+        <div className="authGateStreak" style={greenShimmer} />
+        <div className="authGateBell" />
+      </div>
+
+      <div className="authGateContent">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, padding: 18, border: '1px solid rgba(10,10,10,0.08)', borderRadius: 14, background: 'rgba(255,255,255,0.78)' }}>
           <div>
             <div style={{ ...shimmer, width: 180, height: 26, borderRadius: 8 }} />
@@ -49,9 +58,98 @@ function AuthGateSkeleton() {
         ))}
       </div>
       <style>{`
+        .authGateShell {
+          min-height: 100vh;
+          background: radial-gradient(ellipse 80% 40% at 50% -5%, rgba(183, 255, 0, 0.09) 0%, transparent 65%), #fff;
+          font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          padding: 24px;
+        }
+        .authGateContent {
+          width: 100%;
+          max-width: 760px;
+          margin: 0 auto;
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+        }
+        .authGateMobileTopbar {
+          display: none;
+        }
         @keyframes skeletonShimmer {
           0% { background-position: -800px 0; }
           100% { background-position: 800px 0; }
+        }
+        @media (max-width: 768px) {
+          .authGateShell {
+            padding: 0;
+          }
+          .authGateMobileTopbar {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            min-height: 52px;
+            height: calc(52px + env(safe-area-inset-top, 0px));
+            padding: env(safe-area-inset-top, 0) max(8px, env(safe-area-inset-right)) 0 max(8px, env(safe-area-inset-left));
+            background: #0f0f0f;
+            box-sizing: border-box;
+          }
+          .authGateContent {
+            max-width: 560px;
+            padding: 16px max(18px, env(safe-area-inset-right)) 80px max(18px, env(safe-area-inset-left));
+            gap: 14px;
+            box-sizing: border-box;
+          }
+          .authGateHamburger,
+          .authGateBell {
+            width: 38px;
+            height: 44px;
+            flex-shrink: 0;
+            border-radius: 6px;
+          }
+          .authGateHamburger {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+          }
+          .authGateHamburger span {
+            width: 18px;
+            height: 2px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.46);
+          }
+          .authGateLevelPill {
+            flex: 1 1 auto;
+            min-width: 0;
+            min-height: 34px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 5px;
+            padding: 6px 9px;
+            border-radius: 13px;
+            background: rgba(183, 255, 0, 0.12);
+            border: 1px solid rgba(183, 255, 0, 0.25);
+            box-sizing: border-box;
+          }
+          .authGateStreak {
+            width: 54px;
+            height: 34px;
+            flex-shrink: 0;
+            border-radius: 13px;
+          }
+          .authGateBell {
+            position: relative;
+          }
+          .authGateBell::before {
+            content: "";
+            position: absolute;
+            inset: 13px 10px;
+            border: 2px solid rgba(255, 255, 255, 0.46);
+            border-bottom-width: 3px;
+            border-radius: 11px 11px 7px 7px;
+          }
         }
       `}</style>
     </div>

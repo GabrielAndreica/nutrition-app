@@ -17,17 +17,37 @@ import {
   getCoinRewardReason,
 } from '@/app/lib/appCurrency';
 
+const MAX_XP_BODY_BYTES = 8 * 1024;
+const ALLOWED_XP_TYPES = ['meals', 'workout', 'day', 'exercise', 'progress_update', 'onboarding'];
+
+function isClientUser(role) {
+  return role === 'client' || role === 'user';
+}
+
+function requestBodyTooLarge(request, maxBytes) {
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  return Number.isFinite(contentLength) && contentLength > maxBytes;
+}
+
 export async function POST(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  }
 
   const rl = await enforceRateLimit(request, {
     userId: auth.userId,
     endpoint: 'user-xp-post',
     maxRequests: 20,
     windowMinutes: 1,
+    failClosed: true,
   });
   if (rl) return rl;
+
+  if (requestBodyTooLarge(request, MAX_XP_BODY_BYTES)) {
+    return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
+  }
 
   let amount = 50;
   let type = null;
@@ -36,7 +56,7 @@ export async function POST(request) {
     const body = await request.json();
     const parsed = Number(body?.amount);
     if (Number.isFinite(parsed) && parsed > 0 && parsed <= 500) amount = parsed;
-    if (['meals', 'workout', 'day', 'exercise', 'progress_update', 'onboarding'].includes(body?.type)) {
+    if (ALLOWED_XP_TYPES.includes(body?.type)) {
       type = body.type;
     }
     const parsedDayIndex = Number(body?.dayIndex);

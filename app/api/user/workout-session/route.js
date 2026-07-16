@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabase, supabaseQuery } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import {
   buildDailyProgressUpdate,
   reconcileDailyPlanProgress,
@@ -881,6 +882,23 @@ const EXERCISE_SELECT_WITH_VIDEO_NO_DIFFICULTY = `${EXERCISE_SELECT_BASE}, video
 const EXERCISE_SELECT_WITH_VIDEO_NO_NOTES = `${EXERCISE_SELECT_BASE_NO_NOTES}, difficulty_level, video_url, video_storage_bucket, video_storage_path`;
 const EXERCISE_SELECT_WITH_VIDEO_MINIMAL = `${EXERCISE_SELECT_BASE_NO_NOTES}, video_url, video_storage_bucket, video_storage_path`;
 const DEFAULT_EXERCISE_VIDEO_BUCKET = 'video-exercitii';
+const EXERCISE_VIDEO_SIGNED_URL_TTL_SECONDS = 60 * 60 * 4;
+const EXERCISE_VIDEO_CACHE_TTL_MS = 1000 * 60 * 60 * 3;
+const MAX_SESSION_EXERCISES = 20;
+const MAX_SESSION_PAYLOAD_BYTES = 128 * 1024;
+const MAX_PATCH_PAYLOAD_BYTES = 8 * 1024;
+const exerciseVideoUrlCache = new Map();
+
+function requestBodyTooLarge(request, maxBytes) {
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  return Number.isFinite(contentLength) && contentLength > maxBytes;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.max(min, Math.min(max, number));
+}
 
 function normalizeExerciseVideoBucket(bucket) {
   return bucket === 'vide-exercitii'
@@ -888,19 +906,60 @@ function normalizeExerciseVideoBucket(bucket) {
     : (bucket || DEFAULT_EXERCISE_VIDEO_BUCKET);
 }
 
+function getExerciseVideoCacheKey(row) {
+  if (!row?.video_storage_path) return row?.video_url || '';
+  return [
+    normalizeExerciseVideoBucket(row.video_storage_bucket),
+    row.video_storage_path,
+  ].join('|');
+}
+
+function readExerciseVideoCache(key) {
+  const cached = exerciseVideoUrlCache.get(key);
+  if (!cached || cached.expiresAt <= Date.now()) {
+    exerciseVideoUrlCache.delete(key);
+    return null;
+  }
+  return cached.value;
+}
+
+function writeExerciseVideoCache(key, value) {
+  if (!key || !value) return value;
+  exerciseVideoUrlCache.set(key, {
+    value,
+    expiresAt: Date.now() + EXERCISE_VIDEO_CACHE_TTL_MS,
+  });
+
+  if (exerciseVideoUrlCache.size > 700) {
+    const now = Date.now();
+    for (const [cacheKey, cacheValue] of exerciseVideoUrlCache.entries()) {
+      if (cacheValue.expiresAt <= now || exerciseVideoUrlCache.size > 550) {
+        exerciseVideoUrlCache.delete(cacheKey);
+      }
+    }
+  }
+
+  return value;
+}
+
 async function resolveExerciseVideoUrl(supabase, row) {
+  const cacheKey = getExerciseVideoCacheKey(row);
+  const cachedUrl = readExerciseVideoCache(cacheKey);
+  if (cachedUrl) return cachedUrl;
+
   if (!row?.video_storage_path) {
-    return row?.video_url
+    const videoUrl = row?.video_url
       ? row.video_url.replace('/vide-exercitii/', '/video-exercitii/')
       : null;
+    return writeExerciseVideoCache(cacheKey, videoUrl);
   }
 
   const bucket = normalizeExerciseVideoBucket(row.video_storage_bucket);
   const { data, error } = await supabase.storage
     .from(bucket)
-    .createSignedUrl(row.video_storage_path, 60 * 60 * 4);
+    .createSignedUrl(row.video_storage_path, EXERCISE_VIDEO_SIGNED_URL_TTL_SECONDS);
 
-  if (!error && data?.signedUrl) return data.signedUrl;
+  if (!error && data?.signedUrl) return writeExerciseVideoCache(cacheKey, data.signedUrl);
 
   console.error('Workout exercise signed video URL failed:', {
     bucket,
@@ -911,7 +970,7 @@ async function resolveExerciseVideoUrl(supabase, row) {
     .from(bucket)
     .getPublicUrl(row.video_storage_path);
 
-  return publicData?.publicUrl || null;
+  return writeExerciseVideoCache(cacheKey, publicData?.publicUrl || null);
 }
 
 function hasExerciseVideo(row) {
@@ -1219,6 +1278,14 @@ export async function GET(request) {
 
   const { searchParams } = new URL(request.url);
   const requestedFocus = searchParams.get('focus');
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: requestedFocus ? 'user-workout-session-generate' : 'user-workout-session-get',
+    maxRequests: requestedFocus ? 30 : 90,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
 
   const supabase = getSupabase();
 
@@ -1285,6 +1352,19 @@ export async function POST(request) {
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (auth.role !== 'user' && auth.role !== 'client') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'user-workout-session-start',
+    maxRequests: 30,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
+
+  if (requestBodyTooLarge(request, MAX_SESSION_PAYLOAD_BYTES)) {
+    return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
+  }
+
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Body invalid.' }, { status: 400 }); }
   const { exercises, focus, generate } = body;
@@ -1312,6 +1392,9 @@ export async function POST(request) {
     hydratedExercises = generated.exercises;
   } else {
     if (!exercises?.length) return NextResponse.json({ error: 'Exerciții lipsă.' }, { status: 400 });
+    if (!Array.isArray(exercises) || exercises.length > MAX_SESSION_EXERCISES) {
+      return NextResponse.json({ error: 'Prea multe exerciții în sesiune.' }, { status: 413 });
+    }
     hydratedExercises = await hydrateExercisesWithDbVideos(supabase, exercises);
   }
 
@@ -1345,6 +1428,19 @@ export async function PATCH(request) {
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (auth.role !== 'user' && auth.role !== 'client') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'user-workout-session-progress',
+    maxRequests: 180,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
+
+  if (requestBodyTooLarge(request, MAX_PATCH_PAYLOAD_BYTES)) {
+    return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
+  }
+
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Body invalid.' }, { status: 400 }); }
   const { currentIndex, xpEarned, elapsedSeconds } = body;
@@ -1360,11 +1456,19 @@ export async function PATCH(request) {
     return NextResponse.json({ ok: false, error: 'Nicio sesiune activă.' }, { status: 404 });
   }
 
+  const activeSession = data.active_workout_session;
+  const exerciseCount = Array.isArray(activeSession.exercises) ? activeSession.exercises.length : MAX_SESSION_EXERCISES;
   const updated = {
-    ...data.active_workout_session,
-    currentIndex,
-    xpEarned,
-    ...(elapsedSeconds !== undefined ? { elapsedSeconds } : {}),
+    ...activeSession,
+    currentIndex: currentIndex === undefined
+      ? activeSession.currentIndex
+      : clampNumber(currentIndex, 0, exerciseCount, activeSession.currentIndex || 0),
+    xpEarned: xpEarned === undefined
+      ? activeSession.xpEarned
+      : clampNumber(xpEarned, 0, 10000, activeSession.xpEarned || 0),
+    ...(elapsedSeconds !== undefined
+      ? { elapsedSeconds: clampNumber(elapsedSeconds, 0, 24 * 60 * 60, activeSession.elapsedSeconds || 0) }
+      : {}),
   };
   await supabase.from('users').update({ active_workout_session: updated }).eq('id', auth.userId);
   return NextResponse.json({ ok: true });
@@ -1378,6 +1482,15 @@ export async function DELETE(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (auth.role !== 'user' && auth.role !== 'client') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'user-workout-session-delete',
+    maxRequests: 30,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
 
   const supabase = getSupabase();
   await supabase.from('users').update({ active_workout_session: null }).eq('id', auth.userId);
