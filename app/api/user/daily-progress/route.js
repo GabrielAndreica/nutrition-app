@@ -13,6 +13,11 @@ function normalizePlanKey(value) {
     .slice(0, 120) || 'default';
 }
 
+function isMissingWaterRewardColumnError(error) {
+  return error?.code === '42703' ||
+    /water_goal_awarded|water_goal_awarded_at/i.test(String(error?.message || ''));
+}
+
 function getNumericUserId(auth) {
   const userId = Number(auth.userId);
   return Number.isInteger(userId) && userId > 0 ? userId : null;
@@ -58,6 +63,8 @@ function buildProgressPayload(row, progressDate, mealPlanKey = null, planDay = n
   return {
     progressDate,
     waterMl: Math.max(0, Number(row?.water_ml) || 0),
+    waterGoalAwarded: row?.water_goal_awarded === true,
+    waterGoalAwardedAt: row?.water_goal_awarded_at || null,
     dayFinalized,
     dayFinalizedPlanDay: finalizedPlanDay,
     dayFinalizedAt: row?.day_finalized_at || null,
@@ -66,6 +73,15 @@ function buildProgressPayload(row, progressDate, mealPlanKey = null, planDay = n
 }
 
 async function readDailyProgress(supabase, userId, progressDate) {
+  const result = await supabaseQuery(() => supabase
+    .from('daily_user_progress')
+    .select('meal_checks, water_ml, water_goal_awarded, water_goal_awarded_at, day_finalized, day_finalized_plan_day, day_finalized_at')
+    .eq('user_id', userId)
+    .eq('progress_date', progressDate)
+    .maybeSingle());
+
+  if (!isMissingWaterRewardColumnError(result.error)) return result;
+
   return supabaseQuery(() => supabase
     .from('daily_user_progress')
     .select('meal_checks, water_ml, day_finalized, day_finalized_plan_day, day_finalized_at')
@@ -142,6 +158,8 @@ export async function PATCH(request) {
     progress_date: progressDate,
     meal_checks: mealChecks,
     water_ml: Math.max(0, Number(existing?.water_ml) || 0),
+    water_goal_awarded: existing?.water_goal_awarded === true,
+    water_goal_awarded_at: existing?.water_goal_awarded_at || null,
     day_finalized: existing?.day_finalized === true,
     day_finalized_plan_day: normalizePlanDay(existing?.day_finalized_plan_day),
     day_finalized_at: existing?.day_finalized_at || null,
@@ -159,11 +177,26 @@ export async function PATCH(request) {
     };
   }
 
-  const { data, error } = await supabaseQuery(() => supabase
+  let { data, error } = await supabaseQuery(() => supabase
     .from('daily_user_progress')
     .upsert(payload, { onConflict: 'user_id,progress_date' })
-    .select('meal_checks, water_ml, day_finalized, day_finalized_plan_day, day_finalized_at')
+    .select('meal_checks, water_ml, water_goal_awarded, water_goal_awarded_at, day_finalized, day_finalized_plan_day, day_finalized_at')
     .maybeSingle());
+
+  if (isMissingWaterRewardColumnError(error)) {
+    const legacyPayload = { ...payload };
+    delete legacyPayload.water_goal_awarded;
+    delete legacyPayload.water_goal_awarded_at;
+
+    const legacyResult = await supabaseQuery(() => supabase
+      .from('daily_user_progress')
+      .upsert(legacyPayload, { onConflict: 'user_id,progress_date' })
+      .select('meal_checks, water_ml, day_finalized, day_finalized_plan_day, day_finalized_at')
+      .maybeSingle());
+
+    data = legacyResult.data;
+    error = legacyResult.error;
+  }
 
   if (error) {
     console.error('[user/daily-progress] PATCH DB error:', error);

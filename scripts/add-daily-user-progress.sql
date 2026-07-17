@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS daily_user_progress (
   progress_date date NOT NULL,
   meal_checks jsonb NOT NULL DEFAULT '{}',
   water_ml integer NOT NULL DEFAULT 0 CHECK (water_ml >= 0 AND water_ml <= 10000),
+  water_goal_awarded boolean NOT NULL DEFAULT false,
+  water_goal_awarded_at timestamptz,
   day_finalized boolean NOT NULL DEFAULT false,
   day_finalized_plan_day integer,
   day_finalized_at timestamptz,
@@ -18,6 +20,8 @@ CREATE TABLE IF NOT EXISTS daily_user_progress (
 );
 
 ALTER TABLE daily_user_progress
+  ADD COLUMN IF NOT EXISTS water_goal_awarded boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS water_goal_awarded_at timestamptz,
   ADD COLUMN IF NOT EXISTS day_finalized boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS day_finalized_plan_day integer,
   ADD COLUMN IF NOT EXISTS day_finalized_at timestamptz;

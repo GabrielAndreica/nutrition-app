@@ -18,7 +18,10 @@ import {
 } from '@/app/lib/appCurrency';
 
 const MAX_XP_BODY_BYTES = 8 * 1024;
-const ALLOWED_XP_TYPES = ['meals', 'workout', 'day', 'exercise', 'progress_update', 'onboarding'];
+const WATER_XP_AMOUNT = 20;
+const PROGRESS_UPDATE_XP_AMOUNT = 50;
+const SUBSCRIPTION_UPGRADE_XP_AMOUNT = 50;
+const ALLOWED_XP_TYPES = ['meals', 'workout', 'day', 'water', 'exercise', 'progress_update', 'onboarding', 'subscription_upgrade'];
 
 function isClientUser(role) {
   return role === 'client' || role === 'user';
@@ -27,6 +30,21 @@ function isClientUser(role) {
 function requestBodyTooLarge(request, maxBytes) {
   const contentLength = Number(request.headers.get('content-length') || 0);
   return Number.isFinite(contentLength) && contentLength > maxBytes;
+}
+
+function isMissingWaterRewardColumnError(error) {
+  return error?.code === '42703' ||
+    /water_goal_awarded|water_goal_awarded_at/i.test(String(error?.message || ''));
+}
+
+function isMissingWeeklyCheckInXpColumnError(error) {
+  return error?.code === '42703' ||
+    /xp_awarded|xp_awarded_at|xp_awarded_amount/i.test(String(error?.message || ''));
+}
+
+function isMissingXpLedgerError(error) {
+  return error?.code === '42P01' ||
+    /user_xp_ledger/i.test(String(error?.message || ''));
 }
 
 export async function POST(request) {
@@ -65,6 +83,16 @@ export async function POST(request) {
     }
   } catch {}
 
+  if (type === 'water') {
+    amount = WATER_XP_AMOUNT;
+  }
+  if (type === 'progress_update') {
+    amount = PROGRESS_UPDATE_XP_AMOUNT;
+  }
+  if (type === 'subscription_upgrade') {
+    amount = SUBSCRIPTION_UPGRADE_XP_AMOUNT;
+  }
+
   const completionType = type === 'meals' || type === 'workout' ? type : null;
   const supabase = getSupabase();
 
@@ -88,7 +116,10 @@ export async function POST(request) {
       streak_awarded_day,
       weekly_plan_due_at,
       last_weekly_checkin_at,
-      hydration_target_ml
+      hydration_target_ml,
+      account_type,
+      subscription_status,
+      subscription_id
     `)
     .eq('id', auth.userId)
     .maybeSingle();
@@ -129,6 +160,58 @@ export async function POST(request) {
 
   const progressDate = getCurrentPlanDateKey(now);
   let dayProgress = null;
+  let waterProgress = null;
+  let progressCheckIn = null;
+  if (type === 'water') {
+    const { data: progressRow, error: progressError } = await supabase
+      .from('daily_user_progress')
+      .select('id, water_ml, water_goal_awarded, water_goal_awarded_at')
+      .eq('user_id', auth.userId)
+      .eq('progress_date', progressDate)
+      .maybeSingle();
+
+    if (progressError) {
+      console.error('[user/xp] water progress read error:', progressError);
+      if (isMissingWaterRewardColumnError(progressError)) {
+        return NextResponse.json({ error: 'Rulează scriptul add-daily-user-progress.sql pentru recompensa de apă.' }, { status: 500 });
+      }
+      return NextResponse.json({ error: 'Nu am putut verifica progresul de apă.' }, { status: 500 });
+    }
+
+    const hydrationTargetMl = Math.max(0, Number(clientRow.hydration_target_ml) || 0);
+    if (!hydrationTargetMl || Math.max(0, Number(progressRow?.water_ml) || 0) < hydrationTargetMl) {
+      return NextResponse.json({ error: 'Mai întâi atinge targetul de apă.' }, { status: 409 });
+    }
+    if (progressRow?.water_goal_awarded === true) {
+      return NextResponse.json({ error: 'Recompensa pentru apă a fost deja acordată azi.' }, { status: 409 });
+    }
+
+    const { data: markedWater, error: markWaterError } = await supabase
+      .from('daily_user_progress')
+      .update({
+        water_goal_awarded: true,
+        water_goal_awarded_at: now.toISOString(),
+      })
+      .eq('user_id', auth.userId)
+      .eq('progress_date', progressDate)
+      .eq('water_goal_awarded', false)
+      .select('water_goal_awarded, water_goal_awarded_at')
+      .maybeSingle();
+
+    if (markWaterError) {
+      console.error('[user/xp] water reward mark error:', markWaterError);
+      if (isMissingWaterRewardColumnError(markWaterError)) {
+        return NextResponse.json({ error: 'Rulează scriptul add-daily-user-progress.sql pentru recompensa de apă.' }, { status: 500 });
+      }
+      return NextResponse.json({ error: 'Nu am putut acorda recompensa pentru apă.' }, { status: 500 });
+    }
+    if (!markedWater) {
+      return NextResponse.json({ error: 'Recompensa pentru apă a fost deja acordată azi.' }, { status: 409 });
+    }
+
+    waterProgress = markedWater;
+  }
+
   if (type === 'day') {
     const effectiveDayIndex = dailyState.currentPlanDay;
     if (dayIndex !== null && dayIndex !== effectiveDayIndex) {
@@ -185,6 +268,94 @@ export async function POST(request) {
     dayProgress = markedDay;
   }
 
+  if (type === 'progress_update') {
+    const { data: markedCheckIn, error: markCheckInError } = await supabase
+      .from('weekly_checkins')
+      .update({
+        xp_awarded: true,
+        xp_awarded_at: now.toISOString(),
+        xp_awarded_amount: amount,
+      })
+      .eq('user_id', auth.userId)
+      .eq('week_key', progressDate)
+      .eq('xp_awarded', false)
+      .select('id, xp_awarded, xp_awarded_at, xp_awarded_amount')
+      .maybeSingle();
+
+    if (markCheckInError) {
+      console.error('[user/xp] weekly check-in XP mark error:', markCheckInError);
+      if (isMissingWeeklyCheckInXpColumnError(markCheckInError)) {
+        return NextResponse.json({ error: 'Rulează scriptul add-weekly-checkins.sql pentru recompensa de check-in.' }, { status: 500 });
+      }
+      return NextResponse.json({ error: 'Nu am putut acorda XP pentru check-in.' }, { status: 500 });
+    }
+
+    if (!markedCheckIn) {
+      const { data: existingCheckIn, error: existingCheckInError } = await supabase
+        .from('weekly_checkins')
+        .select('id, xp_awarded')
+        .eq('user_id', auth.userId)
+        .eq('week_key', progressDate)
+        .maybeSingle();
+
+      if (existingCheckInError) {
+        console.error('[user/xp] weekly check-in read error:', existingCheckInError);
+        if (isMissingWeeklyCheckInXpColumnError(existingCheckInError)) {
+          return NextResponse.json({ error: 'Rulează scriptul add-weekly-checkins.sql pentru recompensa de check-in.' }, { status: 500 });
+        }
+        return NextResponse.json({ error: 'Nu am putut verifica recompensa de check-in.' }, { status: 500 });
+      }
+
+      if (!existingCheckIn) {
+        return NextResponse.json({ error: 'Trimite mai întâi check-in-ul săptămânal.' }, { status: 409 });
+      }
+
+      return NextResponse.json({ error: 'Recompensa pentru check-in a fost deja acordată.' }, { status: 409 });
+    }
+
+    progressCheckIn = markedCheckIn;
+  }
+
+  let subscriptionRewardLedger = null;
+  if (type === 'subscription_upgrade') {
+    const isActiveCoach = clientRow.account_type === 'paid' || clientRow.subscription_status === 'active';
+    if (!isActiveCoach) {
+      return NextResponse.json({ error: 'Abonamentul Coach nu este activ.' }, { status: 409 });
+    }
+
+    const sourceKey = `coach:${clientRow.subscription_id || auth.userId}`;
+    const { data: ledgerRow, error: ledgerError } = await supabase
+      .from('user_xp_ledger')
+      .insert({
+        user_id: auth.userId,
+        amount,
+        reason: 'Upgrade Trevano Coach',
+        source_type: 'subscription_upgrade',
+        source_key: sourceKey,
+        metadata: {
+          subscriptionId: clientRow.subscription_id || null,
+        },
+      })
+      .select('id')
+      .maybeSingle();
+
+    if (ledgerError) {
+      if (isMissingXpLedgerError(ledgerError)) {
+        return NextResponse.json({ error: 'Rulează scriptul add-subscription-xp-rewards.sql pentru recompensa Coach.' }, { status: 500 });
+      }
+      if (ledgerError.code === '23505') {
+        return NextResponse.json({ error: 'Recompensa pentru Coach a fost deja acordată.' }, { status: 409 });
+      }
+      console.error('[user/xp] subscription reward ledger error:', ledgerError);
+      return NextResponse.json({ error: 'Nu am putut acorda recompensa Coach.' }, { status: 500 });
+    }
+
+    if (!ledgerRow) {
+      return NextResponse.json({ error: 'Recompensa pentru Coach a fost deja acordată.' }, { status: 409 });
+    }
+    subscriptionRewardLedger = ledgerRow;
+  }
+
   const newXp = (clientRow.xp || 0) + amount;
   const info = getLevelInfo(newXp);
   const leveledUp = info.level > (Number(clientRow.level) || 1);
@@ -233,6 +404,27 @@ export async function POST(request) {
         .eq('user_id', auth.userId)
         .eq('progress_date', progressDate);
     }
+    if (type === 'water') {
+      await supabase
+        .from('daily_user_progress')
+        .update({ water_goal_awarded: false, water_goal_awarded_at: null })
+        .eq('user_id', auth.userId)
+        .eq('progress_date', progressDate);
+    }
+    if (type === 'progress_update') {
+      await supabase
+        .from('weekly_checkins')
+        .update({ xp_awarded: false, xp_awarded_at: null, xp_awarded_amount: 0 })
+        .eq('user_id', auth.userId)
+        .eq('week_key', progressDate);
+    }
+    if (type === 'subscription_upgrade' && subscriptionRewardLedger?.id) {
+      await supabase
+        .from('user_xp_ledger')
+        .delete()
+        .eq('id', subscriptionRewardLedger.id)
+        .eq('user_id', auth.userId);
+    }
     return NextResponse.json({ error: 'Eroare la actualizarea XP.' }, { status: 500 });
   }
   if (!updatedUser) {
@@ -243,8 +435,35 @@ export async function POST(request) {
         .eq('user_id', auth.userId)
         .eq('progress_date', progressDate);
     }
+    if (type === 'water') {
+      await supabase
+        .from('daily_user_progress')
+        .update({ water_goal_awarded: false, water_goal_awarded_at: null })
+        .eq('user_id', auth.userId)
+        .eq('progress_date', progressDate);
+    }
+    if (type === 'progress_update') {
+      await supabase
+        .from('weekly_checkins')
+        .update({ xp_awarded: false, xp_awarded_at: null, xp_awarded_amount: 0 })
+        .eq('user_id', auth.userId)
+        .eq('week_key', progressDate);
+    }
+    if (type === 'subscription_upgrade' && subscriptionRewardLedger?.id) {
+      await supabase
+        .from('user_xp_ledger')
+        .delete()
+        .eq('id', subscriptionRewardLedger.id)
+        .eq('user_id', auth.userId);
+    }
     return NextResponse.json(
-      { error: completionType === 'meals' ? 'Ziua de mese a fost deja finalizată.' : 'Antrenamentul a fost deja finalizat.' },
+      {
+        error: completionType === 'meals'
+          ? 'Ziua de mese a fost deja finalizată.'
+          : completionType === 'workout'
+            ? 'Antrenamentul a fost deja finalizat.'
+            : 'Nu am putut acorda XP.',
+      },
       { status: 409 }
     );
   }
@@ -311,5 +530,10 @@ export async function POST(request) {
     dayFinalized: type === 'day' ? dayProgress?.day_finalized === true : undefined,
     dayFinalizedPlanDay: type === 'day' ? dayProgress?.day_finalized_plan_day : undefined,
     dayFinalizedAt: type === 'day' ? (dayProgress?.day_finalized_at || null) : undefined,
+    waterRewardAwarded: type === 'water' ? waterProgress?.water_goal_awarded === true : undefined,
+    waterRewardAwardedAt: type === 'water' ? (waterProgress?.water_goal_awarded_at || null) : undefined,
+    progressRewardAwarded: type === 'progress_update' ? progressCheckIn?.xp_awarded === true : undefined,
+    progressRewardAwardedAt: type === 'progress_update' ? (progressCheckIn?.xp_awarded_at || null) : undefined,
+    subscriptionRewardAwarded: type === 'subscription_upgrade' ? !!subscriptionRewardLedger : undefined,
   });
 }

@@ -4,6 +4,7 @@ import { verifyToken } from '@/app/lib/verifyToken';
 import { getStripe, getPlanTypeFromPriceId } from '@/app/lib/stripe';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { applyPremiumCheckInUpgrade } from '@/app/lib/premiumCheckInUpgrade';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -186,6 +187,16 @@ export async function POST(request) {
 
     if (updateError) throw updateError;
 
+    let premiumCheckIn = null;
+    if (updates.account_type === 'paid') {
+      premiumCheckIn = await applyPremiumCheckInUpgrade(supabase, auth.userId, {
+        source: 'stripe_checkout_sync',
+      });
+      if (premiumCheckIn?.error) {
+        console.error('[stripe:sync-checkout-session] premium check-in upgrade error:', premiumCheckIn.error);
+      }
+    }
+
     await logActivity({
       action: 'billing.checkout_sync',
       status: 'success',
@@ -199,6 +210,7 @@ export async function POST(request) {
         subscriptionId,
         subscriptionStatus,
         planType: verifiedPlanType,
+        premiumCheckIn,
       },
     });
 
@@ -206,6 +218,7 @@ export async function POST(request) {
       account_type: updates.account_type,
       subscription_status: updates.subscription_status,
       subscription_plan: updates.subscription_plan,
+      premium_checkin: premiumCheckIn,
     };
 
     const res = NextResponse.json(payload);

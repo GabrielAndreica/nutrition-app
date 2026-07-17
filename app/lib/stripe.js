@@ -24,12 +24,14 @@ export const stripe = new Proxy({}, {
 });
 
 export function getStripePriceId(planType) {
+  if (planType === 'coach') return process.env.STRIPE_COACH_PRICE_ID;
   if (planType === 'starter') return process.env.STRIPE_STARTER_PRICE_ID;
   if (planType === 'pro') return process.env.STRIPE_PRO_PRICE_ID;
   return null;
 }
 
 export function getPlanTypeFromPriceId(priceId) {
+  if (priceId === process.env.STRIPE_COACH_PRICE_ID) return 'coach';
   if (priceId === process.env.STRIPE_STARTER_PRICE_ID) return 'starter';
   if (priceId === process.env.STRIPE_PRO_PRICE_ID) return 'pro';
   return null;

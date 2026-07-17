@@ -51,6 +51,7 @@ const fireSmallConfetti = async () => {
 };
 
 const COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
+const WATER_XP_REWARD = 20;
 
 const RECIPE_MEAL_TYPE_LABELS = {
   breakfast: 'Mic dejun',
@@ -60,6 +61,13 @@ const RECIPE_MEAL_TYPE_LABELS = {
 };
 const SHOW_RECIPE_SHOP = false;
 const SHOW_APP_COINS = false;
+const EMPTY_WEEKLY_CHECKIN_FORM = {
+  weightKg: '',
+  mealAdherencePct: null,
+  workoutAdherencePct: null,
+  workoutDifficulty: null,
+  hungerLevel: null,
+};
 
 function PlanModuleSkeleton({ compact = false }) {
   return (
@@ -182,6 +190,27 @@ function getLevelUpPayload(previousLevelInfo, nextLevelInfo, xpAdded = 50) {
   };
 }
 
+function formatLiters(valueMl) {
+  return (Number(valueMl) / 1000).toLocaleString('en-US', {
+    maximumFractionDigits: 2,
+  });
+}
+
+function parseDecimalInput(value) {
+  const normalized = String(value ?? '').trim().replace(',', '.');
+  if (!normalized) return NaN;
+  return Number(normalized);
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, Number(value) || 0));
+}
+
+function formatKg(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(1) : '-';
+}
+
 const WORKOUT_FOCUS_COPY = {
   push: {
     title: 'Push',
@@ -287,6 +316,24 @@ function LevelLabel({ level }) {
   );
 }
 
+function RewardLevelProgress({ levelInfo }) {
+  if (!levelInfo) return null;
+
+  const progressPct = Math.max(0, Math.min(100, Number(levelInfo.progressPct) || 0));
+
+  return (
+    <div className={styles.rewardLevelLine}>
+      <div className={styles.rewardLevelMeta}>
+        <strong>Nivel {levelInfo.level}</strong>
+        <span>{levelInfo.xpInCurrentLevel} / {levelInfo.xpForNextLevel} XP</span>
+      </div>
+      <div className={styles.rewardLevelTrack} aria-hidden="true">
+        <div className={styles.rewardLevelFill} style={{ width: `${progressPct}%` }} />
+      </div>
+    </div>
+  );
+}
+
 function normalizeInstructionList(instructions) {
   if (!instructions) return [];
   if (Array.isArray(instructions)) {
@@ -345,6 +392,8 @@ function ClientDashboardContent() {
   const [waterMl, setWaterMl] = useState(0);
   const [waterLoaded, setWaterLoaded] = useState(false);
   const [waterSaving, setWaterSaving] = useState(false);
+  const [waterRewardClaimed, setWaterRewardClaimed] = useState(false);
+  const [waterRewardSaving, setWaterRewardSaving] = useState(false);
   const [dayFinalized, setDayFinalized] = useState(false);
   const [streakCount, setStreakCount] = useState(0);
   const [streakState, setStreakState] = useState('normal');
@@ -354,25 +403,32 @@ function ClientDashboardContent() {
   const [weeklyRegenMessage, setWeeklyRegenMessage] = useState('Pregătim planurile noi...');
   const [weeklyCheckInDue, setWeeklyCheckInDue] = useState(false);
   const [weeklyCheckInStatus, setWeeklyCheckInStatus] = useState(null);
-  const [weeklyCheckInForm, setWeeklyCheckInForm] = useState({
-    weightKg: '',
-    mealAdherencePct: null,
-    workoutAdherencePct: null,
-    workoutDifficulty: null,
-    hungerLevel: null,
-  });
+  const [weeklyCheckInForm, setWeeklyCheckInForm] = useState(() => ({ ...EMPTY_WEEKLY_CHECKIN_FORM }));
   const [weeklyCheckInSubmitting, setWeeklyCheckInSubmitting] = useState(false);
   const [weeklyCheckInError, setWeeklyCheckInError] = useState('');
   const [weeklyCheckInResult, setWeeklyCheckInResult] = useState(null);
+  const [confirmWeeklyCheckIn, setConfirmWeeklyCheckIn] = useState(false);
   const [progressFormOpen, setProgressFormOpen] = useState(false);
   const [allNotifications, setAllNotifications] = useState([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [visibleNotifications, setVisibleNotifications] = useState(5);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [friends, setFriends] = useState([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendsError, setFriendsError] = useState('');
+  const [friendsSetupRequired, setFriendsSetupRequired] = useState(false);
+  const [friendSearch, setFriendSearch] = useState('');
+  const [friendSearchResults, setFriendSearchResults] = useState([]);
+  const [friendSearchLoading, setFriendSearchLoading] = useState(false);
+  const [friendInviteMessage, setFriendInviteMessage] = useState('');
+  const [friendInviteLoadingId, setFriendInviteLoadingId] = useState(null);
   const notificationsPanelRef = useRef(null);
   const fetchedRef = useRef(false);
   const enrichedMealPlanLoadedRef = useRef(false);
   const preloadedTodayMealImageRef = useRef('');
+  const waterRewardAttemptedRef = useRef(false);
+  const weeklyCheckInWasDueRef = useRef(false);
+  const checkoutReturnHandledRef = useRef(false);
   const startWeeklyPlanRegenerationRef = useRef(null);
 
   // ── Workout Session SPA ──────────────────────────────────────────────────
@@ -435,6 +491,7 @@ function ClientDashboardContent() {
       dietType: c.diet_type,
       allergies: c.allergies,
       mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
+      workoutsPerWeek: c.workouts_per_week ? Number(c.workouts_per_week) : undefined,
       hydrationTargetMl: c.hydration_target_ml,
       foodPreferences: c.food_preferences || '',
     });
@@ -465,6 +522,91 @@ function ClientDashboardContent() {
       return null;
     }
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const payment = params.get('payment');
+    const sessionId = params.get('session_id');
+
+    if (tab === 'progress' || payment === 'success') {
+      setActiveTab('progress');
+      setSidebarOpen(false);
+      requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+        document.querySelector(`.${styles.main}`)?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+      });
+    }
+
+    if (payment !== 'success' || !sessionId?.startsWith('cs_') || checkoutReturnHandledRef.current) return;
+    checkoutReturnHandledRef.current = true;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    (async () => {
+      try {
+        const response = await fetch('/api/stripe/sync-checkout-session', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ sessionId }),
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (response.ok) {
+          const updated = { ...(user || {}), ...data };
+          localStorage.setItem('user', JSON.stringify(updated));
+          login(updated, token);
+
+          const weeklyResponse = await fetch('/api/user/weekly-checkin', {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const weeklyData = await weeklyResponse.json().catch(() => ({}));
+          if (weeklyResponse.ok) {
+            setWeeklyCheckInStatus(weeklyData);
+            setWeeklyCheckInDue(!!weeklyData.due);
+          }
+
+          try {
+            const previousLevelInfo = userLevel;
+            const xpResponse = await fetch('/api/user/xp', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ type: 'subscription_upgrade', amount: 50 }),
+            });
+            const xpData = await xpResponse.json().catch(() => ({}));
+            if (xpResponse.ok) {
+              setUserLevel(xpData);
+              const levelUp = getLevelUpPayload(previousLevelInfo, xpData, xpData.xpAdded || 50);
+              if (levelUp) setPendingLevelUp(levelUp);
+              setFinishReward({
+                type: 'subscription_upgrade',
+                levelInfo: xpData,
+                xpAdded: xpData.xpAdded || 50,
+              });
+              setTimeout(() => {
+                fireConfetti();
+              }, 120);
+            }
+          } catch (error) {
+            console.error('Coach upgrade XP reward failed:', error);
+          }
+        }
+      } catch (error) {
+        console.error('Checkout sync after redirect failed:', error);
+      } finally {
+        window.history.replaceState(null, '', '/client/dashboard?tab=progress');
+      }
+    })();
+  }, [login, user, userLevel]);
 
   const refreshWorkoutTodayPreview = async (token) => {
     if (!token) return null;
@@ -503,6 +645,83 @@ function ClientDashboardContent() {
       setShopLoading(false);
     }
   }, []);
+
+  const fetchFriends = useCallback(async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setFriendsLoading(true);
+    setFriendsError('');
+    try {
+      const response = await fetch('/api/user/friends', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nu am putut încărca prietenii.');
+
+      setFriends(Array.isArray(data.friends) ? data.friends : []);
+      setFriendsSetupRequired(data.setupRequired === true);
+    } catch (err) {
+      setFriendsError(err.message || 'Nu am putut încărca prietenii.');
+    } finally {
+      setFriendsLoading(false);
+    }
+  }, []);
+
+  const searchFriends = useCallback(async (query) => {
+    const token = localStorage.getItem('token');
+    const cleanQuery = String(query || '').trim();
+    if (!token || cleanQuery.length < 2) {
+      setFriendSearchResults([]);
+      return;
+    }
+
+    setFriendSearchLoading(true);
+    setFriendInviteMessage('');
+    try {
+      const response = await fetch(`/api/user/friends?q=${encodeURIComponent(cleanQuery)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nu am putut căuta utilizatori.');
+      setFriendSearchResults(Array.isArray(data.users) ? data.users : []);
+      setFriendsSetupRequired(data.setupRequired === true);
+    } catch (err) {
+      setFriendsError(err.message || 'Nu am putut căuta utilizatori.');
+      setFriendSearchResults([]);
+    } finally {
+      setFriendSearchLoading(false);
+    }
+  }, []);
+
+  const inviteFriend = async (friendUserId) => {
+    const token = localStorage.getItem('token');
+    if (!token || friendInviteLoadingId) return;
+
+    setFriendInviteLoadingId(friendUserId);
+    setFriendsError('');
+    setFriendInviteMessage('');
+    try {
+      const response = await fetch('/api/user/friends', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ friendUserId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nu am putut trimite invitația.');
+
+      setFriendInviteMessage(data.message || 'Invitație trimisă.');
+      setFriendSearchResults(prev => prev.filter(item => Number(item.userId) !== Number(friendUserId)));
+      if (data.status === 'accepted') fetchFriends();
+    } catch (err) {
+      setFriendsError(err.message || 'Nu am putut trimite invitația.');
+    } finally {
+      setFriendInviteLoadingId(null);
+    }
+  };
 
   const handlePurchaseRecipe = async (recipeId) => {
     const token = localStorage.getItem('token');
@@ -552,6 +771,34 @@ function ClientDashboardContent() {
     if (activeTab !== 'shop') return;
     fetchShopRecipes();
   }, [activeTab, fetchShopRecipes]);
+
+  useEffect(() => {
+    if (activeTab !== 'friends') return;
+    fetchFriends();
+  }, [activeTab, fetchFriends]);
+
+  useEffect(() => {
+    if (activeTab !== 'friends') return undefined;
+    const cleanQuery = friendSearch.trim();
+    if (cleanQuery.length < 2) {
+      setFriendSearchResults([]);
+      setFriendSearchLoading(false);
+      return undefined;
+    }
+
+    const timer = setTimeout(() => searchFriends(cleanQuery), 260);
+    return () => clearTimeout(timer);
+  }, [activeTab, friendSearch, searchFriends]);
+
+  useEffect(() => {
+    if (weeklyCheckInDue && !weeklyCheckInWasDueRef.current) {
+      setWeeklyCheckInForm({ ...EMPTY_WEEKLY_CHECKIN_FORM });
+      setWeeklyCheckInError('');
+      setWeeklyCheckInResult(null);
+      setConfirmWeeklyCheckIn(false);
+    }
+    weeklyCheckInWasDueRef.current = weeklyCheckInDue;
+  }, [weeklyCheckInDue]);
 
   useEffect(() => {
     if (!weeklyPlanRegenerating) return;
@@ -806,6 +1053,7 @@ function ClientDashboardContent() {
           dietType: c.diet_type,
           allergies: c.allergies,
           mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
+          workoutsPerWeek: c.workouts_per_week ? Number(c.workouts_per_week) : undefined,
           hydrationTargetMl: c.hydration_target_ml,
           foodPreferences: c.food_preferences || '',
         });
@@ -965,6 +1213,7 @@ function ClientDashboardContent() {
           dietType: c.diet_type,
           allergies: c.allergies,
           mealsPerDay: c.meals_per_day ? String(c.meals_per_day) : undefined,
+          workoutsPerWeek: c.workouts_per_week ? Number(c.workouts_per_week) : undefined,
           hydrationTargetMl: c.hydration_target_ml,
           foodPreferences: c.food_preferences || '',
         });
@@ -1130,6 +1379,9 @@ function ClientDashboardContent() {
       setWorkoutCompletedDays(prev => Math.min(7, Math.max(prev, dayIndex + 1)));
       setWorkoutDayStatus(prev => ({ ...(prev || {}), [String(dayIndex)]: true }));
     }
+    if (type === 'day') {
+      setDayFinalized(true);
+    }
 
     const optimisticLevel = previousLevelInfo ? getLevelInfoFromXp((Number(previousLevelInfo.totalXp) || 0) + 50) : null;
     if (optimisticLevel) {
@@ -1162,9 +1414,11 @@ function ClientDashboardContent() {
       if (data.workoutDayStatus) setWorkoutDayStatus(data.workoutDayStatus);
       if (Number.isFinite(Number(data.streakCount))) setStreakCount(Number(data.streakCount));
       if (data.streakState) setStreakState(data.streakState === 'warning' ? 'warning' : 'normal');
+      if (type === 'day') setDayFinalized(data.dayFinalized === true);
       return data;
     } catch (err) {
       if (optimisticLevel) setUserLevel(previousLevelInfo);
+      if (type === 'day') setDayFinalized(false);
       setError(err.message || 'Nu am putut finaliza ziua.');
       return null;
     }
@@ -1177,9 +1431,7 @@ function ClientDashboardContent() {
   const workoutDoneToday = workoutDayStatus?.[todayKey] === true;
   const hydrationTargetMl = Number(clientData?.hydrationTargetMl) || null;
   const hydrationTargetLoaded = Number.isFinite(hydrationTargetMl) && hydrationTargetMl > 0;
-  const hydrationTargetLiters = hydrationTargetLoaded ? (hydrationTargetMl / 1000).toLocaleString('ro-RO', {
-    maximumFractionDigits: 2,
-  }) : null;
+  const hydrationTargetLiters = hydrationTargetLoaded ? formatLiters(hydrationTargetMl) : null;
   const workoutStartCopy = workoutStartScreen
     ? getWorkoutFocusCopy(workoutStartScreen.focus, workoutStartScreen.exercises || [])
     : null;
@@ -1200,6 +1452,7 @@ function ClientDashboardContent() {
   const waterDoneToday = hydrationTargetLoaded && waterLoaded && waterMl >= hydrationTargetMl;
   const hasWorkoutInProgress = hasActivePausedSession || workoutSession?.phase === 'active';
   const dayDoneToday = dayFinalized === true;
+  const canFinalizeDay = workoutDoneToday && mealsDoneToday && waterDoneToday && !dayDoneToday;
   const weeklyDoneCount =
     Object.values(mealDayStatus || {}).filter(Boolean).length +
     Object.values(workoutDayStatus || {}).filter(Boolean).length;
@@ -1230,7 +1483,7 @@ function ClientDashboardContent() {
   const dailyMissionTotal = dailyMissions.length;
   const dailyProgressPct = Math.round((dailyMissionDoneCount / dailyMissionTotal) * 100);
   const dailyProgressMessage = dailyMissionDoneCount === dailyMissionTotal
-    ? 'Zi completă. Ai luat XP-ul pentru consecvență.'
+    ? 'Zi completă. Continuă tot așa mâine!'
     : dailyMissionDoneCount === dailyMissionTotal - 1
       ? 'Mai ai un pas pentru ziua de azi.'
       : `Mai ai ${dailyMissionTotal - dailyMissionDoneCount} pași pentru ziua de azi.`;
@@ -1241,15 +1494,21 @@ function ClientDashboardContent() {
     ? Math.min(100, Math.round((waterMl / hydrationTargetMl) * 100))
     : 0;
   const waterProgressText = hydrationTargetLoaded && waterLoaded
-    ? `${waterMl} / ${hydrationTargetMl} ml`
+    ? `${formatLiters(waterMl)} / ${formatLiters(hydrationTargetMl)} L`
     : 'Se încarcă progresul de apă';
   const finishRewardTitle = finishReward
     ? (finishReward.type === 'onboarding'
       ? 'Înregistrare finalizată!'
+      : finishReward.type === 'subscription_upgrade'
+      ? 'Coach activat!'
       : finishReward.type === 'meals'
       ? 'Mese finalizate'
       : finishReward.type === 'day'
       ? 'Zi finalizată'
+      : finishReward.type === 'water'
+      ? 'Hidratare completă'
+      : finishReward.type === 'checkin'
+      ? 'Check-in trimis'
       : finishReward.isRecovery
       ? 'Recuperare bifată'
       : 'Antrenament finalizat')
@@ -1257,20 +1516,82 @@ function ClientDashboardContent() {
   const finishRewardMessage = finishReward
     ? (finishReward.type === 'onboarding'
       ? 'Bine ai venit! Ai câștigat primii 50 XP pentru că ți-ai completat profilul.'
+      : finishReward.type === 'subscription_upgrade'
+      ? 'Abonamentul Trevano Coach este activ. Ai primit +50 XP pentru upgrade.'
       : finishReward.type === 'meals'
       ? 'Bravo, ai închis ziua alimentar cum trebuie. +50 XP pentru consecvență.'
       : finishReward.type === 'day'
       ? 'Ai închis toate misiunile zilei. +50 XP pentru consecvență.'
+      : finishReward.type === 'water'
+      ? 'Ai atins targetul de apă al zilei. +20 XP pentru consecvență.'
+      : finishReward.type === 'checkin'
+      ? 'Progresul tău a fost salvat. +50 XP pentru că ți-ai făcut check-in-ul.'
       : finishReward.isRecovery
       ? 'Foarte bine. Recuperarea contează la fel de mult ca efortul. +50 XP adăugați.'
       : 'Excelent. Ai dus antrenamentul până la capăt și ai câștigat +50 XP.')
     : '';
+
+  const claimWaterReward = useCallback(async () => {
+    if (waterRewardSaving || waterRewardClaimed) return;
+
+    waterRewardAttemptedRef.current = true;
+    setWaterRewardSaving(true);
+
+    const previousLevelInfo = userLevel;
+    const optimisticLevel = previousLevelInfo
+      ? getLevelInfoFromXp((Number(previousLevelInfo.totalXp) || 0) + WATER_XP_REWARD)
+      : null;
+
+    if (optimisticLevel) setUserLevel(optimisticLevel);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('Token lipsă.');
+
+      const response = await fetch('/api/user/xp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ amount: WATER_XP_REWARD, type: 'water' }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        if (response.status === 409 && /deja acordat/i.test(String(data.error || ''))) {
+          setWaterRewardClaimed(true);
+        }
+        if (optimisticLevel) setUserLevel(previousLevelInfo);
+        return;
+      }
+
+      setWaterRewardClaimed(true);
+      if (data.level) {
+        setUserLevel(data);
+        const levelUp = getLevelUpPayload(previousLevelInfo, data, data.xpAdded || WATER_XP_REWARD);
+        if (levelUp) setPendingLevelUp(levelUp);
+      }
+      setFinishReward({
+        type: 'water',
+        levelInfo: data.level ? data : (optimisticLevel || previousLevelInfo),
+        xpAdded: data.xpAdded || WATER_XP_REWARD,
+      });
+      fireSmallConfetti();
+    } catch (err) {
+      console.error('Water XP reward failed:', err);
+      if (optimisticLevel) setUserLevel(previousLevelInfo);
+    } finally {
+      setWaterRewardSaving(false);
+    }
+  }, [userLevel, waterRewardClaimed, waterRewardSaving]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadDailyWater() {
       setWaterLoaded(false);
+      waterRewardAttemptedRef.current = false;
       try {
         const token = localStorage.getItem('token');
         if (!token) throw new Error('Token lipsă.');
@@ -1283,12 +1604,14 @@ function ClientDashboardContent() {
 
         if (!cancelled) {
           setWaterMl(Math.max(0, Number(data.waterMl) || 0));
+          setWaterRewardClaimed(data.waterGoalAwarded === true);
           setDayFinalized(data.dayFinalized === true);
         }
       } catch (err) {
         console.error('Daily water sync load failed:', err);
         if (!cancelled) {
           setWaterMl(0);
+          setWaterRewardClaimed(false);
           setDayFinalized(false);
         }
       } finally {
@@ -1299,6 +1622,33 @@ function ClientDashboardContent() {
     loadDailyWater();
     return () => { cancelled = true; };
   }, [currentPlanDay, user?.id]);
+
+  useEffect(() => {
+    if (
+      !hydrationTargetLoaded ||
+      !waterLoaded ||
+      dayFinalized ||
+      waterRewardClaimed ||
+      waterRewardSaving ||
+      waterRewardAttemptedRef.current
+    ) {
+      return;
+    }
+
+    if (waterMl >= hydrationTargetMl) {
+      claimWaterReward();
+    }
+  }, [
+    claimWaterReward,
+    dayFinalized,
+    hydrationTargetLoaded,
+    hydrationTargetMl,
+    waterLoaded,
+    waterMl,
+    waterRewardClaimed,
+    waterRewardSaving,
+  ]);
+
   const closeFinishReward = () => {
     setFinishReward(null);
     if (pendingLevelUp) {
@@ -1309,7 +1659,14 @@ function ClientDashboardContent() {
   };
 
   const handleLogout = () => { logout(); router.push('/'); };
-  const handleTabChange = (tab) => { setActiveTab(tab); setSidebarOpen(false); };
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSidebarOpen(false);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+      document.querySelector(`.${styles.main}`)?.scrollTo?.({ top: 0, left: 0, behavior: 'auto' });
+    });
+  };
   const handleAddWater = async () => {
     if (!hydrationTargetLoaded || !waterLoaded || waterSaving || waterDoneToday || dayFinalized) return;
 
@@ -1333,6 +1690,7 @@ function ClientDashboardContent() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Nu am putut salva apa de azi.');
       setWaterMl(Math.max(0, Number(data.waterMl) || next));
+      if (data.waterGoalAwarded === true) setWaterRewardClaimed(true);
     } catch (err) {
       console.error('Daily water sync save failed:', err);
       setWaterMl(previous);
@@ -1346,8 +1704,33 @@ function ClientDashboardContent() {
     setWeeklyCheckInError('');
   };
 
-  const handleWeeklyCheckInSubmit = async (event) => {
+  const getWeeklyCheckInCompletionState = () => {
+    const weeklyWeight = parseDecimalInput(weeklyCheckInForm.weightKg);
+    return Number.isFinite(weeklyWeight)
+      && weeklyWeight >= 30
+      && weeklyWeight <= 300
+      && weeklyCheckInForm.mealAdherencePct !== null
+      && weeklyCheckInForm.mealAdherencePct !== undefined
+      && weeklyCheckInForm.workoutAdherencePct !== null
+      && weeklyCheckInForm.workoutAdherencePct !== undefined
+      && weeklyCheckInForm.workoutDifficulty !== null
+      && weeklyCheckInForm.workoutDifficulty !== undefined
+      && weeklyCheckInForm.hungerLevel !== null
+      && weeklyCheckInForm.hungerLevel !== undefined;
+  };
+
+  const openWeeklyCheckInConfirm = (event) => {
     event.preventDefault();
+    setWeeklyCheckInError('');
+    if (weeklyCheckInSubmitting) return;
+    if (!getWeeklyCheckInCompletionState()) {
+      setWeeklyCheckInError('Completează toate câmpurile înainte să trimiți progresul.');
+      return;
+    }
+    setConfirmWeeklyCheckIn(true);
+  };
+
+  const submitWeeklyCheckInConfirmed = async () => {
     if (weeklyCheckInSubmitting) return;
 
     setWeeklyCheckInSubmitting(true);
@@ -1357,6 +1740,8 @@ function ClientDashboardContent() {
     try {
       const token = localStorage.getItem('token');
       if (!token) throw new Error('Token lipsă.');
+      const previousLevelInfo = userLevel;
+      const weightKg = parseDecimalInput(weeklyCheckInForm.weightKg);
 
       const response = await fetch('/api/user/weekly-checkin', {
         method: 'POST',
@@ -1365,7 +1750,7 @@ function ClientDashboardContent() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          weightKg: weeklyCheckInForm.weightKg,
+          weightKg,
           mealAdherencePct: weeklyCheckInForm.mealAdherencePct,
           workoutAdherencePct: weeklyCheckInForm.workoutAdherencePct,
           workoutDifficulty: weeklyCheckInForm.workoutDifficulty,
@@ -1377,13 +1762,37 @@ function ClientDashboardContent() {
 
       setWeeklyCheckInResult(data);
       setWeeklyCheckInDue(false);
+      setConfirmWeeklyCheckIn(false);
+      setWeeklyCheckInForm({ ...EMPTY_WEEKLY_CHECKIN_FORM });
+      setActiveTab('progress');
       setWeeklyCheckInStatus(prev => ({ ...(prev || {}), due: false, latestCheckIn: data }));
       if (data.targetsAfter) setNutritionalNeeds(data.targetsAfter);
+
+      const xpResponse = await fetch('/api/user/xp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ amount: 50, type: 'progress_update' }),
+      });
+      const xpData = await xpResponse.json().catch(() => ({}));
+
       if (data.planAdjusted) {
         const snapshot = await fetchUserPlansSnapshot(token);
         applyUserPlansSnapshot(snapshot);
       } else {
-        setClientData(prev => prev ? { ...prev, weight: String(weeklyCheckInForm.weightKg || prev.weight) } : prev);
+        setClientData(prev => prev ? { ...prev, weight: String(weightKg || prev.weight) } : prev);
+      }
+
+      if (xpResponse.ok && xpData?.level) {
+        setUserLevel(xpData);
+        const levelUp = getLevelUpPayload(previousLevelInfo, xpData, xpData.xpAdded || 50);
+        if (levelUp) setPendingLevelUp(levelUp);
+        window.setTimeout(() => {
+          setFinishReward({ type: 'checkin', levelInfo: xpData, xpAdded: xpData.xpAdded || 50 });
+          fireConfetti();
+        }, 220);
       }
     } catch (err) {
       setWeeklyCheckInError(err.message || 'Check-in-ul nu a putut fi salvat.');
@@ -1496,10 +1905,362 @@ function ClientDashboardContent() {
     </div>
   );
 
+  const getProgressCheckIn = () => weeklyCheckInResult || weeklyCheckInStatus?.latestCheckIn || null;
+
+  const renderProgressPage = () => {
+    const latest = getProgressCheckIn();
+    const evaluation = latest?.evaluation || {};
+    const outcome = latest?.outcome || evaluation.outcome || '';
+    const goal = latest?.goal || evaluation.goal || weeklyCheckInStatus?.goal || clientData?.goal || '';
+    const weightKg = latest?.weightKg || latest?.weight_kg || weeklyCheckInStatus?.latestCheckIn?.weightKg || null;
+    const previousWeightKg = latest?.previousWeightKg || latest?.previous_weight_kg || null;
+    const weightDeltaKg = Number.isFinite(Number(latest?.weightDeltaKg))
+      ? Number(latest.weightDeltaKg)
+      : Number.isFinite(Number(evaluation.deltaKg))
+        ? Number(evaluation.deltaKg)
+        : (Number.isFinite(Number(weightKg)) && Number.isFinite(Number(previousWeightKg))
+          ? Math.round((Number(weightKg) - Number(previousWeightKg)) * 10) / 10
+          : 0);
+    const planAdjusted = latest?.planAdjusted === true || latest?.plan_adjusted === true;
+    const recommendation = latest?.recommendation || 'După următorul check-in, aici vei vedea recomandarea personalizată a programului.';
+    const accountType = weeklyCheckInStatus?.accountType || latest?.accountType || 'free';
+    const metadata = latest?.metadata || {};
+    const coachInsights = Array.isArray(latest?.coachInsights)
+      ? latest.coachInsights
+      : (Array.isArray(metadata.coachInsights) ? metadata.coachInsights : []);
+    const nutritionAdjustment = latest?.nutritionAdjustment || metadata.nutritionAdjustment || latest?.adjustment || null;
+    const appliedCaloriesAdjustment = Math.round(Number(nutritionAdjustment?.appliedCalories) || 0);
+    const waterStats = latest?.waterStats || metadata.waterStats || null;
+    const mealAdherencePct = clampNumber(latest?.mealAdherencePct ?? latest?.meal_adherence_pct, 0, 100);
+    const workoutAdherencePct = clampNumber(latest?.workoutAdherencePct ?? latest?.workout_adherence_pct, 0, 100);
+    const expectedWorkouts = clampNumber(clientData?.workoutsPerWeek || workoutClientData?.workouts_per_week || 3, 1, 7);
+    const completedWorkouts = Math.min(expectedWorkouts, Math.round((workoutAdherencePct / 100) * expectedWorkouts));
+    const outcomeScore = {
+      on_track: 100,
+      stable: 78,
+      stalled: 64,
+      off_track: 48,
+    }[outcome] || 72;
+    const progressScore = Math.round(clampNumber(
+      mealAdherencePct * 0.34 + workoutAdherencePct * 0.34 + outcomeScore * 0.32,
+      0,
+      100
+    ));
+    const scoreLabel = progressScore >= 85
+      ? 'Foarte bun'
+      : progressScore >= 70
+        ? 'Bun'
+        : 'Există loc de îmbunătățiri';
+    const scoreIsStrong = progressScore >= 70;
+    const isPositiveInsight = (status) => ['balanced', 'nutrition_on_track'].includes(status);
+    const weightChangeText = Math.abs(weightDeltaKg) < 0.1
+      ? 'Greutatea a rămas stabilă.'
+      : weightDeltaKg < 0
+        ? `Ai slăbit ${Math.abs(weightDeltaKg).toFixed(1)} kg.`
+        : `Ai crescut ${Math.abs(weightDeltaKg).toFixed(1)} kg.`;
+    const goalLabel = {
+      weight_loss: 'Slăbire',
+      muscle_gain: 'Masă musculară',
+      maintenance: 'Menținere',
+    }[goal] || 'Obiectiv personal';
+    return (
+      <div className={styles.progressPage}>
+        <div className={styles.progressHeader}>
+          <button className={styles.shopBackBtn} onClick={() => handleTabChange('home')}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            Înapoi
+          </button>
+          <div>
+            <h1 className={styles.progressTitle}>Progres</h1>
+            <p className={styles.progressSubtitle}>Recomandările tale după check-in-urile săptămânale.</p>
+          </div>
+        </div>
+
+        {!latest ? (
+          <div className={styles.progressEmptyState}>
+            <div className={styles.friendsEmptyIcon}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </div>
+            <h2>Încă nu ai recomandări</h2>
+            <p>Completează primul check-in săptămânal, iar aici vei vedea ce îți recomandă programul pentru următoarea săptămână.</p>
+          </div>
+        ) : (
+          <div className={styles.progressStack}>
+            {accountType === 'free' ? (
+              <>
+                <section className={styles.weeklyReportCard}>
+                  <div className={styles.weeklyReportHead}>
+                    <h2 className={styles.weeklyReportTitle}>Raport săptămânal</h2>
+                    <div className={styles.weeklyReportScoreLabel}>Scor de progres</div>
+                    <strong>{progressScore}/100</strong>
+                    <p className={scoreIsStrong ? styles.weeklyReportStatusGood : styles.weeklyReportStatusWarning}>
+                      <span aria-hidden="true">{scoreIsStrong ? '✓' : '!'}</span> {scoreLabel}
+                    </p>
+                  </div>
+
+                  <div className={styles.weeklyReportList}>
+                    <div className={styles.weeklyReportRow}>
+                      <span>Greutate</span>
+                      <strong>{formatKg(previousWeightKg)} → {formatKg(weightKg)} kg</strong>
+                    </div>
+                    <p className={styles.weeklyReportNote}>{weightChangeText}</p>
+
+                    <div className={styles.weeklyReportRow}>
+                      <span>Antrenamente</span>
+                      <strong>{completedWorkouts}/{expectedWorkouts}</strong>
+                    </div>
+
+                    <div className={styles.weeklyReportRow}>
+                      <span>Mese respectate</span>
+                      <strong>{mealAdherencePct}%</strong>
+                    </div>
+
+                    <div className={styles.weeklyReportRow}>
+                      <span>Streak</span>
+                      <strong>{streakCount} zile</strong>
+                    </div>
+                  </div>
+                </section>
+
+                <section className={styles.progressPaywallCard}>
+                  <div>
+                    <h2>Trevano Coach</h2>
+                    <strong>29,99 lei/lună</strong>
+                    <p>Trevano îți urmărește progresul și îți spune exact ce trebuie schimbat pentru a ajunge la obiectiv.</p>
+                  </div>
+                  <button type="button" onClick={() => router.push('/upgrade')}>
+                    Activează Coach
+                  </button>
+                </section>
+              </>
+            ) : (
+              <>
+                <section className={styles.weeklyReportCard}>
+                  <div className={styles.weeklyReportHead}>
+                    <h2 className={styles.weeklyReportTitle}>Raport săptămânal</h2>
+                    <div className={styles.weeklyReportScoreLabel}>Scor de progres</div>
+                    <strong>{progressScore}/100</strong>
+                    <p className={scoreIsStrong ? styles.weeklyReportStatusGood : styles.weeklyReportStatusWarning}>
+                      <span aria-hidden="true">{scoreIsStrong ? '✓' : '!'}</span> {scoreLabel}
+                    </p>
+                  </div>
+
+                  <div className={styles.weeklyReportList}>
+                    <div className={styles.weeklyReportRow}>
+                      <span>Greutate</span>
+                      <strong>{formatKg(previousWeightKg)} → {formatKg(weightKg)} kg</strong>
+                    </div>
+                    <p className={styles.weeklyReportNote}>{weightChangeText}</p>
+
+                    <div className={styles.weeklyReportRow}>
+                      <span>Obiectiv</span>
+                      <strong>{goalLabel}</strong>
+                    </div>
+
+                    <div className={styles.weeklyReportRow}>
+                      <span>Antrenamente</span>
+                      <strong>{completedWorkouts}/{expectedWorkouts}</strong>
+                    </div>
+
+                    <div className={styles.weeklyReportRow}>
+                      <span>Mese respectate</span>
+                      <strong>{mealAdherencePct}%</strong>
+                    </div>
+
+                    <div className={styles.weeklyReportRow}>
+                      <span>Streak</span>
+                      <strong>{streakCount} zile</strong>
+                    </div>
+
+                    <div className={styles.weeklyReportRow}>
+                      <span>Apă săptămânal</span>
+                      <strong>{waterStats?.targetMl ? `${waterStats.completionPct}%` : '-'}</strong>
+                    </div>
+
+                    {appliedCaloriesAdjustment !== 0 && (
+                      <div className={styles.weeklyReportRow}>
+                        <span>Calorii ajustate</span>
+                        <strong>{`${appliedCaloriesAdjustment > 0 ? '+' : ''}${appliedCaloriesAdjustment} kcal`}</strong>
+                      </div>
+                    )}
+
+                    <p className={styles.weeklyReportNote}>{recommendation}</p>
+                  </div>
+
+                  {coachInsights.length > 0 && (
+                    <div className={styles.coachInsightsBlock}>
+                      <div className={styles.coachInsightsHeader}>
+                        <h2>Detalii despre program</h2>
+                        <p>Ce merită ajustat pentru săptămâna următoare.</p>
+                      </div>
+                      <div className={styles.coachInsightList}>
+                        {coachInsights.map((insight, index) => (
+                          <article key={`${insight.status || 'insight'}-${index}`} className={styles.coachInsightItem}>
+                            <span
+                              className={isPositiveInsight(insight.status)
+                                ? styles.coachInsightIconGood
+                                : styles.coachInsightIconWarning}
+                              aria-hidden="true"
+                            >
+                              {isPositiveInsight(insight.status) ? '✓' : '!'}
+                            </span>
+                            <div>
+                              <h3>{insight.title}</h3>
+                              <p>{insight.message}</p>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {planAdjusted && (
+                    <div className={styles.progressAdjustmentNote}>
+                      Planul alimentar a fost ajustat automat pentru următoarea săptămână.
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderFriendsPage = () => (
+    <div className={styles.friendsPage}>
+      <div className={styles.friendsHeader}>
+        <button className={styles.shopBackBtn} onClick={() => handleTabChange('home')}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+          Înapoi
+        </button>
+        <div className={styles.friendsTitleRow}>
+          <div>
+            <h1 className={styles.friendsTitle}>Prieteni</h1>
+            <p className={styles.friendsSubtitle}>Oamenii alături de care îți ții ritmul.</p>
+          </div>
+        </div>
+      </div>
+
+      {friendsError && (
+        <div className={styles.shopError}>{friendsError}</div>
+      )}
+
+      <section className={styles.friendSearchPanel}>
+        <label className={styles.friendSearchLabel} htmlFor="friend-search">Caută persoane</label>
+        <div className={styles.friendSearchBox}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8"/>
+            <path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input
+            id="friend-search"
+            type="search"
+            value={friendSearch}
+            onChange={(event) => {
+              setFriendSearch(event.target.value);
+              setFriendInviteMessage('');
+              setFriendsError('');
+            }}
+            placeholder="Scrie numele unui utilizator"
+          />
+          {friendSearchLoading && <span className={styles.friendSearchLoading}>Caut...</span>}
+        </div>
+
+        {friendInviteMessage && (
+          <p className={styles.friendInviteMessage}>{friendInviteMessage}</p>
+        )}
+
+        {friendSearch.trim().length >= 2 && (
+          <div className={styles.friendSearchResults}>
+            {friendSearchLoading ? (
+              <div className={styles.friendSearchEmpty}>Căutăm în aplicație...</div>
+            ) : friendSearchResults.length === 0 ? (
+              <div className={styles.friendSearchEmpty}>Nu am găsit utilizatori disponibili.</div>
+            ) : (
+              friendSearchResults.map(result => (
+                <article key={result.userId} className={styles.friendSearchResult}>
+                  <div className={styles.friendAvatar}>{result.initials}</div>
+                  <div className={styles.friendInfo}>
+                    <h2>{result.name}</h2>
+                    <p>Level {result.level} · {result.totalXp} XP</p>
+                  </div>
+                  <button
+                    className={styles.friendInviteBtn}
+                    onClick={() => inviteFriend(result.userId)}
+                    disabled={friendInviteLoadingId === result.userId}
+                  >
+                    {friendInviteLoadingId === result.userId ? '...' : 'Invită'}
+                  </button>
+                </article>
+              ))
+            )}
+          </div>
+        )}
+      </section>
+
+      {friendsLoading ? (
+        <div className={styles.friendsList}>
+          {[1, 2, 3].map(item => (
+            <div key={item} className={styles.friendSkeletonCard}>
+              <div className={`${styles.shimmer} ${styles.friendSkeletonAvatar}`} />
+              <div className={styles.friendSkeletonBody}>
+                <div className={`${styles.shimmer} ${styles.friendSkeletonName}`} />
+                <div className={`${styles.shimmer} ${styles.friendSkeletonMeta}`} />
+              </div>
+              <div className={`${styles.shimmer} ${styles.friendSkeletonPill}`} />
+            </div>
+          ))}
+        </div>
+      ) : friends.length === 0 ? (
+        <div className={styles.friendsEmptyState}>
+          <div className={styles.friendsEmptyIcon}>
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+          <h2>Nu ai prieteni încă</h2>
+          <p>
+            {friendsSetupRequired
+              ? 'Rulează scriptul pentru modulul de prieteni ca să activezi lista.'
+              : 'Când vei adăuga prieteni, îi vei vedea aici.'}
+          </p>
+        </div>
+      ) : (
+        <div className={styles.friendsList}>
+          {friends.map(friend => (
+            <article key={friend.id} className={styles.friendCard}>
+              <div className={styles.friendAvatar}>{friend.initials}</div>
+              <div className={styles.friendInfo}>
+                <h2>{friend.name}</h2>
+                <p>Level {friend.level} · {friend.totalXp} XP</p>
+              </div>
+              <div className={styles.friendStreak}>
+                <span>🔥</span>
+                <strong>{friend.streakCount}</strong>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   const renderWeeklyCheckInChoices = (field, options) => (
     <div className={styles.weeklyCheckInChoiceGroup}>
       {options.map(option => {
-        const active = Number(weeklyCheckInForm[field]) === Number(option.value);
+        const fieldValue = weeklyCheckInForm[field];
+        const active = fieldValue !== null && fieldValue !== undefined && Number(fieldValue) === Number(option.value);
         return (
           <button
             key={`${field}-${option.label}`}
@@ -1515,113 +2276,112 @@ function ClientDashboardContent() {
   );
 
   const renderWeeklyCheckInCard = () => {
-    if (!weeklyCheckInDue && !weeklyCheckInResult) return null;
-    const weeklyWeight = Number(weeklyCheckInForm.weightKg);
+    if (!weeklyCheckInDue) return null;
+    const weeklyWeight = parseDecimalInput(weeklyCheckInForm.weightKg);
     const weeklyCheckInComplete = Number.isFinite(weeklyWeight)
       && weeklyWeight >= 30
       && weeklyWeight <= 300
       && weeklyCheckInForm.mealAdherencePct !== null
+      && weeklyCheckInForm.mealAdherencePct !== undefined
       && weeklyCheckInForm.workoutAdherencePct !== null
+      && weeklyCheckInForm.workoutAdherencePct !== undefined
       && weeklyCheckInForm.workoutDifficulty !== null
-      && weeklyCheckInForm.hungerLevel !== null;
-    const goalLabel = (weeklyCheckInStatus?.goal || clientData?.goal) === 'weight_loss'
-      ? 'slăbit'
-      : (weeklyCheckInStatus?.goal || clientData?.goal) === 'muscle_gain'
-        ? 'masă musculară'
-        : 'menținere';
+      && weeklyCheckInForm.workoutDifficulty !== undefined
+      && weeklyCheckInForm.hungerLevel !== null
+      && weeklyCheckInForm.hungerLevel !== undefined;
 
     return (
       <section className={styles.weeklyCheckInCard}>
         <div className={styles.weeklyCheckInHead}>
           <div>
-            <span className={styles.weeklyCheckInEyebrow}>Check-in săptămânal</span>
-            <h2 className={styles.weeklyCheckInTitle}>Cum a mers săptămâna?</h2>
+            <h2 className={styles.weeklyCheckInTitle}>Cum a decurs săptămâna?</h2>
+            <p className={styles.weeklyCheckInSubtitle}>
+              Spune-ne greutatea de azi și cum a mers săptămâna. Folosim răspunsurile ca planul tău să rămână potrivit pentru tine.
+            </p>
           </div>
         </div>
 
-        {weeklyCheckInResult ? (
-          <div className={styles.weeklyCheckInResult}>
-            <p>{weeklyCheckInResult.recommendation}</p>
-            {weeklyCheckInResult.planAdjusted ? (
-              <span>Planul alimentar a fost ajustat pentru săptămâna următoare.</span>
-            ) : (
-              <span>Targeturile rămân neschimbate. Obiectiv: {goalLabel}.</span>
-            )}
+        <form className={styles.weeklyCheckInForm} onSubmit={openWeeklyCheckInConfirm} autoComplete="off">
+          <label className={styles.weeklyCheckInField}>
+            <span>Greutatea de azi (kg)</span>
+            <input
+              type="number"
+              min="30"
+              max="300"
+              step="0.1"
+              value={weeklyCheckInForm.weightKg}
+              onChange={(event) => handleWeeklyCheckInChange('weightKg', event.target.value)}
+              autoComplete="off"
+              required
+            />
+          </label>
+
+          <div className={styles.weeklyCheckInField}>
+            <span>Cât te-ai ținut de mese?</span>
+            {renderWeeklyCheckInChoices('mealAdherencePct', [
+              { label: 'Deloc', value: 0 },
+              { label: 'Parțial', value: 50 },
+              { label: 'Complet', value: 100 },
+            ])}
           </div>
-        ) : (
-          <form className={styles.weeklyCheckInForm} onSubmit={handleWeeklyCheckInSubmit}>
-            <label className={styles.weeklyCheckInField}>
-              <span>Greutatea de azi (kg)</span>
-              <input
-                type="number"
-                min="30"
-                max="300"
-                step="0.1"
-                value={weeklyCheckInForm.weightKg}
-                onChange={(event) => handleWeeklyCheckInChange('weightKg', event.target.value)}
-                required
-              />
-            </label>
 
+          <div className={styles.weeklyCheckInField}>
+            <span>Cât te-ai ținut de antrenamente?</span>
+            {renderWeeklyCheckInChoices('workoutAdherencePct', [
+              { label: 'Deloc', value: 0 },
+              { label: 'Parțial', value: 50 },
+              { label: 'Complet', value: 100 },
+            ])}
+          </div>
+
+          <div className={styles.weeklyCheckInMiniGrid}>
             <div className={styles.weeklyCheckInField}>
-              <span>Cât te-ai ținut de mese?</span>
-              {renderWeeklyCheckInChoices('mealAdherencePct', [
-                { label: 'Deloc', value: 0 },
-                { label: 'Parțial', value: 50 },
-                { label: 'Complet', value: 100 },
+              <span>Cât de grele au fost antrenamentele?</span>
+              {renderWeeklyCheckInChoices('workoutDifficulty', [
+                { label: 'Ușoare', value: 1 },
+                { label: 'Normale', value: 3 },
+                { label: 'Grele', value: 5 },
               ])}
             </div>
 
             <div className={styles.weeklyCheckInField}>
-              <span>Cât te-ai ținut de antrenamente?</span>
-              {renderWeeklyCheckInChoices('workoutAdherencePct', [
-                { label: 'Deloc', value: 0 },
-                { label: 'Parțial', value: 50 },
-                { label: 'Complet', value: 100 },
+              <span>Cât de foame ți-a fost?</span>
+              {renderWeeklyCheckInChoices('hungerLevel', [
+                { label: 'Foarte', value: 5 },
+                { label: 'Normal', value: 3 },
+                { label: 'Deloc', value: 1 },
               ])}
             </div>
+          </div>
 
-            <div className={styles.weeklyCheckInMiniGrid}>
-              <div className={styles.weeklyCheckInField}>
-                <span>Cât de grele au fost antrenamentele?</span>
-                {renderWeeklyCheckInChoices('workoutDifficulty', [
-                  { label: 'Ușoare', value: 1 },
-                  { label: 'Normale', value: 3 },
-                  { label: 'Grele', value: 5 },
-                ])}
-              </div>
+          {weeklyCheckInError && <p className={styles.weeklyCheckInError}>{weeklyCheckInError}</p>}
 
-              <div className={styles.weeklyCheckInField}>
-                <span>Cât de foame ți-a fost?</span>
-                {renderWeeklyCheckInChoices('hungerLevel', [
-                  { label: 'Foarte', value: 5 },
-                  { label: 'Normal', value: 3 },
-                  { label: 'Deloc', value: 1 },
-                ])}
-              </div>
-            </div>
-
-            {weeklyCheckInError && <p className={styles.weeklyCheckInError}>{weeklyCheckInError}</p>}
-
-            {weeklyCheckInComplete && (
-              <button className={styles.weeklyCheckInSubmit} type="submit" disabled={weeklyCheckInSubmitting}>
-                {weeklyCheckInSubmitting ? 'Se salvează...' : 'Finalizează check-in'}
-              </button>
-            )}
-          </form>
-        )}
+          <button
+            className={styles.weeklyCheckInSubmit}
+            type="submit"
+            disabled={weeklyCheckInSubmitting || !weeklyCheckInComplete}
+          >
+            {weeklyCheckInSubmitting ? 'Se salvează...' : 'Trimite progres'}
+          </button>
+        </form>
       </section>
     );
   };
 
-  const renderJourneyDashboard = () => (
-    <div className={`${styles.dummyPlanScreen} ${styles.dummyPlanScreenDash}`}>
-      {renderWeeklyCheckInCard()}
-      <section className={styles.dashboardTopLine}>
-        <h1 className={styles.dashboardGreeting}>Bună, {firstName || 'campion'} <span aria-hidden="true">👋</span></h1>
-      </section>
+  const renderJourneyDashboard = () => {
+    const showWeeklyCheckInOnly = weeklyCheckInDue;
 
-      <section className={`${styles.dailyProgressHero} ${dailyProgressPct === 100 ? styles.dailyProgressHeroDone : ''}`}>
+    return (
+      <div className={`${styles.dummyPlanScreen} ${styles.dummyPlanScreenDash}`}>
+        {!showWeeklyCheckInOnly && (
+          <section className={styles.dashboardTopLine}>
+            <h1 className={styles.dashboardGreeting}>Bună, {firstName || 'campion'} <span aria-hidden="true">👋</span></h1>
+          </section>
+        )}
+
+        {showWeeklyCheckInOnly ? renderWeeklyCheckInCard() : (
+          <>
+            <section className={`${styles.dailyProgressHero} ${dailyProgressPct === 100 ? styles.dailyProgressHeroDone : ''}`}>
         <div
           className={styles.dailyProgressCircle}
           style={{ '--daily-progress': `${dailyProgressPct}%` }}
@@ -1640,14 +2400,34 @@ function ClientDashboardContent() {
               <span>{mission.label}</span>
             </div>
           ))}
+          {canFinalizeDay && (
+            <button
+              type="button"
+              className={styles.dailyMissionFinishBtn}
+              onClick={() => setConfirmFinish({ type: 'day', dayIndex: currentPlanDay })}
+            >
+              Finalizează ziua
+            </button>
+          )}
         </div>
       </section>
 
       <section className={styles.dashboardActionGrid}>
         <article className={`${styles.dashboardActionCard} ${workoutDoneToday ? styles.dashboardActionCardDone : ''}`}>
-          <div>
-            <h2>{isWorkoutRestDayToday ? 'Recuperare azi' : 'Antrenament azi'}</h2>
-            <p>{workoutDoneToday ? 'Completat' : workoutMetaText}</p>
+          <div className={styles.dashboardActionTop}>
+            <div className={styles.dashboardActionIcon}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6.5 6.5v11"/>
+                <path d="M17.5 6.5v11"/>
+                <path d="M3.5 9v6"/>
+                <path d="M20.5 9v6"/>
+                <path d="M6.5 12h11"/>
+              </svg>
+            </div>
+            <div>
+              <h2>{isWorkoutRestDayToday ? 'Recuperare azi' : 'Antrenament azi'}</h2>
+              <p>{workoutDoneToday ? 'Completat' : workoutMetaText}</p>
+            </div>
           </div>
           {workoutDoneToday ? (
             <button className={`${styles.dashboardActionBtn} ${styles.dashboardActionBtnComplete}`} disabled>
@@ -1668,9 +2448,19 @@ function ClientDashboardContent() {
         </article>
 
         <article className={`${styles.dashboardActionCard} ${mealsDoneToday ? styles.dashboardActionCardDone : ''}`}>
-          <div>
-            <h2>Mese de azi</h2>
-            <p>{mealsDoneToday ? 'Completat' : 'Vezi ce mese ai pregătite pentru azi.'}</p>
+          <div className={styles.dashboardActionTop}>
+            <div className={styles.dashboardActionIcon}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 2v7a3 3 0 0 0 6 0V2"/>
+                <path d="M7 2v20"/>
+                <path d="M21 15V2a5 5 0 0 0-5 5v6a2 2 0 0 0 2 2h3Z"/>
+                <path d="M21 15v7"/>
+              </svg>
+            </div>
+            <div>
+              <h2>{mealsDoneToday ? 'Plan alimentar' : 'Mese de azi'}</h2>
+              <p>{mealsDoneToday ? 'Completat azi' : 'Vezi ce mese ai pregătite pentru azi.'}</p>
+            </div>
           </div>
           <button className={styles.dashboardActionBtn} onClick={openMealPlan}>
             VEZI
@@ -1689,7 +2479,7 @@ function ClientDashboardContent() {
             onClick={handleAddWater}
             disabled={!hydrationTargetLoaded || !waterLoaded || waterSaving || waterDoneToday}
           >
-            {waterSaving ? '...' : '+250ml'}
+            +250ml
           </button>
         </div>
         <div className={styles.dashboardWaterTrack}>
@@ -1697,8 +2487,49 @@ function ClientDashboardContent() {
         </div>
       </section>
 
-    </div>
-  );
+      <section className={styles.dashboardActionGrid}>
+        <article className={styles.dashboardActionCard}>
+          <div className={styles.dashboardActionTop}>
+            <div className={styles.dashboardActionIcon}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </div>
+            <div>
+              <h2>Progres</h2>
+              <p>Vezi raportul și recomandările tale.</p>
+            </div>
+          </div>
+          <button className={styles.dashboardActionBtn} onClick={() => handleTabChange('progress')}>
+            VEZI
+          </button>
+        </article>
+
+        <article className={styles.dashboardActionCard}>
+          <div className={styles.dashboardActionTop}>
+            <div className={styles.dashboardActionIcon}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <div>
+              <h2>Prieteni</h2>
+              <p>Ține ritmul alături de oamenii tăi.</p>
+            </div>
+          </div>
+          <button className={styles.dashboardActionBtn} onClick={() => handleTabChange('friends')}>
+            VEZI
+          </button>
+        </article>
+      </section>
+          </>
+        )}
+      </div>
+    );
+  };
 
   // ── Workout Session handlers ─────────────────────────────────────────────
   const handleStartWorkoutSession = async () => {
@@ -1922,6 +2753,32 @@ function ClientDashboardContent() {
   const [passwordResetLoading, setPasswordResetLoading] = useState(false);
   const [passwordResetMessage, setPasswordResetMessage] = useState('');
   const [passwordResetError, setPasswordResetError] = useState('');
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState('');
+
+  const isCoachAccount = user?.account_type === 'paid' || user?.subscription_status === 'active';
+  const accountTypeLabel = isCoachAccount ? 'Coach' : 'Gratuit';
+  const accountTypeDescription = isCoachAccount
+    ? 'Abonamentul Trevano Coach este activ pentru acest cont.'
+    : 'Folosești planul gratuit. Poți activa Trevano Coach oricând.';
+
+  const refreshAccountStatus = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    try {
+      const res = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      const updated = { ...user, ...data };
+      localStorage.setItem('user', JSON.stringify(updated));
+      login(updated, token);
+    } catch {
+      // Profilul rămâne utilizabil chiar dacă sincronizarea live eșuează.
+    }
+  };
 
   const openProfile = () => {
     setProfileForm({ name: user?.name || '', email: user?.email || '', currentPassword: '', newPassword: '' });
@@ -1929,8 +2786,10 @@ function ClientDashboardContent() {
     setProfileSuccess('');
     setPasswordResetMessage('');
     setPasswordResetError('');
+    setBillingError('');
     setProfileOpen(true);
     setSidebarOpen(false);
+    refreshAccountStatus();
   };
 
   const closeProfile = () => {
@@ -1939,6 +2798,37 @@ function ClientDashboardContent() {
     setProfileSuccess('');
     setPasswordResetMessage('');
     setPasswordResetError('');
+    setBillingError('');
+  };
+
+  const handleBillingAction = async () => {
+    setBillingError('');
+
+    if (!isCoachAccount) {
+      router.push('/upgrade');
+      return;
+    }
+
+    setBillingLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/stripe/create-portal-session', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data?.url) {
+        setBillingError(data.error || 'Nu am putut deschide gestionarea abonamentului.');
+        return;
+      }
+
+      window.location.href = data.url;
+    } catch {
+      setBillingError('Eroare de rețea. Încearcă din nou.');
+    } finally {
+      setBillingLoading(false);
+    }
   };
 
   const handleSendPasswordReset = async () => {
@@ -2153,6 +3043,39 @@ function ClientDashboardContent() {
             {allNotifications.filter(n => n.unread).length > 0 && (
               <span className={styles.sidebarDot} />
             )}
+          </div>
+
+          <div
+            className={`${styles.sidebarItem} ${activeTab === 'progress' ? styles.sidebarItemActive : ''}`}
+            onClick={() => {
+              setNotificationsOpen(false);
+              handleTabChange('progress');
+            }}
+          >
+            <div className={styles.sidebarIcon}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+              </svg>
+            </div>
+            <span className={styles.sidebarLabel}>Progres</span>
+          </div>
+
+          <div
+            className={`${styles.sidebarItem} ${activeTab === 'friends' ? styles.sidebarItemActive : ''}`}
+            onClick={() => {
+              setNotificationsOpen(false);
+              handleTabChange('friends');
+            }}
+          >
+            <div className={styles.sidebarIcon}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <span className={styles.sidebarLabel}>Prieteni</span>
           </div>
 
           {SHOW_RECIPE_SHOP && (
@@ -2638,11 +3561,28 @@ function ClientDashboardContent() {
                         <label>Tip cont</label>
                         <input
                           type="text"
-                          value="Client"
+                          value={accountTypeLabel}
                           readOnly
                           className={styles.accountReadonlyInput}
                         />
                       </div>
+
+                      <p className={styles.profileHelpText}>{accountTypeDescription}</p>
+
+                      <button
+                        type="button"
+                        className={styles.accountFormBtn}
+                        onClick={handleBillingAction}
+                        disabled={billingLoading}
+                      >
+                        {billingLoading
+                          ? 'Se deschide...'
+                          : isCoachAccount
+                            ? 'Gestionează abonamentul'
+                            : 'Activează Coach'}
+                      </button>
+
+                      {billingError && <p className={styles.profileModalError}>{billingError}</p>}
                     </div>
                   </div>
 
@@ -2662,6 +3602,10 @@ function ClientDashboardContent() {
             </div>
           ) : activeTab === 'home' ? (
             renderJourneyDashboard()
+          ) : activeTab === 'progress' ? (
+            renderProgressPage()
+          ) : activeTab === 'friends' ? (
+            renderFriendsPage()
           ) : SHOW_RECIPE_SHOP && activeTab === 'shop' ? (
             renderRecipeShop()
           ) : (
@@ -2809,6 +3753,38 @@ function ClientDashboardContent() {
         </main>
       </div>
 
+      {confirmWeeklyCheckIn && (
+        <div className={clientStyles.modalOverlay} onClick={() => !weeklyCheckInSubmitting && setConfirmWeeklyCheckIn(false)}>
+          <div className={clientStyles.confirmModal} onClick={e => e.stopPropagation()}>
+            <div className={clientStyles.confirmIcon} style={{ background: 'rgba(183,255,0,0.18)', color: '#0a0a0a' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 11l3 3L22 4"/>
+                <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              </svg>
+            </div>
+            <h3>Trimiți progresul?</h3>
+            <p>Salvăm check-in-ul săptămânal, actualizăm planul dacă e nevoie și primești XP pentru consecvență.</p>
+            <div className={clientStyles.confirmActions}>
+              <button
+                className={clientStyles.cancelBtn}
+                onClick={() => setConfirmWeeklyCheckIn(false)}
+                disabled={weeklyCheckInSubmitting}
+              >
+                Anulează
+              </button>
+              <button
+                className={clientStyles.saveBtn}
+                style={{ background: '#0a0a0a', color: '#b7ff00' }}
+                onClick={submitWeeklyCheckInConfirmed}
+                disabled={weeklyCheckInSubmitting}
+              >
+                {weeklyCheckInSubmitting ? 'Se trimite...' : 'Trimite progres'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {confirmFinish && (
         <div className={clientStyles.modalOverlay} onClick={() => setConfirmFinish(null)}>
           <div className={clientStyles.confirmModal} onClick={e => e.stopPropagation()}>
@@ -2817,9 +3793,11 @@ function ClientDashboardContent() {
                 <polyline points="20 6 9 17 4 12"/>
               </svg>
             </div>
-            <h3>{confirmFinish.type === 'meals' || confirmFinish.isRecovery ? 'Finalizare zi' : 'Finalizare antrenament'}</h3>
+            <h3>{confirmFinish.type === 'meals' || confirmFinish.type === 'day' || confirmFinish.isRecovery ? 'Finalizare zi' : 'Finalizare antrenament'}</h3>
             <p>{confirmFinish.type === 'meals'
               ? 'Ești sigur că ai terminat de mâncat toate mesele de azi?'
+              : confirmFinish.type === 'day'
+                ? 'Ai bifat antrenamentul, mesele și apa. Finalizezi ziua și primești XP?'
               : (confirmFinish.isRecovery
                 ? 'Ești sigur că ai completat recomandările pentru ziua de recuperare?'
                 : 'Ești sigur că ai terminat antrenamentul de azi?')
@@ -2886,17 +3864,12 @@ function ClientDashboardContent() {
         <div className={clientStyles.modalOverlay} onClick={closeFinishReward}>
           <div className={`${clientStyles.confirmModal} ${styles.rewardModal}`} onClick={e => e.stopPropagation()}>
             <div className={styles.rewardIcon}>
-              <span>{finishReward.type === 'onboarding' ? '🎉' : finishReward.type === 'meals' ? '💪' : '🔥'}</span>
+              <span>{finishReward.type === 'onboarding' ? '🎉' : finishReward.type === 'subscription_upgrade' ? '⚡' : finishReward.type === 'meals' ? '💪' : finishReward.type === 'water' ? '💧' : finishReward.type === 'checkin' ? '✓' : '🔥'}</span>
             </div>
-            <div className={styles.rewardXpBadge}>+50 XP</div>
+            <div className={styles.rewardXpBadge}>+{finishReward.xpAdded || 50} XP</div>
             <h3>{finishRewardTitle}</h3>
             <p>{finishRewardMessage}</p>
-            {(finishReward.levelInfo || userLevel) && (
-              <div className={styles.rewardLevelLine}>
-                Nivel {(finishReward.levelInfo || userLevel).level}
-                <span>{(finishReward.levelInfo || userLevel).xpInCurrentLevel} / {(finishReward.levelInfo || userLevel).xpForNextLevel} XP</span>
-              </div>
-            )}
+            <RewardLevelProgress levelInfo={finishReward.levelInfo || userLevel} />
             <div className={clientStyles.confirmActions}>
               <button
                 className={clientStyles.saveBtn}
@@ -2919,10 +3892,7 @@ function ClientDashboardContent() {
             <div className={styles.rewardXpBadge}>LEVEL UP</div>
             <h3>Nivel {levelUpReward.toLevel}</h3>
             <p>Excelent. Ai trecut de la nivelul {levelUpReward.fromLevel} la nivelul {levelUpReward.toLevel}. Se vede consecvența.</p>
-            <div className={styles.rewardLevelLine}>
-              Nivel {levelUpReward.levelInfo.level}
-              <span>{levelUpReward.levelInfo.xpInCurrentLevel} / {levelUpReward.levelInfo.xpForNextLevel} XP</span>
-            </div>
+            <RewardLevelProgress levelInfo={levelUpReward.levelInfo} />
             <div className={clientStyles.confirmActions}>
               <button
                 className={clientStyles.saveBtn}
@@ -2970,12 +3940,7 @@ function ClientDashboardContent() {
               <span className={styles.xpPopupMetaLbl}>XP total</span>
             </div>
           </div>
-          {userLevel && (
-            <div className={styles.rewardLevelLine}>
-              Nivel {userLevel.level}
-              <span>{userLevel.xpInCurrentLevel} / {userLevel.xpForNextLevel} XP</span>
-            </div>
-          )}
+          <RewardLevelProgress levelInfo={userLevel} />
           <button className={styles.xpPopupBtn} onClick={() => {
             setXpFinishPopup(null);
             if (pendingLevelUp) {

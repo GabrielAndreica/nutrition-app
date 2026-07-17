@@ -1525,9 +1525,8 @@
 
 .rewardLevelLine {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 9px;
   margin: 0 0 18px;
   padding: 10px 12px;
   border-radius: 10px;
@@ -1538,11 +1537,41 @@
   position: relative;
 }
 
-.rewardLevelLine span {
+.rewardLevelMeta {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rewardLevelMeta strong {
+  color: #0a0a0a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.rewardLevelMeta span {
   color: #71717a;
   font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+.rewardLevelTrack {
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(10, 10, 10, 0.08);
+}
+
+.rewardLevelFill {
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  background: #b7ff00;
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* ─── Empty State ─────────────────────────────────────── */
@@ -2310,6 +2339,7 @@
 
 .dailyMissionItem {
   min-width: 0;
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -2319,6 +2349,7 @@
   border-radius: 12px;
   color: rgba(10, 10, 10, 0.54);
   background: #fafafa;
+  font-family: inherit;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.25;
@@ -2351,6 +2382,25 @@
   color: #0a0a0a;
 }
 
+.dailyMissionFinishBtn {
+  width: 100%;
+  margin-top: 2px;
+  border: 1px solid #0a0a0a;
+  border-radius: 12px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  padding: 12px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+  line-height: 1.25;
+}
+
+.dailyMissionFinishBtn:hover {
+  opacity: 0.9;
+}
+
 .dashboardActionGrid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2374,6 +2424,24 @@
 .dashboardActionCard:hover {
   transform: translateY(-1px);
   border-color: #d8d8de;
+}
+
+.dashboardActionTop {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.dashboardActionIcon {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: rgba(183, 255, 0, 0.12);
+  color: #0a0a0a;
 }
 
 .dashboardActionCard h2 {
@@ -2584,11 +2652,12 @@
 
 .weeklyCheckInCard {
   width: 100%;
-  margin: 0 0 14px;
-  padding: 22px;
-  background: #ffffff;
-  border: 1px solid #e8e8ed;
-  border-radius: 20px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-sizing: border-box;
 }
 
 .weeklyCheckInHead {
@@ -2596,30 +2665,34 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
-  margin-bottom: 18px;
-}
-
-.weeklyCheckInEyebrow {
-  display: block;
-  margin-bottom: 6px;
-  color: #6e6e73;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.7px;
-  text-transform: uppercase;
+  margin-bottom: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .weeklyCheckInTitle {
   margin: 0;
   color: #0a0a0a;
-  font-size: 24px;
-  line-height: 1.08;
+  font-size: 30px;
+  line-height: 1;
   font-weight: 900;
+  letter-spacing: -1px;
+}
+
+.weeklyCheckInSubtitle {
+  max-width: 560px;
+  margin: 7px 0 0;
+  color: rgba(10, 10, 10, 0.58);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.45;
 }
 
 .weeklyCheckInForm {
   display: grid;
-  gap: 14px;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .weeklyCheckInField {
@@ -2627,9 +2700,14 @@
   grid-template-columns: 1fr auto;
   align-items: center;
   gap: 10px;
-  color: #3c3c43;
+  padding: 14px;
+  border: 1px solid #ececef;
+  border-radius: 14px;
+  background: #ffffff;
+  color: rgba(10, 10, 10, 0.72);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 650;
+  box-sizing: border-box;
 }
 
 .weeklyCheckInField input[type="number"] {
@@ -2638,7 +2716,7 @@
   padding: 13px 14px;
   border: 1px solid #e5e5e7;
   border-radius: 12px;
-  background: #f8f8f6;
+  background: #fafafa;
   color: #0a0a0a;
   font: inherit;
   outline: none;
@@ -2660,11 +2738,11 @@
   min-height: 42px;
   border: 1px solid #e5e5e7;
   border-radius: 12px;
-  background: #ffffff;
-  color: #6e6e73;
+  background: #fafafa;
+  color: rgba(10, 10, 10, 0.56);
   font-family: inherit;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 650;
   cursor: pointer;
   transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
@@ -2678,6 +2756,7 @@
   background: rgba(183, 255, 0, 0.14);
   border-color: rgba(183, 255, 0, 0.95);
   color: #0a0a0a;
+  font-weight: 800;
 }
 
 .weeklyCheckInMiniGrid {
@@ -3198,6 +3277,725 @@
   background: rgba(239, 68, 68, 0.08);
   color: #b91c1c;
   border: 1px solid rgba(239, 68, 68, 0.18);
+}
+
+/* ── Progress ────────────────────────────────────────────── */
+.progressPage {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 0 24px;
+}
+
+.progressHeader {
+  margin-bottom: 24px;
+}
+
+.progressTitle {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: -1.8px;
+}
+
+.progressSubtitle {
+  margin: 8px 0 0;
+  color: #86868b;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.progressStack {
+  display: grid;
+  gap: 14px;
+}
+
+.progressRecommendationCard {
+  padding: 20px;
+  border: 1px solid #e8e8ed;
+  border-radius: 20px;
+  background: #ffffff;
+}
+
+.progressEyebrow {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin-bottom: 8px;
+  padding: 5px 9px;
+  border: 1px solid rgba(183, 255, 0, 0.38);
+  border-radius: 999px;
+  background: rgba(183, 255, 0, 0.16);
+  color: #0a0a0a;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+}
+
+.progressRecommendationCard h2 {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 24px;
+  font-weight: 900;
+  line-height: 1.05;
+  letter-spacing: -0.8px;
+}
+
+.progressRecommendationCard p {
+  margin: 10px 0 0;
+  color: rgba(10, 10, 10, 0.66);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.55;
+}
+
+.progressAdjustmentNote {
+  margin-top: 14px;
+  padding: 12px 13px;
+  border-radius: 14px;
+  background: rgba(183, 255, 0, 0.16);
+  color: #0a0a0a;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.coachInsightsBlock {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid #eeeeef;
+}
+
+.coachInsightsHeader h2 {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 22px;
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.35px;
+}
+
+.coachInsightsHeader p {
+  margin: 7px 0 0;
+  color: #86868b;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.coachInsightList {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.coachInsightItem {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 14px 15px;
+  border: 1px solid #eeeeef;
+  border-radius: 16px;
+  background: #fafafa;
+}
+
+.coachInsightIconGood,
+.coachInsightIconWarning {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.coachInsightIconGood {
+  background: #b7ff00;
+  color: #0a0a0a;
+}
+
+.coachInsightIconWarning {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #92400e;
+}
+
+.coachInsightItem h3 {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1.2;
+  letter-spacing: -0.15px;
+}
+
+.coachInsightItem p {
+  margin: 7px 0 0;
+  color: rgba(10, 10, 10, 0.68);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.weeklyReportCard {
+  padding: 20px;
+  border: 1px solid #e8e8ed;
+  border-radius: 20px;
+  background: #ffffff;
+}
+
+.weeklyReportHead {
+  padding-bottom: 16px;
+  border-bottom: 1px solid #eeeeef;
+}
+
+.weeklyReportTitle {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 22px;
+  font-weight: 750;
+  line-height: 1.15;
+  letter-spacing: -0.35px;
+}
+
+.weeklyReportScoreLabel {
+  margin-top: 14px;
+  color: #86868b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.weeklyReportHead strong {
+  display: block;
+  margin-top: 6px;
+  color: #0a0a0a;
+  font-size: 38px;
+  font-weight: 850;
+  line-height: 1;
+  letter-spacing: -1.2px;
+}
+
+.weeklyReportHead p {
+  margin: 9px 0 0;
+  color: rgba(10, 10, 10, 0.7);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.weeklyReportHead p span {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: #0a0a0a;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.weeklyReportStatusGood span {
+  background: #b7ff00;
+}
+
+.weeklyReportStatusWarning span {
+  background: rgba(245, 158, 11, 0.2);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #92400e;
+}
+
+.weeklyReportList {
+  display: grid;
+  gap: 10px;
+  padding-top: 16px;
+}
+
+.weeklyReportRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 34px;
+}
+
+.weeklyReportRow span {
+  color: #86868b;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.weeklyReportRow strong {
+  color: #0a0a0a;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: right;
+}
+
+.weeklyReportNote {
+  margin: -4px 0 3px;
+  color: rgba(10, 10, 10, 0.66);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.progressPaywallCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 20px;
+  border: 1px solid rgba(183, 255, 0, 0.38);
+  border-radius: 20px;
+  background: linear-gradient(135deg, rgba(183, 255, 0, 0.18), #ffffff 58%);
+}
+
+.progressPaywallCard h2 {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1.08;
+  letter-spacing: -0.55px;
+}
+
+.progressPaywallCard strong {
+  display: block;
+  margin-top: 5px;
+  color: rgba(10, 10, 10, 0.72);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.progressPaywallCard p {
+  max-width: 430px;
+  margin: 8px 0 0;
+  color: rgba(10, 10, 10, 0.68);
+  font-size: 14px;
+  font-weight: 550;
+  line-height: 1.5;
+}
+
+.progressPaywallCard button {
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  padding: 13px 17px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+
+.progressPaywallCard button:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.progressMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.progressMetric {
+  display: grid;
+  gap: 6px;
+  padding: 15px;
+  border: 1px solid #e8e8ed;
+  border-radius: 18px;
+  background: #ffffff;
+}
+
+.progressMetric span {
+  color: #86868b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.progressMetric strong {
+  color: #0a0a0a;
+  font-size: 17px;
+  font-weight: 900;
+  letter-spacing: -0.35px;
+}
+
+.progressEmptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 300px;
+  padding: 34px 20px;
+  border: 1px solid #e8e8ed;
+  border-radius: 20px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.progressEmptyState h2 {
+  margin: 6px 0 0;
+  color: #0a0a0a;
+  font-size: 22px;
+  font-weight: 850;
+  letter-spacing: -0.55px;
+}
+
+.progressEmptyState p {
+  max-width: 380px;
+  margin: 0;
+  color: #86868b;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* ── Friends ─────────────────────────────────────────────── */
+.friendsPage {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 0 24px;
+}
+
+.friendsHeader {
+  margin-bottom: 24px;
+}
+
+.friendsTitleRow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.friendsTitle {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 44px;
+  font-weight: 900;
+  line-height: 0.98;
+  letter-spacing: -1.8px;
+}
+
+.friendsSubtitle {
+  margin: 8px 0 0;
+  color: #86868b;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.friendsCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 9px 13px;
+  border-radius: 14px;
+  background: rgba(183, 255, 0, 0.12);
+  border: 1px solid rgba(183, 255, 0, 0.32);
+  color: #0a0a0a;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.friendsList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.friendSearchPanel {
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid #e8e8ed;
+  border-radius: 20px;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+
+.friendSearchLabel {
+  display: block;
+  margin-bottom: 9px;
+  color: #0a0a0a;
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: -0.15px;
+}
+
+.friendSearchBox {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 13px;
+  border: 1px solid #e5e5e7;
+  border-radius: 14px;
+  background: #f8f8f6;
+  color: #86868b;
+  box-sizing: border-box;
+  overflow: visible;
+}
+
+.friendSearchBox svg {
+  flex: 0 0 auto;
+  pointer-events: none;
+}
+
+.friendSearchBox:focus-within {
+  border-color: rgba(183, 255, 0, 0.95);
+  box-shadow: 0 0 0 3px rgba(183, 255, 0, 0.2), inset 0 0 0 1px rgba(183, 255, 0, 0.16);
+}
+
+.friendSearchBox input {
+  flex: 1;
+  width: 100%;
+  height: 44px;
+  min-width: 0;
+  border: 0;
+  outline: none !important;
+  background: transparent;
+  box-shadow: none !important;
+  color: #0a0a0a;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.friendSearchBox input::placeholder {
+  color: #a1a1aa;
+  font-weight: 500;
+}
+
+.friendSearchBox input::-webkit-search-decoration,
+.friendSearchBox input::-webkit-search-cancel-button,
+.friendSearchBox input::-webkit-search-results-button,
+.friendSearchBox input::-webkit-search-results-decoration {
+  display: none;
+  -webkit-appearance: none;
+}
+
+.friendSearchLoading {
+  color: #86868b;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.friendInviteMessage {
+  margin: 10px 0 0;
+  color: #3f6212;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.friendSearchResults {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.friendSearchResult {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px;
+  border-radius: 16px;
+  background: #f8f8f6;
+  min-width: 0;
+}
+
+.friendSearchEmpty {
+  padding: 14px;
+  border-radius: 14px;
+  background: #f8f8f6;
+  color: #86868b;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: center;
+}
+
+.friendInviteBtn {
+  flex-shrink: 0;
+  min-width: 78px;
+  border: 0;
+  border-radius: 999px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  padding: 10px 13px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+
+.friendInviteBtn:hover:not(:disabled) {
+  opacity: 0.86;
+  transform: translateY(-1px);
+}
+
+.friendInviteBtn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+  transform: none;
+}
+
+.friendCard,
+.friendSkeletonCard {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px;
+  border: 1px solid #e8e8ed;
+  border-radius: 18px;
+  background: #ffffff;
+  min-width: 0;
+}
+
+.friendAvatar {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: #0a0a0a;
+  color: #b7ff00;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+}
+
+.friendInfo {
+  min-width: 0;
+  flex: 1;
+}
+
+.friendInfo h2 {
+  margin: 0;
+  color: #0a0a0a;
+  font-size: 17px;
+  font-weight: 850;
+  line-height: 1.16;
+  letter-spacing: -0.4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.friendInfo p {
+  margin: 5px 0 0;
+  color: #86868b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.friendStreak {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 58px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #f5f5f7;
+  color: #0a0a0a;
+  flex-shrink: 0;
+}
+
+.friendStreak strong {
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.friendsEmptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 300px;
+  padding: 34px 20px;
+  border: 1px solid #e8e8ed;
+  border-radius: 20px;
+  background: #ffffff;
+  text-align: center;
+}
+
+.friendsEmptyIcon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(183, 255, 0, 0.12);
+  color: #0a0a0a;
+}
+
+.friendsEmptyState h2 {
+  margin: 6px 0 0;
+  color: #0a0a0a;
+  font-size: 22px;
+  font-weight: 850;
+  letter-spacing: -0.55px;
+}
+
+.friendsEmptyState p {
+  max-width: 360px;
+  margin: 0;
+  color: #86868b;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.friendSkeletonAvatar {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 16px;
+}
+
+.friendSkeletonBody {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.friendSkeletonName {
+  width: 42%;
+  height: 16px;
+}
+
+.friendSkeletonMeta {
+  width: 30%;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.friendSkeletonPill {
+  width: 58px;
+  height: 32px;
+  border-radius: 12px;
 }
 
 /* Rest day variant for workout card */
@@ -3989,6 +4787,17 @@
     gap: 14px;
   }
 
+  .dashboardActionTop {
+    gap: 10px;
+  }
+
+  .dashboardActionIcon {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+    border-radius: 14px;
+  }
+
   .dashboardActionCard h2 {
     font-size: 18px;
   }
@@ -4047,13 +4856,21 @@
   }
 
   .weeklyCheckInCard {
-    padding: 18px;
-    border-radius: 18px;
+    padding: 0;
+    border-radius: 0;
   }
 
   .weeklyCheckInHead {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .weeklyCheckInTitle {
+    font-size: 26px;
+  }
+
+  .weeklyCheckInSubtitle {
+    font-size: 13px;
   }
 
   .weeklyCheckInMiniGrid {
@@ -4073,7 +4890,19 @@
     padding-bottom: 80px;
   }
 
+  .friendsPage {
+    padding-bottom: 80px;
+  }
+
+  .progressPage {
+    padding-bottom: 80px;
+  }
+
   .shopTitleRow {
+    align-items: flex-start;
+  }
+
+  .friendsTitleRow {
     align-items: flex-start;
   }
 
@@ -4081,12 +4910,64 @@
     font-size: 38px;
   }
 
+  .friendsTitle {
+    font-size: 38px;
+  }
+
+  .progressTitle {
+    font-size: 38px;
+  }
+
   .shopSubtitle {
     font-size: 13px;
   }
 
+  .friendsSubtitle {
+    font-size: 13px;
+  }
+
+  .progressSubtitle {
+    font-size: 13px;
+  }
+
+  .progressMetricGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .progressPaywallCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .progressPaywallCard button {
+    width: 100%;
+  }
+
+  .weeklyReportHead strong {
+    font-size: 34px;
+  }
+
   .shopGrid {
     grid-template-columns: 1fr;
+  }
+
+  .friendsCountBadge {
+    min-height: 32px;
+    padding: 7px 10px;
+    font-size: 12px;
+  }
+
+  .friendSearchPanel {
+    padding: 12px;
+  }
+
+  .friendSearchResult {
+    padding: 10px;
+  }
+
+  .friendInviteBtn {
+    min-width: 70px;
+    padding: 9px 11px;
   }
 }
 

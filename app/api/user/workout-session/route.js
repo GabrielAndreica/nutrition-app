@@ -92,6 +92,42 @@ function normalizeAvailableEquipment(value) {
   return value || 'full gym';
 }
 
+function normalizeGender(value) {
+  const key = String(value || '').trim().toLowerCase();
+  if (['f', 'female', 'feminin', 'woman', 'femeie'].includes(key)) return 'female';
+  if (['m', 'male', 'masculin', 'man', 'barbat', 'bărbat'].includes(key)) return 'male';
+  return 'unknown';
+}
+
+function getExerciseProfile(profile = {}) {
+  const age = Number(profile.age);
+  const weight = Number(profile.weight);
+  const fitnessLevel = String(profile.fitnessLevel || 'beginner').toLowerCase();
+  const availableEquipment = normalizeAvailableEquipment(profile.availableEquipment);
+  const gender = normalizeGender(profile.gender);
+  const isHome = availableEquipment === 'no equipment';
+  const isBeginner = fitnessLevel === 'beginner';
+  const needsLowImpact =
+    isHome &&
+    isBeginner &&
+    (
+      (Number.isFinite(age) && age >= 50) ||
+      (gender === 'female' && Number.isFinite(weight) && weight >= 70) ||
+      (gender !== 'female' && Number.isFinite(weight) && weight >= 110)
+    );
+
+  return {
+    age: Number.isFinite(age) ? age : null,
+    weight: Number.isFinite(weight) ? weight : null,
+    gender,
+    fitnessLevel,
+    availableEquipment,
+    isHome,
+    isBeginner,
+    needsLowImpact,
+  };
+}
+
 const LOWER_BODY_GROUP_VALUES = [
   'legs', 'picioare',
   'quads', 'quad', 'quadriceps', 'cvadriceps',
@@ -730,6 +766,105 @@ function textHasAny(text, terms) {
   return terms.some(term => text.includes(normalizeTextKey(term)));
 }
 
+const HOME_HIGH_IMPACT_TERMS = [
+  'burpee',
+  'jump',
+  'sarit',
+  'saritura',
+  'plyo',
+  'exploziv',
+  'mountain climber',
+  'jumping jack',
+];
+
+const HOME_COMPLEX_BODYWEIGHT_TERMS = [
+  'flotari',
+  'push up',
+  'pushup',
+  'tractiuni',
+  'pull up',
+  'pullup',
+  'dips',
+  'pistol squat',
+  'handstand',
+];
+
+const HOME_EASY_MODIFIER_TERMS = [
+  'la perete',
+  'inclinat',
+  'inclinate',
+  'pe genunchi',
+  'genunchi',
+  'asistat',
+  'asistate',
+  'scapular',
+];
+
+function rowHasEasyModifier(row) {
+  return textHasAny(rowSearchText(row), HOME_EASY_MODIFIER_TERMS);
+}
+
+function isHighImpactHomeExercise(row) {
+  return textHasAny(rowSearchText(row), HOME_HIGH_IMPACT_TERMS);
+}
+
+function isComplexBodyweightExercise(row) {
+  const text = rowSearchText(row);
+  return textHasAny(text, HOME_COMPLEX_BODYWEIGHT_TERMS) && !rowHasEasyModifier(row);
+}
+
+function getExerciseSuitabilityScore(row, profile) {
+  if (!profile?.isHome) return 0;
+
+  let score = 0;
+  if (rowHasEasyModifier(row)) score -= 6;
+  if (isHighImpactHomeExercise(row)) score += profile.isBeginner ? 7 : 3;
+  if (isComplexBodyweightExercise(row)) score += profile.needsLowImpact ? 10 : 1;
+
+  if (profile.needsLowImpact) {
+    const text = rowSearchText(row);
+    if (textHasAny(text, ['glute bridge', 'pod fesier', 'dead bug', 'plank', 'bird dog', 'ridicari laterale', 'abductii', 'calf raise', 'ridicari pe varfuri'])) {
+      score -= 3;
+    }
+  }
+
+  return score;
+}
+
+function filterExercisesForProfile(rows, profile, focus) {
+  if (!profile?.isHome || !Array.isArray(rows) || rows.length === 0) return rows || [];
+
+  const requiredSlots = FOCUS_REQUIRED_SLOTS[focus] || [];
+  const keepRequiredCoverage = (candidateRows) => requiredSlots.every(slot =>
+    candidateRows.some(row => rowMatchesSlot(row, slot))
+  );
+
+  let filtered = rows.filter(row => !isHighImpactHomeExercise(row));
+
+  if (profile.needsLowImpact) {
+    const lowImpactRows = filtered.filter(row => !isComplexBodyweightExercise(row));
+    if (lowImpactRows.length > 0) {
+      filtered = lowImpactRows;
+    }
+  }
+
+  if (!keepRequiredCoverage(filtered)) {
+    for (const slot of requiredSlots) {
+      if (filtered.some(row => rowMatchesSlot(row, slot))) continue;
+      const fallback = [...rows]
+        .filter(row => (
+          rowMatchesSlot(row, slot) &&
+          !isHighImpactHomeExercise(row) &&
+          (!profile.needsLowImpact || !isComplexBodyweightExercise(row))
+        ))
+        .sort((a, b) => getExerciseSuitabilityScore(a, profile) - getExerciseSuitabilityScore(b, profile))[0];
+      if (fallback) filtered.push(fallback);
+    }
+  }
+
+  return [...filtered].sort((a, b) => getExerciseSuitabilityScore(a, profile) - getExerciseSuitabilityScore(b, profile));
+}
+
 function rowMatchesSlot(row, slot) {
   const group = normalizeMuscleGroup(row?.muscle_group);
   const text = rowSearchText(row);
@@ -771,15 +906,24 @@ function pickRowForSlot(rows, slot, usedRows) {
   return pickRowFromGroup(matchingRows, usedRows, slotPrefersCompound(slot));
 }
 
-function getMissingRequiredSlots(rows, focus) {
+function getRequiredSlotsForRows(rows, focus) {
   const requiredSlots = FOCUS_REQUIRED_SLOTS[focus] || [];
+  return requiredSlots.filter(slot => (rows || []).some(row => rowMatchesSlot(row, slot)));
+}
+
+function getMissingRequiredSlots(rows, focus, profile = null, availableRows = rows) {
+  const requiredSlots = profile?.needsLowImpact
+    ? getRequiredSlotsForRows(availableRows, focus)
+    : (FOCUS_REQUIRED_SLOTS[focus] || []);
   return requiredSlots.filter(slot => !rows.some(row => rowMatchesSlot(row, slot)));
 }
 
-function selectBalancedDbExercises(rows, focus, targetCount) {
+function selectBalancedDbExercises(rows, focus, targetCount, profile = null) {
   const largeGroups = LARGE_MUSCLE_GROUPS[focus] || new Set();
   const priority = FOCUS_GROUP_PRIORITY[focus] || shuffle([...new Set(rows.map(row => normalizeMuscleGroup(row.muscle_group)))]);
-  const requiredSlots = FOCUS_REQUIRED_SLOTS[focus] || [];
+  const requiredSlots = profile?.needsLowImpact
+    ? getRequiredSlotsForRows(rows, focus)
+    : (FOCUS_REQUIRED_SLOTS[focus] || []);
   const byMuscle = {};
 
   for (const row of rows) {
@@ -1076,6 +1220,9 @@ async function getWorkoutContext(supabase, userId, requestedFocus = 'auto') {
     .from('users')
     .select(`
       fitness_level,
+      age,
+      weight,
+      gender,
       available_equipment,
       fitness_goal,
       training_split,
@@ -1103,6 +1250,13 @@ async function getWorkoutContext(supabase, userId, requestedFocus = 'auto') {
 
   const fitnessLevel = userRow?.fitness_level || 'beginner';
   const availableEquipment = normalizeAvailableEquipment(userRow?.available_equipment || 'full gym');
+  const exerciseProfile = getExerciseProfile({
+    age: userRow?.age,
+    weight: userRow?.weight,
+    gender: userRow?.gender,
+    fitnessLevel,
+    availableEquipment,
+  });
   const fitnessGoal = userRow?.fitness_goal || 'muscle_gain';
   const trainingSplit = normalizeTrainingSplit(userRow?.training_split || 'Push/Pull/Legs');
   const workoutsPerWeek = Number(userRow?.workouts_per_week) || 3;
@@ -1116,6 +1270,7 @@ async function getWorkoutContext(supabase, userId, requestedFocus = 'auto') {
   return {
     fitnessLevel,
     availableEquipment,
+    exerciseProfile,
     fitnessGoal,
     trainingSplit,
     workoutsPerWeek,
@@ -1133,6 +1288,7 @@ async function generateWorkoutExercises(supabase, context) {
   const {
     fitnessLevel,
     availableEquipment,
+    exerciseProfile,
     fitnessGoal,
     trainingSplit,
     isRestDay,
@@ -1215,7 +1371,7 @@ async function generateWorkoutExercises(supabase, context) {
   }
 
   const videoRows = (rawRows || []).filter(hasExerciseVideo);
-  let rows = videoRows;
+  let rows = filterExercisesForProfile(videoRows, exerciseProfile, focus);
   if (rows && rows.length > 0) {
     const levelOrder = { beginner: 0, intermediate: 1, advanced: 2 };
     const userLevelNum = levelOrder[fitnessLevel] ?? 1;
@@ -1224,7 +1380,7 @@ async function generateWorkoutExercises(supabase, context) {
       const rowLevelNum = levelOrder[r.difficulty_level] ?? 0;
       return rowLevelNum <= userLevelNum;
     });
-    if (rows.length < 4) rows = videoRows;
+    if (rows.length < 4) rows = filterExercisesForProfile(videoRows, exerciseProfile, focus);
   }
 
   if (!rows || rows.length === 0) {
@@ -1236,8 +1392,8 @@ async function generateWorkoutExercises(supabase, context) {
     };
   }
 
-  const selected = selectBalancedDbExercises(rows, focus, targetCount);
-  const missingRequiredSlots = getMissingRequiredSlots(selected.map(({ row }) => row), focus);
+  const selected = selectBalancedDbExercises(rows, focus, targetCount, exerciseProfile);
+  const missingRequiredSlots = getMissingRequiredSlots(selected.map(({ row }) => row), focus, exerciseProfile, rows);
   if (missingRequiredSlots.length > 0) {
     return {
       response: NextResponse.json(

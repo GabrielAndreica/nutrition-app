@@ -8,8 +8,9 @@ import { logActivity, getRequestMeta } from '@/app/lib/logger';
 export const runtime = 'nodejs';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://trevano.app';
-const VALID_PLANS = new Set(['starter', 'pro']);
+const VALID_PLANS = new Set(['coach', 'starter', 'pro']);
 const PRICE_ENV_BY_PLAN = {
+  coach: 'STRIPE_COACH_PRICE_ID',
   starter: 'STRIPE_STARTER_PRICE_ID',
   pro: 'STRIPE_PRO_PRICE_ID',
 };
@@ -194,7 +195,7 @@ export async function POST(request) {
         details: { reason: 'price_not_found_for_current_stripe_mode', planType, priceId, error: error.message },
       });
       return NextResponse.json({
-        error: 'Price ID Stripe invalid pentru modul curent. Verifică STRIPE_STARTER_PRICE_ID / STRIPE_PRO_PRICE_ID pe VPS.',
+          error: 'Price ID Stripe invalid pentru modul curent. Verifică STRIPE_COACH_PRICE_ID pe VPS.',
       }, { status: 500 });
     }
 
@@ -216,7 +217,7 @@ export async function POST(request) {
           quantity: 1,
         },
       ],
-      success_url: `${APP_URL}/client/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${APP_URL}/client/dashboard?tab=progress&payment=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_URL}/upgrade?payment=cancelled`,
       locale: 'ro',
       metadata: {

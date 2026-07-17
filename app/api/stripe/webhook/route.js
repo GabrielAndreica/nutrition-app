@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { getStripe, getPlanTypeFromPriceId } from '@/app/lib/stripe';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import { applyPremiumCheckInUpgrade } from '@/app/lib/premiumCheckInUpgrade';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -85,7 +86,8 @@ export async function POST(request) {
       const subscriptionId = stripeId(session.subscription);
       const customerId = stripeId(session.customer);
 
-      const { error } = await getSupabase()
+      const supabase = getSupabase();
+      const { error } = await supabase
         .from('users')
         .update({
           account_type: 'paid',
@@ -100,6 +102,13 @@ export async function POST(request) {
 
       if (error) throw error;
 
+      const premiumCheckIn = await applyPremiumCheckInUpgrade(supabase, userId, {
+        source: 'stripe_webhook_checkout',
+      });
+      if (premiumCheckIn?.error) {
+        console.error('[stripe:webhook] premium check-in upgrade error:', premiumCheckIn.error);
+      }
+
       await logActivity({
         action: 'billing.subscription_activated',
         status: 'success',
@@ -113,6 +122,7 @@ export async function POST(request) {
           customerId,
           subscriptionId,
           planType: verifiedPlanType,
+          premiumCheckIn,
         },
       });
     }
@@ -175,6 +185,16 @@ export async function POST(request) {
         const { data: user, error } = await updateUserByCustomer(customerId, updates);
         if (error) throw error;
 
+        let premiumCheckIn = null;
+        if (updates.account_type === 'paid' && user?.id) {
+          premiumCheckIn = await applyPremiumCheckInUpgrade(getSupabase(), user.id, {
+            source: 'stripe_webhook_subscription',
+          });
+          if (premiumCheckIn?.error) {
+            console.error('[stripe:webhook] premium check-in upgrade error:', premiumCheckIn.error);
+          }
+        }
+
         await logActivity({
           action: 'billing.subscription_updated',
           status: 'success',
@@ -189,6 +209,7 @@ export async function POST(request) {
             subscriptionId: subscription.id,
             stripeStatus: subscription.status,
             updates,
+            premiumCheckIn,
           },
         });
       }

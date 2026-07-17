@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS weekly_checkins (
   applied_adjustment_calories integer NOT NULL DEFAULT 0,
   applied_adjustment_carbs_g integer NOT NULL DEFAULT 0,
   plan_adjusted boolean NOT NULL DEFAULT false,
+  xp_awarded boolean NOT NULL DEFAULT false,
+  xp_awarded_at timestamptz,
+  xp_awarded_amount integer NOT NULL DEFAULT 0 CHECK (xp_awarded_amount >= 0),
   meal_plan_id_before text,
   meal_plan_id_after text,
   targets_before jsonb NOT NULL DEFAULT '{}',
@@ -41,11 +44,32 @@ CREATE TABLE IF NOT EXISTS weekly_checkins (
   UNIQUE(user_id, week_key)
 );
 
+ALTER TABLE weekly_checkins
+  ADD COLUMN IF NOT EXISTS xp_awarded boolean NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS xp_awarded_at timestamptz,
+  ADD COLUMN IF NOT EXISTS xp_awarded_amount integer NOT NULL DEFAULT 0;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'weekly_checkins_xp_awarded_amount_nonnegative'
+  ) THEN
+    ALTER TABLE weekly_checkins
+      ADD CONSTRAINT weekly_checkins_xp_awarded_amount_nonnegative
+      CHECK (xp_awarded_amount >= 0)
+      NOT VALID;
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_weekly_checkins_user_created
   ON weekly_checkins(user_id, created_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_weekly_checkins_user_week
   ON weekly_checkins(user_id, week_key DESC);
+
+CREATE INDEX IF NOT EXISTS idx_weekly_checkins_user_week_unawarded_xp
+  ON weekly_checkins(user_id, week_key)
+  WHERE xp_awarded = false;
 
 CREATE OR REPLACE FUNCTION public.update_weekly_checkins_updated_at()
 RETURNS trigger
