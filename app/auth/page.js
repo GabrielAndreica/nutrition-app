@@ -146,10 +146,10 @@ function AuthContent() {
 
         <div className={styles.tagline}>
           <h1 className={styles.taglineHeading}>
-            Fitness personalizat<br />pentru tine.
+            Planul tău.<br />În fiecare zi.
           </h1>
           <p className={styles.taglineSub}>
-            Mese, antrenamente, progres și motivație într-un singur loc.
+            Antrenamente, mese și progres într-un singur loc, adaptate obiectivului tău.
           </p>
         </div>
 

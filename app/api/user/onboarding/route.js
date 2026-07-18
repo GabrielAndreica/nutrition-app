@@ -24,8 +24,26 @@ const ALLOWED_FITNESS_LEVELS = ['beginner', 'intermediate', 'advanced'];
 const ALLOWED_TRAINING_LOCATIONS = ['gym', 'home_dumbbells', 'home'];
 const ALLOWED_DIET_TYPES = ['omnivore', 'vegetarian', 'vegan', 'pescatarian', 'keto', 'paleo'];
 const ALLOWED_GENDERS = ['M', 'F'];
-const ALLOWED_WORKOUTS_PER_WEEK = [2, 3, 4, 5, 6];
+const ALLOWED_WORKOUTS_PER_WEEK = [2, 3, 4, 5];
 const ONBOARDING_XP_REWARD = 50;
+const USERNAME_PATTERN = /^[\p{L}\p{N} .-]+$/u;
+
+function normalizeUsername(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
+async function findExistingUsernameOwner(supabase, username, userId) {
+  const { data, error } = await supabase
+    .from('users')
+    .select('id')
+    .ilike('name', username)
+    .eq('onboarding_completed', true)
+    .neq('id', userId)
+    .limit(1);
+
+  if (error) throw error;
+  return data?.[0] || null;
+}
 
 function deriveGoalFromTargetWeight(currentWeight, targetWeight) {
   const diffKg = Number(targetWeight) - Number(currentWeight);
@@ -179,7 +197,7 @@ export async function POST(request) {
   if (!Number.isFinite(targetWeightNum) || targetWeightNum < 30 || targetWeightNum > 300)
     return NextResponse.json({ error: 'Greutatea dorită trebuie să fie între 30 și 300 kg.', field: 'targetWeight' }, { status: 400 });
   if (!ALLOWED_WORKOUTS_PER_WEEK.includes(workoutsNum))
-    return NextResponse.json({ error: 'Număr de antrenamente invalid (2–6).', field: 'workoutsPerWeek' }, { status: 400 });
+    return NextResponse.json({ error: 'Număr de antrenamente invalid (2–5).', field: 'workoutsPerWeek' }, { status: 400 });
 
   // Validare enum-uri (whitelist)
   const genderNorm = String(gender).toUpperCase();
@@ -206,8 +224,7 @@ export async function POST(request) {
     if (workouts <= 2) return 'Full Body';
     if (workouts === 3) return 'Push/Pull/Legs';
     if (workouts === 4) return 'Upper/Lower';
-    if (workouts === 5) return 'Upper/Lower/Push/Pull/Legs';
-    return 'Bro Split'; // 6+
+    return 'Upper/Lower/Push/Pull/Legs';
   };
   const trainingSplit = computeTrainingSplit(fitnessLevel, workoutsNum);
 
@@ -217,7 +234,6 @@ export async function POST(request) {
     3: 'moderate',
     4: 'moderate',
     5: 'very_active',
-    6: 'very_active',
   };
   const activityLevel = activityMap[workoutsNum] || 'moderate';
   const hydrationTargetMl = calculateHydrationTargetMl({
@@ -247,7 +263,29 @@ export async function POST(request) {
     .eq('id', auth.userId)
     .single();
 
-  const userName = (name && name.trim().length >= 2) ? name.trim() : (userRow?.name || 'Utilizator');
+  const userName = (name && normalizeUsername(name).length >= 2)
+    ? normalizeUsername(name)
+    : normalizeUsername(userRow?.name || 'Utilizator');
+
+  if (userName.length < 2 || userName.length > 60 || !USERNAME_PATTERN.test(userName)) {
+    return NextResponse.json({
+      error: 'Numele de utilizator poate conține doar litere, cifre, spații, punct sau cratimă și trebuie să aibă 2–60 caractere.',
+      field: 'name',
+    }, { status: 400 });
+  }
+
+  try {
+    const existingUsername = await findExistingUsernameOwner(supabase, userName, auth.userId);
+    if (existingUsername) {
+      return NextResponse.json({
+        error: 'Acest nume de utilizator este deja folosit. Alege altul.',
+        field: 'name',
+      }, { status: 409 });
+    }
+  } catch (usernameError) {
+    console.error('[onboarding] username lookup error:', usernameError);
+    return NextResponse.json({ error: 'Nu am putut verifica numele de utilizator.' }, { status: 500 });
+  }
 
   // Salvează profilul complet în tabela users
   const { error: updateError } = await supabase
@@ -290,6 +328,12 @@ export async function POST(request) {
 
   if (updateError) {
     console.error('[onboarding] update error:', updateError);
+    if (updateError.code === '23505') {
+      return NextResponse.json({
+        error: 'Acest nume de utilizator este deja folosit. Alege altul.',
+        field: 'name',
+      }, { status: 409 });
+    }
     return NextResponse.json({ error: 'Eroare la salvarea profilului.' }, { status: 500 });
   }
 
@@ -372,7 +416,37 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
 
+  const { searchParams } = new URL(request.url);
+  const usernameParam = searchParams.get('username');
   const supabase = getSupabase();
+
+  if (usernameParam !== null) {
+    const rateLimit = await enforceRateLimit(request, {
+      userId: auth.userId,
+      endpoint: 'user-onboarding-username-check',
+      maxRequests: 30,
+      windowMinutes: 1,
+      failClosed: true,
+    });
+    if (rateLimit) return rateLimit;
+
+    const username = normalizeUsername(usernameParam);
+    if (username.length < 2 || username.length > 60 || !USERNAME_PATTERN.test(username)) {
+      return NextResponse.json({
+        available: false,
+        error: 'Numele de utilizator poate conține doar litere, cifre, spații, punct sau cratimă și trebuie să aibă 2–60 caractere.',
+      }, { status: 400 });
+    }
+
+    try {
+      const existingUsername = await findExistingUsernameOwner(supabase, username, auth.userId);
+      return NextResponse.json({ available: !existingUsername });
+    } catch (usernameError) {
+      console.error('[onboarding] username availability error:', usernameError);
+      return NextResponse.json({ error: 'Nu am putut verifica numele de utilizator.' }, { status: 500 });
+    }
+  }
+
   const onboardingCompleted = await resolveUserOnboardingCompletion(supabase, auth.userId);
 
   return NextResponse.json({

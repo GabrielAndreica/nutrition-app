@@ -10,7 +10,7 @@ import { reserveMonthlyClientUsage } from '@/app/lib/clientUsage';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const ALLOWED_SPLITS = new Set(['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Bro Split', 'Upper/Lower/Push/Pull/Legs']);
+const ALLOWED_SPLITS = new Set(['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Upper/Lower/Push/Pull/Legs']);
 const ALLOWED_LEVELS = new Set(['beginner', 'intermediate', 'advanced']);
 const ALLOWED_EQUIPMENT = new Set(['no equipment', 'dumbbells only', 'full gym']);
 const ALLOWED_GOALS = new Set(['muscle gain', 'weight loss', 'maintenance', 'strength', 'endurance']);
@@ -74,20 +74,6 @@ const WEEKLY_GROUP_TARGET_BASE = {
       posterior: [3, 4],
       calves: [2, 4],
       abs: [2, 4],
-    },
-  },
-  'Bro Split': {
-    baseWorkouts: 5,
-    targets: {
-      chest: [3, 5],
-      back: [4, 6],
-      shoulders: [3, 5],
-      biceps: [3, 4],
-      triceps: [3, 4],
-      quads: [3, 5],
-      posterior: [3, 5],
-      calves: [3, 5],
-      abs: [2, 5],
     },
   },
   'Upper/Lower/Push/Pull/Legs': {
@@ -221,7 +207,7 @@ function normalizeTrainingSplit(split) {
   if (
     ['bro split', 'bro-split', 'bro_split', 'brosplit'].includes(value)
     || compact === 'brosplit'
-  ) return 'Bro Split';
+  ) return 'Upper/Lower/Push/Pull/Legs';
 
   if (
     ['upper/lower/push/pull/legs', 'upper lower push pull legs', 'ulppl', 'ul/ppl'].includes(value)
@@ -259,7 +245,7 @@ function getVolumeTargets(level, goal, split) {
     adjusted.maxExercises = Math.max(adjusted.maxExercises, 8);
     adjusted.minTotalSets = Math.max(adjusted.minTotalSets, 16);
   }
-  // PPL / Upper-Lower / Bro Split: numărul variază natural per sesiune
+  // PPL / Upper-Lower: numărul variază natural per sesiune
   // (ziua de picioare poate avea 7, ziua de biceps+triceps poate avea 4-5)
   if (goal === 'strength') {
     adjusted.minSetsPerExercise = Math.max(adjusted.minSetsPerExercise, 3);
@@ -374,28 +360,21 @@ function formatWeeklyTargetsForPrompt(targets) {
  * Previne încărcarea excesivă a unei grupe și exerciții identice cross-sesiune.
  */
 function buildVolumeAndVarietySection(trainingSplit, workoutsPerWeek) {
-  // Limite per sesiune pentru fiecare grupă (excepție Bro Split unde ziua e dedicată)
-  const isBroSplit = trainingSplit === 'Bro Split';
-
-  const perSessionLimits = isBroSplit
-    ? `- Bro Split: sesiunea dedicată unei grupe poate avea 4-6 exerciții pentru acea grupă, dar NU include alte grupe decât ca accesorii (max 1-2 exerciții accesorii).`
-    : [
-        '- Per sesiune, numărul MAXIM de exerciții per grupă musculară:',
-        '  • Piept: max 3 exerciții / sesiune',
-        '  • Spate: max 3 exerciții / sesiune',
-        '  • Umeri: max 2 exerciții / sesiune',
-        '  • Biceps: max 2 exerciții / sesiune',
-        '  • Triceps: max 2 exerciții / sesiune',
-        '  • Cvadricepși: max 3 exerciții / sesiune',
-        '  • Femurali/Fesieri: max 3 exerciții / sesiune',
-        '  • Gambe: max 2 exerciții / sesiune',
-        '  • Abdomen: max 2 exerciții / sesiune',
-      ].join('\n');
+  const perSessionLimits = [
+    '- Per sesiune, numărul MAXIM de exerciții per grupă musculară:',
+    '  • Piept: max 3 exerciții / sesiune',
+    '  • Spate: max 3 exerciții / sesiune',
+    '  • Umeri: max 2 exerciții / sesiune',
+    '  • Biceps: max 2 exerciții / sesiune',
+    '  • Triceps: max 2 exerciții / sesiune',
+    '  • Cvadricepși: max 3 exerciții / sesiune',
+    '  • Femurali/Fesieri: max 3 exerciții / sesiune',
+    '  • Gambe: max 2 exerciții / sesiune',
+    '  • Abdomen: max 2 exerciții / sesiune',
+  ].join('\n');
 
   // Regula de echilibru — brațele nu trebuie ignorate față de mușchii mari
-  const balanceRule = isBroSplit
-    ? ''
-    : `- ECHILIBRU OBLIGATORIU: Brațele (biceps + triceps total) trebuie să aibă cel puțin 40% din volumul pieptului în aceeași sesiune. Dacă pieptul are 3 exerciții, biceps+triceps trebuie să aibă minim 2 exerciții combinate. NU lăsa 4+ exerciții de piept și 1 exercițiu de brațe.`;
+  const balanceRule = `- ECHILIBRU OBLIGATORIU: Brațele (biceps + triceps total) trebuie să aibă cel puțin 40% din volumul pieptului în aceeași sesiune. Dacă pieptul are 3 exerciții, biceps+triceps trebuie să aibă minim 2 exerciții combinate. NU lăsa 4+ exerciții de piept și 1 exercițiu de brațe.`;
 
   // Regula de variație cross-sesiune — exerciții diferite pentru aceeași grupă
   const varietyRule = workoutsPerWeek >= 2
@@ -1060,7 +1039,6 @@ function buildWorkoutProgressPrompt(data, catalogPrompt, weeklyTargets = null, p
     'Full Body': 'SPLIT: FULL BODY. Fiecare sesiune lucrează întreg corpul.',
     'Push/Pull/Legs': 'SPLIT: PPL. Sesiuni separate pentru Piept+Umeri+Triceps / Spate+Biceps / Picioare.',
     'Upper/Lower': 'SPLIT: UPPER/LOWER. Alternă Upper Body și Lower Body.',
-    'Bro Split': 'SPLIT: BRO SPLIT. Fiecare sesiune — o singură grupă musculară.',
     'Upper/Lower/Push/Pull/Legs': 'SPLIT: ULPPL. Ziua 1 Upper, Ziua 2 Lower, Ziua 3 Push, Ziua 4 Pull, Ziua 5 Legs.',
   }[trainingSplit] || '';
 
@@ -1299,15 +1277,6 @@ function getSessionFocuses(split, workoutsPerWeek) {
     };
     return patterns[workoutsPerWeek] || patterns[4];
   }
-  if (split === 'Bro Split') {
-    const patterns = {
-      2: ['upper', 'legs'],
-      3: ['push', 'pull', 'legs'],
-      4: ['push', 'pull', 'legs', 'upper'],
-      5: ['push', 'pull', 'legs', 'push', 'legs'],
-    };
-    return patterns[workoutsPerWeek] || patterns[4];
-  }
   if (split === 'Full Body') {
     return Array.from({ length: workoutsPerWeek }, () => 'fullBody');
   }
@@ -1385,14 +1354,6 @@ function getSessionName(split, focus, idx) {
   }
   if (split === 'Upper/Lower') {
     return focus === 'legs' ? 'Lower - picioare și core' : 'Upper - partea superioară';
-  }
-  if (split === 'Bro Split') {
-    return {
-      push: 'Piept, umeri și triceps',
-      pull: 'Spate și biceps',
-      legs: 'Picioare',
-      upper: 'Umeri, brațe și accesorii',
-    }[focus] || `Sesiunea ${idx + 1}`;
   }
   return `Full Body ${idx + 1}`;
 }
@@ -1519,7 +1480,7 @@ export async function POST(request) {
       const invalidValue = rawClientId ? ownedClient?.training_split : body?.trainingSplit;
       return NextResponse.json(
         {
-          error: `Split invalid sau lipsă: "${String(invalidValue || '')}". Te rog salvează clientul cu unul dintre valorile: Full Body, Push/Pull/Legs, Upper/Lower, Bro Split.`,
+          error: `Split invalid sau lipsă: "${String(invalidValue || '')}". Te rog salvează clientul cu unul dintre valorile: Full Body, Push/Pull/Legs, Upper/Lower, Upper/Lower/Push/Pull/Legs.`,
         },
         { status: 400 }
       );

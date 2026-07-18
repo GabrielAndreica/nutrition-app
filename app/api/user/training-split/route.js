@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 
+const ALLOWED_TRAINING_SPLITS = new Set(['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Upper/Lower/Push/Pull/Legs']);
+
 /**
  * Computes the recommended training split based on fitness level and workouts per week.
  *
@@ -11,12 +13,11 @@ import { verifyToken } from '@/app/lib/verifyToken';
  *      ≤ 2 workouts/week → Full Body
  *      3 workouts/week  → Push/Pull/Legs
  *      4 workouts/week  → Upper/Lower
- *      5 workouts/week  → Push/Pull/Legs (5-day PPL rotation)
- *      6+ workouts/week → Bro Split
+ *      5 workouts/week  → Upper/Lower/Push/Pull/Legs
  */
 function computeTrainingSplit(fitnessLevel, workoutsPerWeek) {
   const level = String(fitnessLevel || 'beginner').toLowerCase().trim();
-  const workouts = Math.max(1, Number(workoutsPerWeek) || 3);
+  const workouts = Math.max(1, Math.min(5, Number(workoutsPerWeek) || 3));
 
   if (level === 'beginner') return 'Full Body';
 
@@ -24,8 +25,7 @@ function computeTrainingSplit(fitnessLevel, workoutsPerWeek) {
   if (workouts <= 2) return 'Full Body';
   if (workouts === 3) return 'Push/Pull/Legs';
   if (workouts === 4) return 'Upper/Lower';
-  if (workouts === 5) return 'Upper/Lower/Push/Pull/Legs'; // 5-day ULPPL: Upper, Lower, Push, Pull, Legs
-  return 'Bro Split'; // 6+
+  return 'Upper/Lower/Push/Pull/Legs';
 }
 
 /**
@@ -96,7 +96,7 @@ export async function GET(request) {
   const supabase = getSupabase();
   const { data: userRow, error: fetchError } = await supabase
     .from('users')
-    .select('training_split, workouts_per_week')
+    .select('fitness_level, training_split, workouts_per_week')
     .eq('id', auth.userId)
     .single();
 
@@ -104,8 +104,11 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Profilul nu a fost g\u0103sit.' }, { status: 404 });
   }
 
-  return NextResponse.json({
-    trainingSplit: userRow.training_split || 'Full Body',
-    workoutsPerWeek: userRow.workouts_per_week || 3,
-  });
+  const workoutsPerWeek = Math.max(2, Math.min(5, Number(userRow.workouts_per_week) || 3));
+  const storedSplit = String(userRow.training_split || '').trim();
+  const trainingSplit = !storedSplit || /bro[\s_-]*split/i.test(storedSplit) || !ALLOWED_TRAINING_SPLITS.has(storedSplit)
+    ? computeTrainingSplit(userRow.fitness_level, workoutsPerWeek)
+    : storedSplit;
+
+  return NextResponse.json({ trainingSplit, workoutsPerWeek });
 }

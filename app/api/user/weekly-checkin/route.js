@@ -5,6 +5,7 @@ import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import {
   adjustMealPlanCarbs,
   adjustWorkoutPlanProgression,
+  buildFoodPortionLimitMap,
   buildCoachInsights,
   buildPostCheckInUserReset,
   evaluateGoalProgress,
@@ -72,6 +73,20 @@ async function getLatestWorkoutPlan(supabase, userId) {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle());
+}
+
+async function getFoodPortionLimitMap(supabase) {
+  const { data, error } = await supabaseQuery(() => supabase
+    .from('foods')
+    .select('name, aliases, min_amount_per_meal, max_amount_per_meal')
+    .eq('is_active', true));
+
+  if (error) {
+    console.error('[weekly-checkin] food portion limits error:', error);
+    return buildFoodPortionLimitMap([]);
+  }
+
+  return buildFoodPortionLimitMap(data || []);
 }
 
 function addDaysToDateKey(dateKey, days) {
@@ -380,10 +395,12 @@ export async function POST(request) {
   let workoutAdjustment = null;
 
   if (accountType === 'paid' && latestMealPlan?.plan_data && suggestedAdjustmentCalories !== 0) {
+    const foodLimitMap = await getFoodPortionLimitMap(supabase);
     const adjusted = adjustMealPlanCarbs(
       latestMealPlan.plan_data,
       targetsBefore,
-      suggestedAdjustmentCalories
+      suggestedAdjustmentCalories,
+      { foodLimitMap }
     );
     targetsAfter = adjusted.targetsAfter;
     achievedCaloriesDelta = adjusted.achievedCaloriesDelta;

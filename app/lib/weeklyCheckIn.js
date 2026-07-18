@@ -2,7 +2,7 @@ import { getCurrentPlanDateKey, getCurrentPlanDayIndex, getNextPlanMidnightIso }
 
 const KG_TOLERANCE = 0.2;
 const PAID_NUTRITION_ADJUSTMENT_KCAL = 100;
-const FIRST_WEEKLY_CHECKIN_MIN_AGE_MS = 6 * 24 * 60 * 60 * 1000;
+const FIRST_WEEKLY_CHECKIN_MIN_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value || null));
@@ -30,6 +30,71 @@ function getFoodAmount(food) {
 
 function roundToNearest5(value) {
   return Math.round((Number(value) || 0) / 5) * 5;
+}
+
+function normalizeFoodName(value = '') {
+  return String(value).toLowerCase()
+    .replace(/\s*\(crud[aă]?\)/gi, '')
+    .replace(/\s*\(fiert[aă]?\)/gi, '')
+    .replace(/\s*\(fiartă\)/gi, '')
+    .replace(/\s*\(la (tigaie|cuptor|grătar|gratar|abur)\)/gi, '')
+    .replace(/\s*\(copt[aă]?\)/gi, '')
+    .replace(/\s*\(conserv[aă]\)/gi, '')
+    .replace(/\s*\(\d+%\)/gi, '')
+    .replace(/ă/g, 'a').replace(/â/g, 'a').replace(/î/g, 'i')
+    .replace(/ș/g, 's').replace(/ț/g, 't')
+    .replace(/ş/g, 's').replace(/ţ/g, 't')
+    .replace(/[()%]/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+function includesAny(value, terms) {
+  return terms.some(term => value.includes(term));
+}
+
+function getDefaultFoodPortionLimits(food = {}) {
+  const name = normalizeFoodName(food.name);
+
+  if (includesAny(name, ['ulei', 'unt', 'maioneza'])) return { min: 5, max: 15 };
+  if (includesAny(name, ['nuci', 'migdale', 'arahide', 'caju', 'seminte'])) return { min: 10, max: 35 };
+  if (name.includes('banana')) return { min: 80, max: 150 };
+  if (includesAny(name, ['mar', 'para', 'portocala', 'fructe de padure', 'afine', 'capsuni'])) return { min: 80, max: 180 };
+  if (includesAny(name, ['kefir', 'lapte batut', 'iaurt'])) return { min: 150, max: 300 };
+  if (includesAny(name, ['paine', 'lipie', 'tortilla'])) return { min: 40, max: 120 };
+  if (includesAny(name, ['cascaval', 'mozzarella', 'telemea', 'parmezan'])) return { min: 25, max: 60 };
+  if (includesAny(name, ['branza cottage', 'branza de vaci', 'skyr'])) return { min: 120, max: 250 };
+  if (name.includes('ou')) return { min: 50, max: 120 };
+  if (includesAny(name, ['sunca', 'prosciutto', 'jambon'])) return { min: 50, max: 120 };
+  if (includesAny(name, ['pui', 'curcan', 'vita', 'peste', 'somon', 'ton', 'cod'])) return { min: 100, max: 220 };
+  if (includesAny(name, ['orez', 'paste', 'ovaz', 'cartof', 'quinoa', 'couscous'])) return { min: 40, max: 120 };
+  return { min: 5, max: 500 };
+}
+
+export function buildFoodPortionLimitMap(foods = []) {
+  const map = new Map();
+
+  for (const food of foods || []) {
+    const fallback = getDefaultFoodPortionLimits(food);
+    const max = Math.max(5, Math.round(Number(food?.max_amount_per_meal) || fallback.max));
+    const min = Math.min(max, Math.max(5, Math.round(Number(food?.min_amount_per_meal) || fallback.min)));
+    const limits = { min, max };
+    const names = [food?.name, ...(Array.isArray(food?.aliases) ? food.aliases : [])];
+
+    for (const name of names) {
+      const key = normalizeFoodName(name);
+      if (key) map.set(key, limits);
+    }
+  }
+
+  return map;
+}
+
+function getFoodPortionLimits(food, foodLimitMap) {
+  const key = normalizeFoodName(food?.name);
+  const mapped = key && foodLimitMap?.get?.(key);
+  if (mapped) return mapped;
+  return getDefaultFoodPortionLimits(food);
 }
 
 function getCarbsPerGram(food) {
@@ -267,15 +332,24 @@ function recalculatePlan(plan) {
   }
 }
 
-function setFoodAmountByDeltaMacro(food, macroKey, desiredMacroDelta) {
+function setFoodAmountByDeltaMacro(food, macroKey, desiredMacroDelta, { foodLimitMap } = {}) {
   const currentAmount = getFoodAmount(food);
   const macroPerGram = macroKey === 'fat' ? getFatPerGram(food) : getCarbsPerGram(food);
   if (macroPerGram <= 0) return 0;
 
   const desiredAmountDelta = desiredMacroDelta / macroPerGram;
-  const minAmount = desiredMacroDelta < 0 ? Math.max(5, currentAmount * 0.65) : Math.max(5, currentAmount * 0.75);
-  const maxAmount = desiredMacroDelta > 0 ? currentAmount * 1.35 : Math.max(currentAmount, 5);
-  const nextAmount = roundToNearest5(clamp(currentAmount + desiredAmountDelta, minAmount, maxAmount));
+  const hardLimits = getFoodPortionLimits(food, foodLimitMap);
+  const hardMin = Math.max(5, Number(hardLimits.min) || 5);
+  const hardMax = Math.max(hardMin, Number(hardLimits.max) || 500);
+  const relativeMin = desiredMacroDelta < 0 ? currentAmount * 0.65 : currentAmount * 0.75;
+  const relativeMax = desiredMacroDelta > 0 ? currentAmount * 1.35 : Math.max(currentAmount, 5);
+  const minAmount = Math.max(hardMin, relativeMin);
+  const maxAmount = Math.min(hardMax, relativeMax);
+  if (minAmount > maxAmount && currentAmount >= hardMin && currentAmount <= hardMax) return 0;
+  const boundedAmount = minAmount > maxAmount
+    ? (currentAmount < hardMin ? hardMin : hardMax)
+    : clamp(currentAmount + desiredAmountDelta, minAmount, maxAmount);
+  const nextAmount = roundToNearest5(boundedAmount);
   const actualFactor = nextAmount / currentAmount;
   const previousMacro = Number(food[macroKey]) || 0;
 
@@ -289,12 +363,12 @@ function setFoodAmountByDeltaMacro(food, macroKey, desiredMacroDelta) {
   return (Number(food[macroKey]) || 0) - previousMacro;
 }
 
-function setFoodAmountByDeltaCarbs(food, desiredCarbsDelta) {
-  return setFoodAmountByDeltaMacro(food, 'carbs', desiredCarbsDelta);
+function setFoodAmountByDeltaCarbs(food, desiredCarbsDelta, options) {
+  return setFoodAmountByDeltaMacro(food, 'carbs', desiredCarbsDelta, options);
 }
 
-function setFoodAmountByDeltaFat(food, desiredFatDelta) {
-  return setFoodAmountByDeltaMacro(food, 'fat', desiredFatDelta);
+function setFoodAmountByDeltaFat(food, desiredFatDelta, options) {
+  return setFoodAmountByDeltaMacro(food, 'fat', desiredFatDelta, options);
 }
 
 function averageDailyTotals(plan) {
@@ -315,7 +389,7 @@ function averageDailyTotals(plan) {
   };
 }
 
-export function adjustMealPlanCarbs(planData, dailyTargets, adjustmentCalories) {
+export function adjustMealPlanCarbs(planData, dailyTargets, adjustmentCalories, { foodLimitMap } = {}) {
   const plan = clone(planData);
   const targetsBefore = clone(dailyTargets || plan?.dailyTargets || averageDailyTotals(plan));
   const planAverageBefore = averageDailyTotals(plan);
@@ -339,7 +413,7 @@ export function adjustMealPlanCarbs(planData, dailyTargets, adjustmentCalories) 
     let achievedFatDelta = 0;
 
     for (const item of adjustableMeals) {
-      achievedCarbsDelta += setFoodAmountByDeltaCarbs(item.food, desiredCarbsDeltaPerMeal);
+      achievedCarbsDelta += setFoodAmountByDeltaCarbs(item.food, desiredCarbsDeltaPerMeal, { foodLimitMap });
     }
 
     const remainingCaloriesDelta = caloriesDelta - achievedCarbsDelta * 4;
@@ -352,7 +426,7 @@ export function adjustMealPlanCarbs(planData, dailyTargets, adjustmentCalories) 
     if (fatAdjustableMeals.length) {
       const desiredFatDeltaPerMeal = (remainingCaloriesDelta / 9) / fatAdjustableMeals.length;
       for (const item of fatAdjustableMeals) {
-        achievedFatDelta += setFoodAmountByDeltaFat(item.food, desiredFatDeltaPerMeal);
+        achievedFatDelta += setFoodAmountByDeltaFat(item.food, desiredFatDeltaPerMeal, { foodLimitMap });
       }
     }
 

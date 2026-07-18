@@ -31,6 +31,14 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 CREATE INDEX IF NOT EXISTS idx_users_name_trgm
   ON users USING gin (name gin_trgm_ops);
 
+DROP INDEX IF EXISTS idx_users_name_unique_normalized;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_name_unique_normalized
+  ON users (lower(btrim(name)))
+  WHERE name IS NOT NULL
+    AND btrim(name) <> ''
+    AND onboarding_completed = true;
+
 CREATE OR REPLACE FUNCTION public.touch_user_friendships_updated_at()
 RETURNS trigger
 LANGUAGE plpgsql

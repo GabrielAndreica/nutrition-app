@@ -2,6 +2,7 @@ import { supabaseQuery } from '@/app/lib/supabase';
 import {
   adjustMealPlanCarbs,
   adjustWorkoutPlanProgression,
+  buildFoodPortionLimitMap,
   buildCoachInsights,
   evaluateGoalProgress,
   getAdjustmentCalories,
@@ -73,6 +74,20 @@ async function getLatestWorkoutPlan(supabase, userId) {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle());
+}
+
+async function getFoodPortionLimitMap(supabase) {
+  const { data, error } = await supabaseQuery(() => supabase
+    .from('foods')
+    .select('name, aliases, min_amount_per_meal, max_amount_per_meal')
+    .eq('is_active', true));
+
+  if (error) {
+    console.error('[premium-checkin-upgrade] food portion limits error:', error);
+    return buildFoodPortionLimitMap([]);
+  }
+
+  return buildFoodPortionLimitMap(data || []);
 }
 
 async function getLatestCheckIn(supabase, userId) {
@@ -186,7 +201,8 @@ export async function applyPremiumCheckInUpgrade(supabase, userId, { source = 's
   let recommendation = evaluation.recommendation;
 
   if (latestMealPlan?.plan_data && suggestedAdjustmentCalories !== 0) {
-    const adjusted = adjustMealPlanCarbs(latestMealPlan.plan_data, targetsBefore, suggestedAdjustmentCalories);
+    const foodLimitMap = await getFoodPortionLimitMap(supabase);
+    const adjusted = adjustMealPlanCarbs(latestMealPlan.plan_data, targetsBefore, suggestedAdjustmentCalories, { foodLimitMap });
     targetsAfter = adjusted.targetsAfter;
     achievedCaloriesDelta = adjusted.achievedCaloriesDelta;
 

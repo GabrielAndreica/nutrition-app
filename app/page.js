@@ -1,8 +1,10 @@
 import LandingPage from '@/app/landing/page';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
-  title: 'Trevano — Aplicație pentru antrenori de fitness',
-  description: 'Trevano este aplicația pentru antrenori de fitness unde ții clienții, planurile alimentare, antrenamentele și progresul într-un singur loc.',
+  title: 'Trevano - Planul pe care il poti urma',
+  description: 'Trevano iti spune ce sa mananci, cum sa te antrenezi si iti adapteaza planul pe masura ce progresezi.',
   alternates: {
     canonical: '/',
   },

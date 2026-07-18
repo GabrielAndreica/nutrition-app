@@ -1,33 +1,230 @@
-﻿import Link from 'next/link';
+import Link from 'next/link';
 import CookieSettingsButton from '@/app/components/CookieSettingsButton';
+import { getSupabase } from '@/app/lib/supabase';
 import styles from './landing.module.css';
 import ScrollReveal from './ScrollReveal';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
-  title: 'Trevano — Aplicație pentru antrenori de fitness',
-  description: 'Trevano este aplicația pentru antrenori de fitness unde ții clienții, planurile alimentare, antrenamentele și progresul într-un singur loc.',
+  title: 'Trevano - Planul pe care il poti urma',
+  description: 'Trevano iti spune ce sa mananci, cum sa te antrenezi si iti adapteaza planul pe masura ce progresezi.',
   alternates: {
     canonical: '/',
   },
 };
 
-/* ── Phone mockup helper ── */
-function PhoneMockup({ src, alt }) {
+const problemItems = [
+  'Nu stii ce exercitii sa faci.',
+  'Nu stii cat sa mananci.',
+  'Incepi motivat, dar renunti dupa cateva saptamani.',
+  'Nu stii daca faci progres sau pierzi timpul.',
+];
+
+const solutionSteps = [
+  'Iti alegi obiectivul.',
+  'Primesti planul personalizat de antrenament si alimentatie.',
+  'Urmezi misiunile zilnice.',
+  'In fiecare saptamana iti urmaresti progresul.',
+  'Daca este nevoie, Trevano iti adapteaza planul.',
+];
+
+const howItWorks = [
+  {
+    icon: 'target',
+    title: 'Stabileste obiectivul',
+    text: 'Introdu greutatea actuala si greutatea pe care vrei sa o atingi.',
+  },
+  {
+    icon: 'plan',
+    title: 'Urmeaza planul',
+    text: 'Primesti exercitiile si mesele pentru fiecare zi. Fara ghicit. Fara planuri complicate.',
+  },
+  {
+    icon: 'progress',
+    title: 'Urmareste progresul',
+    text: 'In fiecare saptamana vezi exact cum evoluezi si daca te apropii de obiectiv.',
+  },
+  {
+    icon: 'coach',
+    title: 'Trevano Coach',
+    text: 'Daca progresul incetineste, Trevano ajusteaza automat planul pentru directia potrivita.',
+  },
+];
+
+const todayItems = [
+  'Nu stii ce sa faci la sala.',
+  'Nu ai un plan alimentar.',
+  'Nu esti consecvent.',
+  'Nu vezi rezultate.',
+];
+
+const futureItems = [
+  'Ai o rutina.',
+  'Mananci fara sa te intrebi daca faci bine.',
+  'Te simti mai puternic.',
+  'Esti mult mai aproape de obiectivul tau.',
+];
+
+const coachChanges = [
+  'ajusteaza aportul caloric',
+  'modifica mesele',
+  'adapteaza antrenamentele',
+  'te mentine pe drumul catre obiectiv',
+];
+
+const LANDING_IMAGE_BUCKET = 'imagini-landing';
+const LANDING_IMAGE_TTL_SECONDS = 60 * 60 * 12;
+
+function ProblemIcon() {
+  return <span className={styles.problemIcon}>!</span>;
+}
+
+function HowFeatureIcon({ type }) {
+  const iconProps = {
+    width: 23,
+    height: 23,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 2,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    'aria-hidden': true,
+  };
+
+  if (type === 'plan') {
+    return (
+      <svg {...iconProps}>
+        <path d="M4 6h16" />
+        <path d="M4 12h16" />
+        <path d="M4 18h10" />
+      </svg>
+    );
+  }
+
+  if (type === 'progress') {
+    return (
+      <svg {...iconProps}>
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+      </svg>
+    );
+  }
+
+  if (type === 'coach') {
+    return (
+      <svg {...iconProps}>
+        <path d="M12 2v4" />
+        <path d="M12 18v4" />
+        <path d="m4.93 4.93 2.83 2.83" />
+        <path d="m16.24 16.24 2.83 2.83" />
+        <path d="M2 12h4" />
+        <path d="M18 12h4" />
+        <path d="m4.93 19.07 2.83-2.83" />
+        <path d="m16.24 7.76 2.83-2.83" />
+      </svg>
+    );
+  }
+
   return (
-    <div className={styles.phoneFrame}>
-      <div className={styles.phoneInner}>
+    <svg {...iconProps}>
+      <circle cx="12" cy="12" r="8" />
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3" />
+      <path d="M12 19v3" />
+      <path d="M2 12h3" />
+      <path d="M19 12h3" />
+    </svg>
+  );
+}
+
+function encodeStoragePath(path = '') {
+  return String(path)
+    .split('/')
+    .filter(Boolean)
+    .map(segment => encodeURIComponent(segment))
+    .join('/');
+}
+
+function buildLandingImageUrl(path) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!supabaseUrl) return '';
+
+  return `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/public/${LANDING_IMAGE_BUCKET}/${encodeStoragePath(path)}`;
+}
+
+function getLandingImageCandidates(path) {
+  const cleanPath = String(path || '').trim();
+  if (!cleanPath) return [];
+  if (/\.[a-z0-9]+$/i.test(cleanPath)) return [cleanPath];
+
+  return [`${cleanPath}.png`, `${cleanPath}.jpg`, `${cleanPath}.jpeg`, `${cleanPath}.webp`, cleanPath];
+}
+
+async function resolveLandingImageUrl(path) {
+  const candidates = getLandingImageCandidates(path);
+
+  try {
+    for (const candidate of candidates) {
+      const { data, error } = await getSupabase()
+        .storage
+        .from(LANDING_IMAGE_BUCKET)
+        .createSignedUrl(candidate, LANDING_IMAGE_TTL_SECONDS, {
+          transform: {
+            width: 980,
+            height: 552,
+            resize: 'cover',
+            quality: 78,
+          },
+        });
+
+      if (!error && data?.signedUrl) return data.signedUrl;
+    }
+  } catch (err) {
+    console.error('[landing] image signed URL error:', err);
+  }
+
+  return buildLandingImageUrl(candidates[0] || path);
+}
+
+async function HeroImages() {
+  const [femaleImage, maleImage] = await Promise.all([
+    resolveLandingImageUrl('female-before-after.png'),
+    resolveLandingImageUrl('male-before-after.png'),
+  ]);
+
+  if (!femaleImage || !maleImage) return null;
+
+  return (
+    <div className={styles.heroImages} aria-label="Rezultate posibile cu un plan urmat consecvent">
+      <figure className={styles.heroImageCard}>
+        {/* Supabase render/image already serves the optimized hero asset. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt={alt} className={styles.phoneScreenImg} />
-      </div>
+        <img src={femaleImage} alt="Transformare femeie inainte si dupa" loading="eager" fetchPriority="high" />
+      </figure>
+      <figure className={`${styles.heroImageCard} ${styles.heroImageCardOffset}`}>
+        {/* Supabase render/image already serves the optimized hero asset. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={maleImage} alt="Transformare barbat inainte si dupa" loading="eager" fetchPriority="high" />
+      </figure>
     </div>
   );
 }
 
-function MockupMealPlan() {
-  return <PhoneMockup src="/screenshots/mockup-meal-plan.png" alt="Plan alimentar generat" />;
+async function LandingSectionImage({ path, alt, className }) {
+  const imageUrl = await resolveLandingImageUrl(path);
+  if (!imageUrl) return null;
+
+  return (
+    <figure className={className}>
+      {/* Supabase render/image already serves the optimized landing asset. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={imageUrl} alt={alt} loading="lazy" />
+    </figure>
+  );
 }
 
-export default function LandingPage() {
+export default async function LandingPage() {
   const structuredData = {
     '@context': 'https://schema.org',
     '@graph': [
@@ -52,21 +249,20 @@ export default function LandingPage() {
         '@type': 'SoftwareApplication',
         '@id': 'https://trevano.app/#software',
         name: 'Trevano',
-        applicationCategory: 'BusinessApplication',
+        applicationCategory: 'HealthApplication',
         operatingSystem: 'Web',
         url: 'https://trevano.app',
-        image: 'https://trevano.app/screenshots/mockup-meal-plan.png',
-        description: 'Trevano este aplicația pentru antrenori de fitness unde ții clienții, planurile alimentare, antrenamentele și progresul într-un singur loc.',
+        description: 'Trevano iti spune ce sa mananci, cum sa te antrenezi si iti adapteaza planul pe masura ce progresezi.',
         publisher: {
           '@id': 'https://trevano.app/#organization',
         },
         audience: {
           '@type': 'Audience',
-          audienceType: 'Antrenori de fitness',
+          audienceType: 'Persoane care vor sa slabeasca, sa ia in greutate sau sa inceapa sala',
         },
         offers: [
-          { '@type': 'Offer', name: 'Starter', price: '149', priceCurrency: 'RON', url: 'https://trevano.app' },
-          { '@type': 'Offer', name: 'Pro', price: '249', priceCurrency: 'RON', url: 'https://trevano.app' },
+          { '@type': 'Offer', name: 'Gratuit', price: '0', priceCurrency: 'RON', url: 'https://trevano.app/auth' },
+          { '@type': 'Offer', name: 'Trevano Coach', price: '29.99', priceCurrency: 'RON', url: 'https://trevano.app/upgrade' },
         ],
       },
     ],
@@ -74,174 +270,154 @@ export default function LandingPage() {
 
   return (
     <div className={styles.root}>
+      <div className={`${styles.neonSpot} ${styles.neonSpotOne}`} />
+      <div className={`${styles.neonSpot} ${styles.neonSpotTwo}`} />
+      <div className={`${styles.neonSpot} ${styles.neonSpotThree}`} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
+      <ScrollReveal />
 
-      {/* NAV */}
       <nav className={styles.nav}>
-        <span className={styles.logo}>trevano</span>
+        <Link href="/" className={styles.logo}>trevano</Link>
         <div className={styles.navLinks}>
           <Link href="/auth" className={styles.navLogin}>Intră în cont</Link>
           <Link href="/auth" className={styles.navCta}>Începe gratuit</Link>
         </div>
       </nav>
 
-      <ScrollReveal />
+      <main>
+        <section className={styles.heroBand}>
+          <div className={styles.hero}>
+            <div className={styles.heroText} data-reveal>
+              <h1>Corpul pe care îl dorești începe cu un plan pe care îl poți urma.</h1>
+              <p>
+                Trevano îți spune ce să mănânci, cum să te antrenezi și îți adaptează planul
+                pe măsură ce progresezi, până îți atingi obiectivul.
+              </p>
+              <div className={styles.heroActions}>
+                <Link href="/auth" className={styles.primaryCta}>Începe gratuit</Link>
+              </div>
+            </div>
+            <div className={styles.heroVisual} data-reveal data-delay="1">
+              <HeroImages />
+            </div>
+          </div>
+        </section>
 
-      {/* HERO */}
-      <section className={styles.hero}>
-        <div className={styles.heroGlow} />
-        <div className={styles.heroLeft}>
-          <div className={styles.heroBadge} data-reveal data-delay="0">Pentru antrenori personali</div>
-          <h1 className={styles.heroHeadline} data-reveal data-delay="1">
-            Aplicația pentru antrenori de fitness<br /><span className={styles.accent}>care vor ordine.</span>
-          </h1>
-          <p className={styles.heroSub} data-reveal data-delay="2">
-            Trevano te ajută să ții clienții, planurile alimentare, antrenamentele și progresul într-un singur loc. Fără ChatGPT, Word, tabele și multe tab-uri deschise.
+        <section className={`${styles.section} ${styles.problemSection}`} data-reveal>
+          <div className={styles.sectionHeader}>
+            <h2>Ai un obiectiv. Dar nu știi de unde să începi.</h2>
+          </div>
+          <div className={styles.problemGrid}>
+            {problemItems.map(item => (
+              <div key={item} className={styles.problemItem}>
+                <ProblemIcon />
+                <p>{item}</p>
+              </div>
+            ))}
+          </div>
+          <p className={styles.sectionStatement}>
+            Nu ai nevoie de mai multă motivație. Ai nevoie de un plan și de consecvență.
           </p>
-          <div className={styles.heroActions} data-reveal data-delay="3">
-            <Link href="/auth" className={styles.ctaPrimary}>Începe gratuit 14 zile →</Link>
-            <span className={styles.heroNote}>Fără card de credit. Anulezi oricând.</span>
-          </div>
-          <div className={styles.heroStats} data-reveal data-delay="4">
-            <div className={styles.heroStat}><span className={styles.heroStatNum}>1 loc</span><span className={styles.heroStatLabel}>pentru clienți și planuri</span></div>
-            <div className={styles.heroStatDivider} />
-            <div className={styles.heroStat}><span className={styles.heroStatNum}>10h+</span><span className={styles.heroStatLabel}>economisit lunar</span></div>
-            <div className={styles.heroStatDivider} />
-            <div className={styles.heroStat}><span className={styles.heroStatNum}>0</span><span className={styles.heroStatLabel}>fișiere pierdute</span></div>
-          </div>
-        </div>
-        <div className={styles.heroRight}>
-          <div className={styles.heroMesh}>
-            <div className={styles.meshOrb1} />
-            <div className={styles.meshOrb2} />
-            <div className={styles.meshOrb3} />
-            <div className={styles.meshGrid} />
-          </div>
-        </div>
-      </section>
+        </section>
 
-      {/* FEATURE 1 */}
-      <section className={styles.featureSection} data-reveal>
-        <div className={styles.featureSectionInner}>
-          <div className={styles.featureMockup}><MockupMealPlan /></div>
-          <div className={styles.featureText}>
-            <p className={styles.sectionLabel}>Planuri complete</p>
-            <h2 className={styles.featureHeading}>Plan alimentar și antrenament,<br /><span className={styles.accent}>fără să sari între aplicații.</span></h2>
-            <p className={styles.featureDesc}>Adaugi clientul, creezi planurile, le verifici, ajustezi gramaje sau serii și abia apoi le trimiți în portalul clientului.</p>
-            <ul className={styles.featureBullets}>
-              <li><span className={styles.bullet}>✓</span> Plan alimentar de 7 zile cu rețete reale</li>
-              <li><span className={styles.bullet}>✓</span> Macro-uri, calorii și gramaje într-o pagină clară</li>
-              <li><span className={styles.bullet}>✓</span> Plan de antrenament adaptat nivelului</li>
-            </ul>
+        <section className={`${styles.section} ${styles.solutionSection}`} data-reveal>
+          <div className={styles.sectionHeader}>
+            <h2>Trevano te ghidează până îți atingi obiectivul.</h2>
           </div>
-        </div>
-      </section>
+          <div className={styles.solutionBody}>
+            <div className={styles.stepsList}>
+              {solutionSteps.map((step, index) => (
+                <div key={step} className={styles.stepNode}>
+                  <span>{index + 1}</span>
+                  <p>{step}</p>
+                </div>
+              ))}
+            </div>
+            <LandingSectionImage
+              path="workout-male"
+              alt="Antrenament masculin ghidat de Trevano"
+              className={styles.solutionImage}
+            />
+          </div>
+        </section>
 
-      {/* HOW IT WORKS */}
-      <section className={styles.howSection} data-reveal>
-        <div className={styles.howInner}>
-          <p className={styles.sectionLabel} style={{ textAlign: 'center' }}>Cum funcționează</p>
-          <h2 className={styles.sectionTitle} style={{ textAlign: 'center' }}>3 pași simpli</h2>
-          <div className={styles.stepsGrid}>
-            {[
-              { num: '01', title: 'Adaugi clientul', desc: 'Profil, obiectiv, preferințe alimentare și date de antrenament într-o singură fișă.' },
-              { num: '02', title: 'Verifici planurile', desc: 'Plan alimentar și antrenament în pagini clare, cu ajustări directe pentru gramaje și serii.' },
-              { num: '03', title: 'Urmărești progresul', desc: 'Progresul clientului ajunge în același sistem, iar tu decizi dacă păstrezi sau actualizezi planul.' },
-            ].map(({ num, title, desc }) => (
-              <div key={num} className={styles.stepCard}>
-                <div className={styles.stepNum}>{num}</div>
-                <h3 className={styles.stepTitle}>{title}</h3>
-                <p className={styles.stepDesc}>{desc}</p>
+        <section className={`${styles.section} ${styles.howSection}`} data-reveal>
+          <div className={styles.sectionHeader}>
+            <h2>Totul e gândit pentru pași simpli, repetați zilnic.</h2>
+          </div>
+          <div className={styles.howGrid}>
+            {howItWorks.map(item => (
+              <article key={item.title} className={styles.howCard}>
+                <div className={styles.howIcon}>
+                  <HowFeatureIcon type={item.icon} />
+                </div>
+                <h3>{item.title}</h3>
+                <p>{item.text}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className={styles.futureSection} data-reveal>
+          <div className={styles.sectionHeader}>
+            <h2>De la confuzie la rutină clară.</h2>
+          </div>
+          <div className={styles.futureBody}>
+            <div className={styles.beforeAfter}>
+              <div className={styles.timelineCard}>
+                <h3>Astăzi</h3>
+                {todayItems.map(item => (
+                  <p key={item}><span className={styles.badMark}>×</span>{item}</p>
+                ))}
+              </div>
+              <div className={`${styles.timelineCard} ${styles.timelineCardGood}`}>
+                <h3>Peste 12 săptămâni</h3>
+                {futureItems.map(item => (
+                  <p key={item}><span className={styles.goodMark}>✓</span>{item}</p>
+                ))}
+              </div>
+            </div>
+            <LandingSectionImage
+              path="workout-female"
+              alt="Antrenament feminin cu rutină clară"
+              className={styles.futureImage}
+            />
+          </div>
+        </section>
+
+        <section className={styles.coachSection} data-reveal>
+          <div className={styles.coachText}>
+            <h2>Nu mai trebuie să ghicești ce trebuie schimbat.</h2>
+            <p>
+              În fiecare săptămână, Trevano analizează progresul tău. Dacă este nevoie,
+              ajustează planul ca să continui în direcția obiectivului.
+            </p>
+            <Link href="/auth" className={styles.coachCta}>Începe gratuit</Link>
+          </div>
+          <div className={styles.coachList}>
+            {coachChanges.map(item => (
+              <div key={item}>
+                <span>{item}</span>
               </div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      {/* STATS */}
-      <section className={styles.statsSection} data-reveal>
-        <div className={styles.statsInner}>
-          <div className={styles.statsLeft}>
-            <p className={styles.sectionLabel}>De ce Trevano</p>
-            <h2 className={styles.featureHeading}>Cât timp pierzi lunar<br /><span className={styles.accent}>cu lucruri puse peste tot?</span></h2>
-            <p className={styles.featureDesc}>Când lucrezi cu ChatGPT, documente, tabele și PDF-uri separate, devine greu să urmărești fiecare client. Trevano pune lucrurile importante într-un singur loc.</p>
-            <Link href="/auth" className={styles.ctaPrimary} style={{ display: 'inline-block', marginTop: '24px' }}>Încearcă gratuit →</Link>
-          </div>
-          <div className={styles.statsRight}>
-            {[
-              { num: '1–2h', desc: 'per client, pe planuri făcute manual' },
-              { num: '×10', desc: 'clienți = 10–20h pierdute lunar' },
-              { num: '2 min', desc: 'pentru un plan complet în Trevano' },
-            ].map(({ num, desc }) => (
-              <div key={num} className={styles.statCard}>
-                <span className={styles.statNum}>{num}</span>
-                <span className={styles.statDesc}>{desc}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* PRICING */}
-      <section className={styles.pricingSection} data-reveal>
-        <div className={styles.pricingInner}>
-          <p className={styles.sectionLabel} style={{ textAlign: 'center' }}>Prețuri</p>
-          <h2 className={styles.sectionTitle} style={{ textAlign: 'center' }}>Simplu. Transparent. Fără surprize.</h2>
-          <div className={styles.pricingGrid}>
-            <div className={styles.pricingCard}>
-              <h3 className={styles.planName}>Starter</h3>
-              <div className={styles.planPrice}><span className={styles.planAmount}>149 RON</span><span className={styles.planPeriod}>/ lună</span></div>
-              <ul className={styles.planFeatures}>
-                <li><span className={styles.check}>✓</span> Până la 10 clienți activi</li>
-                <li><span className={styles.check}>✓</span> Planuri alimentare pe fiecare client</li>
-                <li><span className={styles.check}>✓</span> Planuri de antrenament pe fiecare client</li>
-                <li><span className={styles.check}>✓</span> Portal clienți</li>
-                <li><span className={styles.check}>✓</span> Monitorizare progres clienți</li>
-              </ul>
-              <Link href="/auth" className={styles.planCta}>Începe gratuit 14 zile</Link>
-            </div>
-            <div className={`${styles.pricingCard} ${styles.pricingCardPro}`}>
-              <div className={styles.proBadge}>Popular</div>
-              <h3 className={styles.planName}>Pro</h3>
-              <div className={styles.planPrice}><span className={styles.planAmount}>249 RON</span><span className={styles.planPeriod}>/ lună</span></div>
-              <ul className={styles.planFeatures}>
-                <li><span className={styles.checkAccent}>✓</span> Până la 30 clienți activi</li>
-                <li><span className={styles.checkAccent}>✓</span> Tot ce e în Starter</li>
-                <li><span className={styles.checkAccent}>✓</span> Suport prioritar</li>
-              </ul>
-              <Link href="/auth" className={styles.planCtaAccent}>Începe gratuit 14 zile →</Link>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* FINAL CTA */}
-      <section className={styles.finalCta} data-reveal>
-        <div className={styles.finalGlow} />
-        <div className={styles.finalCtaInner}>
-          <h2 className={styles.finalTitle}>Gata să pui <span className={styles.accent}>totul</span> în ordine?</h2>
-          <p className={styles.finalSub}>Trevano este pentru antrenorii care vor clienți, planuri și progres într-un singur loc.</p>
-          <Link href="/auth" className={styles.ctaPrimary}>Începe 14 zile gratuit →</Link>
-          <p className={styles.heroNote}>Fără card de credit. Anulezi oricând.</p>
-        </div>
-      </section>
-
-      {/* FOOTER */}
       <footer className={styles.footer}>
-        <span className={styles.logo}>trevano.app</span>
-        <p className={styles.footerText}>© 2026 Trevano. Toate drepturile rezervate.</p>
+        <span className={styles.footerLogo}>trevano.app</span>
+        <p>© 2026 Trevano. Toate drepturile rezervate.</p>
         <div className={styles.footerLinks}>
-          <Link href="/termeni-si-conditii" className={styles.footerLink}>Termeni și condiții</Link>
-          <Link href="/politica-de-confidentialitate" className={styles.footerLink}>Politica de confidențialitate</Link>
-          <Link href="/politica-cookies" className={styles.footerLink}>Politica Cookies</Link>
+          <Link href="/termeni-si-conditii">Termeni și condiții</Link>
+          <Link href="/politica-de-confidentialitate">Politica de confidențialitate</Link>
+          <Link href="/politica-cookies">Politica Cookies</Link>
           <CookieSettingsButton className={styles.footerButtonLink} />
-          <Link href="/auth" className={styles.footerLink}>Autentificare</Link>
+          <Link href="/auth">Autentificare</Link>
         </div>
       </footer>
-
     </div>
   );
 }

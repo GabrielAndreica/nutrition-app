@@ -327,6 +327,53 @@
   color: rgba(255, 255, 255, 0.35);
 }
 
+.notificationFriendActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.notificationFriendAccept,
+.notificationFriendReject {
+  border: 0;
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+
+.notificationFriendAccept {
+  background: #b7ff00;
+  color: #0a0a0a;
+}
+
+.notificationFriendReject {
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.notificationFriendAccept:hover:not(:disabled),
+.notificationFriendReject:hover:not(:disabled) {
+  opacity: 0.86;
+  transform: translateY(-1px);
+}
+
+.notificationFriendAccept:disabled,
+.notificationFriendReject:disabled {
+  opacity: 0.5;
+  cursor: wait;
+  transform: none;
+}
+
+.notificationFriendResolved:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
 .notificationDot {
   width: 6px;
   height: 6px;
@@ -3717,6 +3764,79 @@
   gap: 10px;
 }
 
+.friendRequestsPanel,
+.sentFriendRequestsPanel {
+  margin-bottom: 18px;
+}
+
+.friendRequestsPanel h2,
+.sentFriendRequestsPanel h2 {
+  margin: 0 0 10px;
+  color: #0a0a0a;
+  font-size: 18px;
+  font-weight: 850;
+  letter-spacing: -0.4px;
+}
+
+.friendRequestsList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.friendRequestCard {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 14px;
+  border: 1px solid rgba(183, 255, 0, 0.42);
+  border-radius: 18px;
+  background: rgba(183, 255, 0, 0.08);
+  min-width: 0;
+}
+
+.friendRequestActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.friendAcceptBtn,
+.friendRejectBtn {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 13px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 850;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+
+.friendAcceptBtn {
+  background: #0a0a0a;
+  color: #b7ff00;
+}
+
+.friendRejectBtn {
+  background: #f1f1f3;
+  color: #52525b;
+}
+
+.friendAcceptBtn:hover:not(:disabled),
+.friendRejectBtn:hover:not(:disabled) {
+  opacity: 0.86;
+  transform: translateY(-1px);
+}
+
+.friendAcceptBtn:disabled,
+.friendRejectBtn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+  transform: none;
+}
+
 .friendSearchPanel {
   margin-bottom: 18px;
   padding: 14px;
@@ -3857,6 +3977,34 @@
   transform: none;
 }
 
+.friendInviteBtnSent {
+  background: #f1f1f3;
+  color: #52525b;
+}
+
+.friendInviteBtnSent:disabled {
+  opacity: 1;
+  cursor: default;
+}
+
+.friendSearchActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.friendPendingPill {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #f1f1f3;
+  color: #52525b;
+  padding: 8px 11px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .friendCard,
 .friendSkeletonCard {
   display: flex;
@@ -3923,6 +4071,43 @@
 .friendStreak strong {
   font-size: 13px;
   font-weight: 850;
+}
+
+.friendCardActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.friendRemoveBtn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: #f1f1f3;
+  color: #52525b;
+  padding: 0;
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.12s ease;
+}
+
+.friendRemoveBtn:hover:not(:disabled) {
+  opacity: 0.86;
+  transform: translateY(-1px);
+}
+
+.friendRemoveBtn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+  transform: none;
 }
 
 .friendsEmptyState {
@@ -4965,9 +5150,42 @@
     padding: 10px;
   }
 
+  .friendRequestCard {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    padding: 12px;
+  }
+
+  .friendRequestActions {
+    width: 100%;
+    padding-left: 59px;
+  }
+
+  .friendAcceptBtn,
+  .friendRejectBtn {
+    flex: 1;
+    padding: 9px 11px;
+  }
+
   .friendInviteBtn {
     min-width: 70px;
     padding: 9px 11px;
+  }
+
+  .friendPendingPill {
+    padding: 7px 10px;
+    font-size: 11px;
+  }
+
+  .friendCardActions {
+    gap: 6px;
+  }
+
+  .friendRemoveBtn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 19px;
   }
 }
 

@@ -37,12 +37,16 @@ function normalizeSearchQuery(value) {
     .slice(0, 60);
 }
 
+function formatUserName(value) {
+  return String(value || 'Utilizator').trim().replace(/\s+/g, ' ');
+}
+
 function formatPublicUser(row) {
   const levelInfo = getLevelInfo(Number(row?.xp) || 0);
   return {
     userId: Number(row.id),
-    name: row.name || 'Utilizator',
-    initials: getInitials(row.name || 'Utilizator'),
+    name: formatUserName(row.name),
+    initials: getInitials(formatUserName(row.name)),
     level: Number(row.level) || levelInfo.level,
     totalXp: levelInfo.totalXp,
     streakCount: Math.max(0, Number(row.streak_count) || 0),
@@ -74,7 +78,6 @@ export async function GET(request) {
     .from('user_friendships')
     .select('id, user_id, friend_user_id, status, created_at, accepted_at')
     .or(`user_id.eq.${userId},friend_user_id.eq.${userId}`)
-    .eq('status', 'accepted')
     .order('accepted_at', { ascending: false, nullsFirst: false })
     .limit(100);
 
@@ -93,15 +96,24 @@ export async function GET(request) {
       return NextResponse.json({ users: [] });
     }
 
-    const relatedIds = new Set((friendships || [])
-      .map(row => getFriendId(row, userId))
-      .filter(id => Number.isInteger(id) && id > 0));
-    relatedIds.add(userId);
+    const relationsByUserId = new Map((friendships || [])
+      .map(row => {
+        const relatedUserId = getFriendId(row, userId);
+        if (!Number.isInteger(relatedUserId) || relatedUserId <= 0) return null;
+        const direction = Number(row.user_id) === userId ? 'outgoing' : 'incoming';
+        return [relatedUserId, {
+          friendshipId: String(row.id),
+          status: row.status,
+          direction,
+        }];
+      })
+      .filter(Boolean));
 
     const { data: users, error: usersError } = await supabase
       .from('users')
       .select('id, name, level, xp, streak_count')
       .ilike('name', `%${searchQuery}%`)
+      .eq('onboarding_completed', true)
       .limit(12);
 
     if (usersError) {
@@ -110,25 +122,48 @@ export async function GET(request) {
     }
 
     const results = (users || [])
-      .filter(row => !relatedIds.has(Number(row.id)))
-      .map(formatPublicUser)
+      .filter(row => Number(row.id) !== userId)
+      .map(row => {
+        const relation = relationsByUserId.get(Number(row.id));
+        return {
+          ...formatPublicUser(row),
+          friendshipId: relation?.friendshipId || null,
+          relationStatus: relation?.status === 'accepted'
+            ? 'accepted'
+            : relation?.status === 'pending'
+            ? (relation.direction === 'outgoing' ? 'pending_outgoing' : 'pending_incoming')
+            : 'none',
+        };
+      })
+      .filter(Boolean)
       .slice(0, 8);
 
     return NextResponse.json({ users: results });
   }
 
-  const friendIds = [...new Set((friendships || [])
-    .map(row => getFriendId(row, userId))
+  const acceptedFriendships = (friendships || []).filter(row => row.status === 'accepted');
+  const incomingFriendships = (friendships || []).filter(row =>
+    row.status === 'pending' && Number(row.friend_user_id) === userId
+  );
+  const outgoingFriendships = (friendships || []).filter(row =>
+    row.status === 'pending' && Number(row.user_id) === userId
+  );
+
+  const profileIds = [...new Set([
+    ...acceptedFriendships.map(row => getFriendId(row, userId)),
+    ...incomingFriendships.map(row => Number(row.user_id)),
+    ...outgoingFriendships.map(row => Number(row.friend_user_id)),
+  ]
     .filter(id => Number.isInteger(id) && id > 0 && id !== userId))];
 
-  if (friendIds.length === 0) {
-    return NextResponse.json({ friends: [] });
+  if (profileIds.length === 0) {
+    return NextResponse.json({ friends: [], incomingRequests: [], outgoingRequests: [] });
   }
 
   const { data: users, error: usersError } = await supabase
     .from('users')
     .select('id, name, level, xp, streak_count')
-    .in('id', friendIds);
+    .in('id', profileIds);
 
   if (usersError) {
     console.error('[user/friends] users error:', usersError);
@@ -136,7 +171,33 @@ export async function GET(request) {
   }
 
   const usersById = new Map((users || []).map(row => [Number(row.id), row]));
-  const friends = (friendships || [])
+  const incomingRequests = incomingFriendships
+    .map(row => {
+      const requester = usersById.get(Number(row.user_id));
+      if (!requester) return null;
+      const publicUser = formatPublicUser(requester);
+      return {
+        id: String(row.id),
+        ...publicUser,
+        requestedAt: row.created_at || null,
+      };
+    })
+    .filter(Boolean);
+
+  const outgoingRequests = outgoingFriendships
+    .map(row => {
+      const requestedUser = usersById.get(Number(row.friend_user_id));
+      if (!requestedUser) return null;
+      const publicUser = formatPublicUser(requestedUser);
+      return {
+        id: String(row.id),
+        ...publicUser,
+        requestedAt: row.created_at || null,
+      };
+    })
+    .filter(Boolean);
+
+  const friends = acceptedFriendships
     .map(row => {
       const friendId = getFriendId(row, userId);
       const friend = usersById.get(friendId);
@@ -145,8 +206,8 @@ export async function GET(request) {
       return {
         id: String(row.id),
         userId: friendId,
-        name: friend.name || 'Prieten',
-        initials: getInitials(friend.name || 'Prieten'),
+        name: formatUserName(friend.name || 'Prieten'),
+        initials: getInitials(formatUserName(friend.name || 'Prieten')),
         level: Number(friend.level) || levelInfo.level,
         totalXp: levelInfo.totalXp,
         streakCount: Math.max(0, Number(friend.streak_count) || 0),
@@ -155,7 +216,7 @@ export async function GET(request) {
     })
     .filter(Boolean);
 
-  return NextResponse.json({ friends });
+  return NextResponse.json({ friends, incomingRequests, outgoingRequests });
 }
 
 export async function POST(request) {
@@ -194,7 +255,7 @@ export async function POST(request) {
   const supabase = getSupabase();
   const { data: targetUser, error: targetError } = await supabase
     .from('users')
-    .select('id')
+    .select('id, name')
     .eq('id', friendUserId)
     .maybeSingle();
 
@@ -205,6 +266,12 @@ export async function POST(request) {
   if (!targetUser) {
     return NextResponse.json({ error: 'Utilizatorul nu există.' }, { status: 404 });
   }
+
+  const { data: currentUser } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('id', userId)
+    .maybeSingle();
 
   const { data: existingRows, error: existingError } = await supabase
     .from('user_friendships')
@@ -237,24 +304,265 @@ export async function POST(request) {
         console.error('[user/friends] accept reciprocal error:', acceptError);
         return NextResponse.json({ error: 'Nu am putut accepta invitația existentă.' }, { status: 500 });
       }
-      return NextResponse.json({ message: 'Prieten adăugat.', status: 'accepted' });
+      return NextResponse.json({ message: 'Prieten adăugat.', status: 'accepted', friendshipId: String(existing.id) });
     }
 
-    return NextResponse.json({ message: 'Invitația este deja trimisă.', status: 'pending' });
+    return NextResponse.json({ message: 'Invitația este deja trimisă.', status: 'pending', friendshipId: String(existing.id) });
   }
 
-  const { error: insertError } = await supabase
+  const { data: insertedFriendship, error: insertError } = await supabase
     .from('user_friendships')
     .insert({
       user_id: userId,
       friend_user_id: friendUserId,
       status: 'pending',
-    });
+    })
+    .select('id')
+    .single();
 
   if (insertError) {
     console.error('[user/friends] invite insert error:', insertError);
     return NextResponse.json({ error: 'Nu am putut trimite invitația.' }, { status: 500 });
   }
 
-  return NextResponse.json({ message: 'Invitație trimisă.', status: 'pending' }, { status: 201 });
+  const senderName = formatUserName(currentUser?.name || 'Cineva');
+  const { error: notificationError } = await supabase
+    .from('notifications')
+    .insert({
+      user_id: friendUserId,
+      type: 'friend_request',
+      title: 'Cerere nouă de prietenie',
+      message: `${senderName} vrea să te adauge în lista de prieteni.`,
+      related_client_id: insertedFriendship?.id || null,
+      is_read: false,
+    });
+
+  if (notificationError) {
+    console.error('[user/friends] friend request notification error:', notificationError);
+  }
+
+  return NextResponse.json({
+    message: 'Invitație trimisă.',
+    status: 'pending',
+    friendshipId: insertedFriendship?.id ? String(insertedFriendship.id) : null,
+  }, { status: 201 });
+}
+
+export async function PATCH(request) {
+  const auth = verifyToken(request);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'user-friends-respond',
+    maxRequests: 30,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
+
+  if (requestBodyTooLarge(request, MAX_FRIEND_INVITE_BODY_BYTES)) {
+    return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
+  }
+
+  const userId = Number(auth.userId);
+  const friendshipId = Number(body?.friendshipId);
+  const action = String(body?.action || '').trim();
+  if (!Number.isInteger(friendshipId) || friendshipId <= 0 || !['accept', 'reject'].includes(action)) {
+    return NextResponse.json({ error: 'Cerere invalidă.' }, { status: 400 });
+  }
+
+  const supabase = getSupabase();
+  const { data: friendship, error: friendshipError } = await supabase
+    .from('user_friendships')
+    .select('id, user_id, friend_user_id, status')
+    .eq('id', friendshipId)
+    .maybeSingle();
+
+  if (friendshipError) {
+    console.error('[user/friends] respond lookup error:', friendshipError);
+    return NextResponse.json({ error: 'Nu am putut verifica cererea.' }, { status: 500 });
+  }
+  if (!friendship || Number(friendship.friend_user_id) !== userId || friendship.status !== 'pending') {
+    return NextResponse.json({ error: 'Cererea nu mai este disponibilă.' }, { status: 404 });
+  }
+
+  if (action === 'reject') {
+    const { error: deleteError } = await supabase
+      .from('user_friendships')
+      .delete()
+      .eq('id', friendshipId)
+      .eq('friend_user_id', userId)
+      .eq('status', 'pending');
+
+    if (deleteError) {
+      console.error('[user/friends] reject error:', deleteError);
+      return NextResponse.json({ error: 'Nu am putut respinge cererea.' }, { status: 500 });
+    }
+
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('type', 'friend_request')
+      .eq('related_client_id', friendshipId);
+
+    return NextResponse.json({ message: 'Cerere respinsă.', status: 'rejected' });
+  }
+
+  const { error: acceptError } = await supabase
+    .from('user_friendships')
+    .update({ status: 'accepted' })
+    .eq('id', friendshipId)
+    .eq('friend_user_id', userId)
+    .eq('status', 'pending');
+
+  if (acceptError) {
+    console.error('[user/friends] accept error:', acceptError);
+    return NextResponse.json({ error: 'Nu am putut accepta cererea.' }, { status: 500 });
+  }
+
+  await supabase
+    .from('notifications')
+    .update({ is_read: true })
+    .eq('user_id', userId)
+    .eq('type', 'friend_request')
+    .eq('related_client_id', friendshipId);
+
+  const { data: requester } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('id', friendship.user_id)
+    .maybeSingle();
+
+  const { data: currentUser } = await supabase
+    .from('users')
+    .select('id, name')
+    .eq('id', userId)
+    .maybeSingle();
+
+  await supabase
+    .from('notifications')
+    .insert({
+      user_id: Number(friendship.user_id),
+      type: 'friend_request_accepted',
+      title: 'Cerere acceptată',
+      message: `${formatUserName(currentUser?.name || 'Utilizatorul')} ți-a acceptat cererea de prietenie.`,
+      related_client_id: friendshipId,
+      is_read: false,
+    });
+
+  return NextResponse.json({
+    message: 'Cerere acceptată.',
+    status: 'accepted',
+    friend: requester ? formatPublicUser(requester) : null,
+  });
+}
+
+export async function DELETE(request) {
+  const auth = verifyToken(request);
+  if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'user-friends-delete',
+    maxRequests: 20,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
+
+  if (requestBodyTooLarge(request, MAX_FRIEND_INVITE_BODY_BYTES)) {
+    return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
+  }
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
+  }
+
+  const userId = Number(auth.userId);
+  const friendshipId = Number(body?.friendshipId);
+  if (!Number.isInteger(friendshipId) || friendshipId <= 0) {
+    return NextResponse.json({ error: 'Prieten invalid.' }, { status: 400 });
+  }
+
+  const supabase = getSupabase();
+  const { data: friendship, error: friendshipError } = await supabase
+    .from('user_friendships')
+    .select('id, user_id, friend_user_id, status')
+    .eq('id', friendshipId)
+    .maybeSingle();
+
+  if (friendshipError) {
+    console.error('[user/friends] delete lookup error:', friendshipError);
+    return NextResponse.json({ error: 'Nu am putut verifica prietenia.' }, { status: 500 });
+  }
+
+  const isAcceptedFriend = friendship
+    && friendship.status === 'accepted'
+    && (Number(friendship.user_id) === userId || Number(friendship.friend_user_id) === userId);
+  const isOutgoingPendingRequest = friendship
+    && friendship.status === 'pending'
+    && Number(friendship.user_id) === userId;
+
+  if (!isAcceptedFriend && !isOutgoingPendingRequest) {
+    return NextResponse.json({ error: 'Prietenia nu este disponibilă.' }, { status: 404 });
+  }
+
+  let deleteQuery = supabase
+    .from('user_friendships')
+    .delete()
+    .eq('id', friendshipId);
+
+  if (isAcceptedFriend) {
+    deleteQuery = deleteQuery.eq('status', 'accepted');
+  } else {
+    deleteQuery = deleteQuery
+      .eq('status', 'pending')
+      .eq('user_id', userId);
+  }
+
+  const { error: deleteError } = await deleteQuery;
+
+  if (deleteError) {
+    console.error('[user/friends] delete error:', deleteError);
+    return NextResponse.json({
+      error: isOutgoingPendingRequest
+        ? 'Nu am putut anula invitația.'
+        : 'Nu am putut elimina prietenul.',
+    }, { status: 500 });
+  }
+
+  if (isOutgoingPendingRequest) {
+    const { error: notificationDeleteError } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('type', 'friend_request')
+      .eq('related_client_id', friendshipId);
+
+    if (notificationDeleteError) {
+      console.error('[user/friends] cancel notification cleanup error:', notificationDeleteError);
+    }
+  }
+
+  return NextResponse.json({
+    message: isOutgoingPendingRequest ? 'Invitație anulată.' : 'Prieten eliminat.',
+    status: isOutgoingPendingRequest ? 'cancelled' : 'removed',
+  });
 }

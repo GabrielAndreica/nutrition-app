@@ -46,6 +46,9 @@ const MUSCLE_GROUP_ALIASES = {
   gambe: 'calves',
   gamba: 'calves',
   abdomen: 'core',
+  abs: 'core',
+  abdominali: 'core',
+  abdomene: 'core',
 };
 
 function normalizeTextKey(value) {
@@ -74,7 +77,7 @@ function muscleRo(group) {
 
 // Equipment pools per profile.
 const EQUIPMENT_FILTER = {
-  'no equipment':   ['bodyweight'],
+  'no equipment':   ['bodyweight', 'band', 'bands', 'resistance_band', 'resistance band', 'resistance bands', 'elastic_band', 'elastic band', 'benzi', 'banda elastica', 'dumbbell', 'dumbbells', 'dumbbells only', 'dumbbells_only', 'gantera', 'gantere'],
   'dumbbells only': ['dumbbell', 'bodyweight'],
   'full gym':       null,
 };
@@ -139,30 +142,76 @@ const LOWER_BODY_GROUP_VALUES = [
 
 // Muscle groups targeted per focus
 const FOCUS_GROUPS = {
-  push:      ['chest', 'shoulders', 'triceps', 'arms'],
-  pull:      ['back', 'biceps', 'rear_delts', 'arms'],
+  push:      ['chest', 'shoulders', 'triceps', 'arms', 'core'],
+  pull:      ['back', 'lats', 'traps', 'biceps', 'rear_delts', 'arms'],
   legs:      LOWER_BODY_GROUP_VALUES,
-  upper:     ['chest', 'back', 'shoulders', 'triceps', 'biceps', 'rear_delts', 'arms', 'core'],
+  upper:     ['chest', 'back', 'lats', 'traps', 'shoulders', 'triceps', 'biceps', 'rear_delts', 'arms', 'core'],
   lower:     LOWER_BODY_GROUP_VALUES,
   fullBody:  null,
   chest:     ['chest'],
-  back:      ['back'],
+  back:      ['back', 'lats', 'traps'],
   shoulders: ['shoulders'],
   arms:      ['arms', 'biceps', 'triceps'],
   core:      ['core'],
 };
 
-// Base exercise counts at 1× frequency (Bro Split baseline)
+const FOCUS_ALLOWED_SLOTS = {
+  push: ['chest', 'shoulders', 'triceps', 'core'],
+  pull: ['back', 'biceps', 'rear_delts'],
+  upper: ['chest', 'back', 'shoulders', 'triceps', 'biceps', 'rear_delts', 'core'],
+  lower: ['quads', 'posterior', 'calves', 'core'],
+  legs: ['quads', 'posterior', 'calves', 'core'],
+  chest: ['chest'],
+  back: ['back'],
+  shoulders: ['shoulders'],
+  arms: ['biceps', 'triceps'],
+  core: ['core'],
+};
+
+const FOCUS_ALIASES = {
+  auto: 'auto',
+  rest: 'rest',
+  push: 'push',
+  pull: 'pull',
+  legs: 'legs',
+  picioare: 'legs',
+  lower: 'lower',
+  lower_body: 'lower',
+  upper: 'upper',
+  upper_body: 'upper',
+  fullbody: 'fullBody',
+  full_body: 'fullBody',
+  total_body: 'fullBody',
+  chest: 'chest',
+  piept: 'chest',
+  back: 'back',
+  spate: 'back',
+  shoulders: 'shoulders',
+  umeri: 'shoulders',
+  arms: 'arms',
+  brate: 'arms',
+  core: 'core',
+  abs: 'core',
+  abdomen: 'core',
+};
+
+function normalizeWorkoutFocus(value) {
+  const key = normalizeTextKey(value);
+  if (!key) return 'auto';
+  return FOCUS_ALIASES[key] || null;
+}
+
+// Base exercise counts before frequency scaling.
 const FOCUS_COUNTS_BASE = {
   push: 6, pull: 6, legs: 7, upper: 7, lower: 6,
   fullBody: 6, chest: 7, back: 7, shoulders: 6, arms: 6, core: 5,
 };
 
 const FOCUS_REQUIRED_SLOTS = {
-  fullBody: ['quads', 'posterior', 'chest', 'back', 'shoulders', 'core'],
-  push: ['chest', 'shoulders', 'triceps'],
+  fullBody: ['chest', 'back', 'shoulders', 'arms', 'quads', 'posterior', 'core'],
+  push: ['chest', 'shoulders', 'triceps', 'core'],
   pull: ['back', 'biceps', 'rear_delts'],
-  upper: ['chest', 'back', 'shoulders', 'triceps', 'biceps'],
+  upper: ['chest', 'back', 'shoulders', 'triceps', 'biceps', 'core'],
   lower: ['quads', 'posterior', 'calves'],
   legs: ['quads', 'posterior', 'calves'],
   chest: ['chest'],
@@ -182,7 +231,8 @@ const REQUIRED_SLOT_LABELS = {
   biceps: 'biceps',
   rear_delts: 'umeri posteriori',
   calves: 'gambe',
-  core: 'core',
+  core: 'abdomen',
+  arms: 'brațe',
 };
 
 function normalizeTrainingSplit(value) {
@@ -192,7 +242,7 @@ function normalizeTrainingSplit(value) {
   if (['full body', 'full-body', 'full_body', 'fullbody'].includes(key)) return 'Full Body';
   if (['push/pull/legs', 'push pull legs', 'push-pull-legs', 'push_pull_legs', 'ppl'].includes(key)) return 'Push/Pull/Legs';
   if (['upper/lower', 'upper lower', 'upper-lower', 'upper_lower'].includes(key)) return 'Upper/Lower';
-  if (['bro split', 'bro-split', 'bro_split'].includes(key)) return 'Bro Split';
+  if (['bro split', 'bro-split', 'bro_split'].includes(key)) return 'Upper/Lower/Push/Pull/Legs';
   if (
     ['upper/lower/push/pull/legs', 'upper lower push pull legs', 'upper-lower-push-pull-legs', 'upper_lower_push_pull_legs', 'ulppl']
       .includes(key)
@@ -214,8 +264,6 @@ function getSessionFrequency(focus, trainingSplit) {
       return 2; // Upper 2×, Lower 2×
     case 'Upper/Lower/Push/Pull/Legs':
       return 2; // Muscles overlap between Upper and Push/Pull → ~2×/week
-    case 'Bro Split':
-      return 1; // Each muscle group once per week
     default:
       return 2;
   }
@@ -235,7 +283,7 @@ function getFocusCount(focus, frequency) {
 
 function getSessionFocuses(trainingSplit, workoutsPerWeek = 3) {
   const split = normalizeTrainingSplit(trainingSplit);
-  const workouts = Math.max(2, Math.min(6, Number(workoutsPerWeek) || 3));
+  const workouts = Math.max(2, Math.min(5, Number(workoutsPerWeek) || 3));
 
   if (split === 'Upper/Lower/Push/Pull/Legs') {
     return ['upper', 'lower', 'push', 'pull', 'legs'].slice(0, workouts);
@@ -247,7 +295,6 @@ function getSessionFocuses(trainingSplit, workoutsPerWeek = 3) {
       3: ['push', 'pull', 'legs'],
       4: ['push', 'pull', 'legs', 'upper'],
       5: ['push', 'pull', 'legs', 'push', 'pull'],
-      6: ['push', 'pull', 'legs', 'push', 'pull', 'legs'],
     };
     return patterns[workouts] || patterns[3];
   }
@@ -258,20 +305,8 @@ function getSessionFocuses(trainingSplit, workoutsPerWeek = 3) {
       3: ['upper', 'lower', 'upper'],
       4: ['upper', 'lower', 'upper', 'lower'],
       5: ['upper', 'lower', 'upper', 'lower', 'upper'],
-      6: ['upper', 'lower', 'upper', 'lower', 'upper', 'lower'],
     };
     return patterns[workouts] || patterns[4];
-  }
-
-  if (split === 'Bro Split') {
-    const patterns = {
-      2: ['chest', 'back'],
-      3: ['chest', 'back', 'legs'],
-      4: ['chest', 'back', 'shoulders', 'legs'],
-      5: ['chest', 'back', 'shoulders', 'arms', 'legs'],
-      6: ['chest', 'back', 'shoulders', 'arms', 'legs', 'core'],
-    };
-    return patterns[workouts] || patterns[5];
   }
 
   if (split === 'Full Body') {
@@ -282,13 +317,12 @@ function getSessionFocuses(trainingSplit, workoutsPerWeek = 3) {
 }
 
 function getWorkoutWeekSchedule(workoutsPerWeek = 3) {
-  const workouts = Math.max(2, Math.min(6, Number(workoutsPerWeek) || 3));
+  const workouts = Math.max(2, Math.min(5, Number(workoutsPerWeek) || 3));
   const schedules = {
     2: [0, 3],
     3: [0, 2, 4],
     4: [0, 1, 3, 4],
     5: [0, 1, 2, 3, 4],
-    6: [0, 1, 2, 3, 4, 5],
   };
   return schedules[workouts] || schedules[3];
 }
@@ -722,28 +756,32 @@ const FOCUS_GROUP_PRIORITY = {
   lower: ['quads', 'legs', 'glutes', 'hamstrings', 'calves', 'core'],
   legs: ['quads', 'legs', 'glutes', 'hamstrings', 'calves', 'core'],
   upper: ['chest', 'back', 'shoulders', 'triceps', 'biceps', 'rear_delts', 'arms', 'core'],
-  push: ['chest', 'shoulders', 'triceps', 'arms'],
+  push: ['chest', 'shoulders', 'triceps', 'arms', 'core'],
   pull: ['back', 'biceps', 'rear_delts', 'arms'],
-  fullBody: ['quads', 'legs', 'glutes', 'hamstrings', 'chest', 'back', 'shoulders', 'core', 'triceps', 'biceps', 'arms'],
+  fullBody: ['chest', 'back', 'shoulders', 'arms', 'triceps', 'biceps', 'quads', 'glutes', 'hamstrings', 'core'],
 };
 
 const FOCUS_GROUP_LIMITS = {
   lower: { quads: 2, legs: 2, glutes: 1, hamstrings: 1, calves: 1, core: 1 },
   legs: { quads: 2, legs: 2, glutes: 1, hamstrings: 1, calves: 1, core: 1 },
-  push: { chest: 2, shoulders: 2, triceps: 2, arms: 1 },
+  push: { chest: 2, shoulders: 2, triceps: 2, arms: 1, core: 1 },
   pull: { back: 2, biceps: 2, rear_delts: 1, arms: 1 },
   upper: { chest: 2, back: 2, shoulders: 1, triceps: 1, biceps: 1, rear_delts: 1, arms: 1, core: 1 },
   fullBody: { quads: 1, legs: 1, glutes: 1, hamstrings: 1, chest: 1, back: 1, shoulders: 1, core: 1, triceps: 1, biceps: 1, arms: 1 },
 };
 
 function rowIdentity(row) {
-  return row?.name || row?.name_ro || JSON.stringify(row);
+  return row?.id || row?.name || row?.name_ro || JSON.stringify(row);
 }
 
 function getFocusGroupLimit(focus, group, hasMultipleGroups) {
   const limit = FOCUS_GROUP_LIMITS[focus]?.[group];
   if (Number.isFinite(limit)) return limit;
   return hasMultipleGroups ? 2 : Infinity;
+}
+
+function isLowerBodyGroup(group) {
+  return ['quads', 'legs', 'glutes', 'hamstrings', 'calves'].includes(normalizeMuscleGroup(group));
 }
 
 function pickRowFromGroup(groupRows, usedRows, preferCompound = null) {
@@ -789,6 +827,30 @@ const HOME_COMPLEX_BODYWEIGHT_TERMS = [
   'handstand',
 ];
 
+const HOME_DUMBBELL_EQUIPMENT_TERMS = [
+  'dumbbell',
+  'dumbbells',
+  'dumbbells only',
+  'dumbbells_only',
+  'gantera',
+  'gantere',
+];
+
+const HOME_BENCH_PRESS_TERMS = [
+  'bench press',
+  'dumbbell bench press',
+  'incline dumbbell press',
+  'decline dumbbell press',
+  'impins cu gantere la piept',
+  'impins cu gantere din culcat',
+  'impins cu gantere pe banca',
+  'impins inclinat cu gantere',
+  'fluturari cu gantere pe banca',
+  'fluturari cu gantere din culcat',
+  'dumbbell fly',
+  'dumbbell chest fly',
+];
+
 const HOME_EASY_MODIFIER_TERMS = [
   'la perete',
   'inclinat',
@@ -811,6 +873,24 @@ function isHighImpactHomeExercise(row) {
 function isComplexBodyweightExercise(row) {
   const text = rowSearchText(row);
   return textHasAny(text, HOME_COMPLEX_BODYWEIGHT_TERMS) && !rowHasEasyModifier(row);
+}
+
+function isDumbbellExercise(row) {
+  const equipment = normalizeTextKey(row?.equipment);
+  return HOME_DUMBBELL_EQUIPMENT_TERMS.some(term => equipment.includes(normalizeTextKey(term))) ||
+    textHasAny(rowSearchText(row), HOME_DUMBBELL_EQUIPMENT_TERMS);
+}
+
+function isHomeUnsupportedDumbbellExercise(row) {
+  if (!isDumbbellExercise(row)) return false;
+
+  const text = rowSearchText(row);
+  const requiresBenchForPress =
+    textHasAny(text, ['banca', 'bench', 'inclinat', 'inclinate', 'declinat', 'culcat', 'culcata']) &&
+    textHasAny(text, ['impins', 'press', 'fluturari', 'fly']) &&
+    textHasAny(text, ['piept', 'chest', 'pectorali']);
+
+  return requiresBenchForPress || textHasAny(text, HOME_BENCH_PRESS_TERMS);
 }
 
 function getExerciseSuitabilityScore(row, profile) {
@@ -839,7 +919,10 @@ function filterExercisesForProfile(rows, profile, focus) {
     candidateRows.some(row => rowMatchesSlot(row, slot))
   );
 
-  let filtered = rows.filter(row => !isHighImpactHomeExercise(row));
+  let filtered = rows.filter(row =>
+    !isHighImpactHomeExercise(row) &&
+    !isHomeUnsupportedDumbbellExercise(row)
+  );
 
   if (profile.needsLowImpact) {
     const lowImpactRows = filtered.filter(row => !isComplexBodyweightExercise(row));
@@ -855,6 +938,7 @@ function filterExercisesForProfile(rows, profile, focus) {
         .filter(row => (
           rowMatchesSlot(row, slot) &&
           !isHighImpactHomeExercise(row) &&
+          !isHomeUnsupportedDumbbellExercise(row) &&
           (!profile.needsLowImpact || !isComplexBodyweightExercise(row))
         ))
         .sort((a, b) => getExerciseSuitabilityScore(a, profile) - getExerciseSuitabilityScore(b, profile))[0];
@@ -882,6 +966,8 @@ function rowMatchesSlot(row, slot) {
       return group === 'triceps' || (group === 'arms' && textHasAny(text, ['triceps', 'dips', 'extensii', 'pushdown', 'skull']));
     case 'biceps':
       return group === 'biceps' || (group === 'arms' && textHasAny(text, ['biceps', 'flexii', 'curl', 'hammer']));
+    case 'arms':
+      return ['arms', 'biceps', 'triceps'].includes(group) || textHasAny(text, ['biceps', 'triceps', 'flexii', 'curl', 'hammer', 'dips', 'extensii', 'pushdown']);
     case 'quads':
       return ['quads', 'quadriceps'].includes(group) || textHasAny(text, ['cvadriceps', 'genuflexiuni', 'squat', 'leg press', 'presa picioare', 'fandari', 'split squat', 'step up', 'leg extension', 'extensii picioare']);
     case 'posterior':
@@ -893,6 +979,17 @@ function rowMatchesSlot(row, slot) {
     default:
       return group === slot;
   }
+}
+
+function rowAllowedForFocus(row, focus) {
+  if (!focus || focus === 'fullBody') return true;
+  const allowedSlots = FOCUS_ALLOWED_SLOTS[focus];
+  if (allowedSlots) return allowedSlots.some(slot => rowMatchesSlot(row, slot));
+
+  const allowedGroups = FOCUS_GROUPS[focus];
+  if (!allowedGroups) return false;
+  const group = normalizeMuscleGroup(row?.muscle_group);
+  return allowedGroups.map(normalizeMuscleGroup).includes(group);
 }
 
 function slotPrefersCompound(slot) {
@@ -939,6 +1036,10 @@ function selectBalancedDbExercises(rows, focus, targetCount, profile = null) {
   const addRow = (row, isPaired = false) => {
     if (!row || usedRows.has(rowIdentity(row)) || selected.length >= targetCount) return false;
     const group = normalizeMuscleGroup(row.muscle_group);
+    if (focus === 'fullBody' && isLowerBodyGroup(group)) {
+      const lowerBodyCount = selected.filter(item => isLowerBodyGroup(item.row?.muscle_group)).length;
+      if (lowerBodyCount >= 2) return false;
+    }
     selected.push({ row, isPaired });
     usedRows.add(rowIdentity(row));
     groupCounts[group] = (groupCounts[group] || 0) + 1;
@@ -977,7 +1078,15 @@ function selectBalancedDbExercises(rows, focus, targetCount, profile = null) {
     addRow(row, largeGroups.has(normalizeMuscleGroup(row.muscle_group)));
   }
 
-  return selected.slice(0, targetCount);
+  const finalSelection = selected.slice(0, targetCount);
+  if (focus === 'push' || focus === 'upper') {
+    return [
+      ...finalSelection.filter(item => !rowMatchesSlot(item.row, 'core')),
+      ...finalSelection.filter(item => rowMatchesSlot(item.row, 'core')),
+    ];
+  }
+
+  return finalSelection;
 }
 
 /**
@@ -1018,19 +1127,29 @@ function shuffle(arr) {
   return a;
 }
 
-const EXERCISE_SELECT_BASE = 'name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment, notes';
-const EXERCISE_SELECT_BASE_NO_NOTES = 'name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment';
+const EXERCISE_SELECT_BASE = 'id, name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment, notes';
+const EXERCISE_SELECT_BASE_NO_NOTES = 'id, name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment';
 const EXERCISE_SELECT_WITH_DIFFICULTY = `${EXERCISE_SELECT_BASE}, difficulty_level`;
 const EXERCISE_SELECT_WITH_VIDEO = `${EXERCISE_SELECT_WITH_DIFFICULTY}, video_url, video_storage_bucket, video_storage_path`;
 const EXERCISE_SELECT_WITH_VIDEO_NO_DIFFICULTY = `${EXERCISE_SELECT_BASE}, video_url, video_storage_bucket, video_storage_path`;
 const EXERCISE_SELECT_WITH_VIDEO_NO_NOTES = `${EXERCISE_SELECT_BASE_NO_NOTES}, difficulty_level, video_url, video_storage_bucket, video_storage_path`;
 const EXERCISE_SELECT_WITH_VIDEO_MINIMAL = `${EXERCISE_SELECT_BASE_NO_NOTES}, video_url, video_storage_bucket, video_storage_path`;
+const EXERCISE_ID_SELECT_BASE = 'id, name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment, notes';
+const EXERCISE_ID_SELECT_BASE_NO_NOTES = 'id, name, name_ro, muscle_group, is_compound, default_sets, default_reps, default_rest_seconds, equipment';
+const EXERCISE_ID_SELECT_WITH_DIFFICULTY = `${EXERCISE_ID_SELECT_BASE}, difficulty_level`;
+const EXERCISE_ID_SELECT_WITH_VIDEO = `${EXERCISE_ID_SELECT_WITH_DIFFICULTY}, video_url, video_storage_bucket, video_storage_path`;
+const EXERCISE_ID_SELECT_WITH_VIDEO_NO_DIFFICULTY = `${EXERCISE_ID_SELECT_BASE}, video_url, video_storage_bucket, video_storage_path`;
+const EXERCISE_ID_SELECT_WITH_VIDEO_NO_NOTES = `${EXERCISE_ID_SELECT_BASE_NO_NOTES}, difficulty_level, video_url, video_storage_bucket, video_storage_path`;
+const EXERCISE_ID_SELECT_WITH_VIDEO_MINIMAL = `${EXERCISE_ID_SELECT_BASE_NO_NOTES}, video_url, video_storage_bucket, video_storage_path`;
 const DEFAULT_EXERCISE_VIDEO_BUCKET = 'video-exercitii';
 const EXERCISE_VIDEO_SIGNED_URL_TTL_SECONDS = 60 * 60 * 4;
 const EXERCISE_VIDEO_CACHE_TTL_MS = 1000 * 60 * 60 * 3;
 const MAX_SESSION_EXERCISES = 20;
 const MAX_SESSION_PAYLOAD_BYTES = 128 * 1024;
 const MAX_PATCH_PAYLOAD_BYTES = 8 * 1024;
+const TREADMILL_CARDIO_EXERCISE_ID = '391ebc14-3229-425b-a980-fb1f7b729aa9';
+const GENERAL_WARMUP_EXERCISE_ID = '66bead10-368d-4572-93f6-282b417ff5b2';
+const MANDATORY_WARMUP_EXERCISE_IDS = new Set([TREADMILL_CARDIO_EXERCISE_ID, GENERAL_WARMUP_EXERCISE_ID]);
 const exerciseVideoUrlCache = new Map();
 
 function requestBodyTooLarge(request, maxBytes) {
@@ -1048,6 +1167,68 @@ function normalizeExerciseVideoBucket(bucket) {
   return bucket === 'vide-exercitii'
     ? DEFAULT_EXERCISE_VIDEO_BUCKET
     : (bucket || DEFAULT_EXERCISE_VIDEO_BUCKET);
+}
+
+function isMandatoryWarmupExercise(value) {
+  const sourceId = String(value?.sourceId || value?.id || '').trim();
+  return value?.isWarmup === true || MANDATORY_WARMUP_EXERCISE_IDS.has(sourceId);
+}
+
+function isCardioExerciseRow(row) {
+  const text = rowSearchText(row);
+  const group = normalizeMuscleGroup(row?.muscle_group);
+  return group === 'cardio' || textHasAny(text, [
+    'cardio',
+    'treadmill',
+    'banda inclinata',
+    'banda de alergare',
+    'mers pe banda',
+    'mersul pe banda',
+    'alergare',
+    'bicicleta',
+    'eliptica',
+  ]);
+}
+
+function isCoreSessionExercise(ex) {
+  const text = normalizeTextKey([
+    ex?.name,
+    ex?.sourceName,
+    ex?.muscleGroup,
+    ex?.muscle,
+  ].filter(Boolean).join(' '));
+
+  if (!text || isMandatoryWarmupExercise(ex)) return false;
+  return textHasAny(text, ['core', 'abdomen', 'abdomene', 'abs', 'plank', 'crunch', 'dead bug', 'bird dog']);
+}
+
+function orderWorkoutExercises(exercises) {
+  const warmups = [];
+  const regular = [];
+  const core = [];
+  const seenWarmups = new Set();
+
+  for (const ex of exercises || []) {
+    if (isMandatoryWarmupExercise(ex)) {
+      const key = String(ex.sourceId || ex.id || ex.name || warmups.length);
+      if (!seenWarmups.has(key)) {
+        seenWarmups.add(key);
+        warmups.push({ ...ex, isWarmup: true });
+      }
+      continue;
+    }
+
+    if (isCoreSessionExercise(ex)) {
+      core.push(ex);
+    } else {
+      regular.push(ex);
+    }
+  }
+
+  return [...warmups, ...regular, ...core].map((ex, index) => ({
+    ...ex,
+    id: index + 1,
+  }));
 }
 
 function getExerciseVideoCacheKey(row) {
@@ -1197,6 +1378,11 @@ async function hydrateExercisesWithDbVideos(supabase, exercises, dbVideoRows = n
   for (const ex of exercises) {
     if (hasLegacyVideoBucket(ex)) return null;
 
+    if (ex?.isWarmup === true) {
+      hydrated.push(ex);
+      continue;
+    }
+
     const row = dbMap.get(getSessionExerciseKey(ex));
     if (!row) return null;
 
@@ -1215,7 +1401,109 @@ async function hydrateExercisesWithDbVideos(supabase, exercises, dbVideoRows = n
   return hydrated;
 }
 
+function getWarmupExerciseIds(availableEquipment) {
+  return availableEquipment === 'no equipment'
+    ? [GENERAL_WARMUP_EXERCISE_ID]
+    : [TREADMILL_CARDIO_EXERCISE_ID, GENERAL_WARMUP_EXERCISE_ID];
+}
+
+async function fetchExerciseRowsByIds(supabase, ids) {
+  const cleanIds = (ids || []).map(id => String(id || '').trim()).filter(Boolean);
+  if (!cleanIds.length) return { rows: [], error: null, missingVideoColumns: false };
+
+  const buildQuery = (selectClause) => supabase
+    .from('exercises')
+    .select(selectClause)
+    .in('id', cleanIds);
+
+  let missingVideoColumns = false;
+  let { data, error } = await supabaseQuery(() => buildQuery(EXERCISE_ID_SELECT_WITH_VIDEO));
+  if (error && /video_url|video_storage_bucket|video_storage_path/i.test(String(error.message || ''))) {
+    missingVideoColumns = true;
+  } else if (error && /notes/i.test(String(error.message || ''))) {
+    ({ data, error } = await supabaseQuery(() => buildQuery(EXERCISE_ID_SELECT_WITH_VIDEO_NO_NOTES)));
+    if (error && /difficulty_level/i.test(String(error.message || ''))) {
+      ({ data, error } = await supabaseQuery(() => buildQuery(EXERCISE_ID_SELECT_WITH_VIDEO_MINIMAL)));
+    }
+    if (error && /video_url|video_storage_bucket|video_storage_path/i.test(String(error.message || ''))) {
+      missingVideoColumns = true;
+    }
+  } else if (error && /difficulty_level/i.test(String(error.message || ''))) {
+    ({ data, error } = await supabaseQuery(() => buildQuery(EXERCISE_ID_SELECT_WITH_VIDEO_NO_DIFFICULTY)));
+    if (error && /notes/i.test(String(error.message || ''))) {
+      ({ data, error } = await supabaseQuery(() => buildQuery(EXERCISE_ID_SELECT_WITH_VIDEO_MINIMAL)));
+    }
+    if (error && /video_url|video_storage_bucket|video_storage_path/i.test(String(error.message || ''))) {
+      missingVideoColumns = true;
+    }
+  }
+
+  if (error || missingVideoColumns) {
+    return { rows: [], error, missingVideoColumns };
+  }
+
+  const byId = new Map((data || []).map(row => [String(row.id), row]));
+  return {
+    rows: cleanIds.map(id => byId.get(id)).filter(Boolean),
+    error: null,
+    missingVideoColumns: false,
+  };
+}
+
+async function buildWarmupExercises(supabase, availableEquipment) {
+  const ids = getWarmupExerciseIds(availableEquipment);
+  const { rows, error, missingVideoColumns } = await fetchExerciseRowsByIds(supabase, ids);
+
+  if (missingVideoColumns) {
+    return {
+      response: NextResponse.json(
+        { error: 'Coloanele pentru video-uri lipsesc din exercises. Rulează scriptul add-exercise-video-columns.sql.' },
+        { status: 409 }
+      ),
+    };
+  }
+
+  if (error) {
+    console.error('Workout warmup query failed:', error);
+    return {
+      response: NextResponse.json(
+        { error: 'Nu am putut încărca încălzirea antrenamentului.' },
+        { status: 500 }
+      ),
+    };
+  }
+
+  if (rows.length !== ids.length) {
+    return {
+      response: NextResponse.json(
+        { error: 'Încălzirea obligatorie nu este complet configurată în baza de date.' },
+        { status: 409 }
+      ),
+    };
+  }
+
+  const exercises = await Promise.all(rows.map(async (row, index) => {
+    const isTreadmillCardio = String(row.id) === TREADMILL_CARDIO_EXERCISE_ID;
+    return {
+      id: index + 1,
+      sourceId: row.id,
+      sourceName: row.name,
+      name: row.name_ro || row.name,
+      muscleGroup: isTreadmillCardio ? 'Cardio' : (muscleRo(row.muscle_group) || 'Încălzire'),
+      sets: 1,
+      reps: isTreadmillCardio ? '5 min' : (row.default_reps || '5 min'),
+      restSeconds: 0,
+      instructions: normalizeExerciseInstructions(row.notes),
+      videoUrl: await resolveExerciseVideoUrl(supabase, row),
+      isWarmup: true,
+    };
+  }));
+
+  return { exercises };
+}
+
 async function getWorkoutContext(supabase, userId, requestedFocus = 'auto') {
+  const requestedWorkoutFocus = normalizeWorkoutFocus(requestedFocus) || 'auto';
   const { data: userRow } = await supabase
     .from('users')
     .select(`
@@ -1258,14 +1546,20 @@ async function getWorkoutContext(supabase, userId, requestedFocus = 'auto') {
     availableEquipment,
   });
   const fitnessGoal = userRow?.fitness_goal || 'muscle_gain';
-  const trainingSplit = normalizeTrainingSplit(userRow?.training_split || 'Push/Pull/Legs');
-  const workoutsPerWeek = Number(userRow?.workouts_per_week) || 3;
+  const isHomeWorkout = availableEquipment === 'no equipment';
+  const trainingSplit = isHomeWorkout ? 'Full Body' : normalizeTrainingSplit(userRow?.training_split || 'Push/Pull/Legs');
+  const workoutsPerWeek = Math.max(2, Math.min(5, Number(userRow?.workouts_per_week) || 3));
   const workoutDayIndex = Math.max(0, Math.min(6, Number(dailyState.currentPlanDay) || 0));
   const autoFocus = resolveAutoFocus(trainingSplit, workoutDayIndex, workoutsPerWeek);
-  const isRestDay = requestedFocus === 'auto' && autoFocus.isRestDay;
-  const focus = requestedFocus === 'auto' ? autoFocus.focus : requestedFocus;
+  const isRestDay = requestedWorkoutFocus === 'auto' && autoFocus.isRestDay;
+  const focus = isRestDay
+    ? 'rest'
+    : (requestedWorkoutFocus === 'auto'
+      ? (isHomeWorkout ? 'fullBody' : autoFocus.focus)
+      : requestedWorkoutFocus);
   const frequency = getSessionFrequency(focus, trainingSplit);
   const targetCount = isRestDay ? 0 : getFocusCount(focus, frequency);
+  const warmupCount = isRestDay ? 0 : getWarmupExerciseIds(availableEquipment).length;
 
   return {
     fitnessLevel,
@@ -1275,12 +1569,14 @@ async function getWorkoutContext(supabase, userId, requestedFocus = 'auto') {
     trainingSplit,
     workoutsPerWeek,
     workoutDayIndex,
-    workoutSlotIndex: requestedFocus === 'auto' ? autoFocus.workoutSlotIndex : null,
-    scheduledWorkoutDays: requestedFocus === 'auto' ? autoFocus.scheduledWorkoutDays : getWorkoutWeekSchedule(workoutsPerWeek),
+    workoutSlotIndex: requestedWorkoutFocus === 'auto' ? autoFocus.workoutSlotIndex : null,
+    scheduledWorkoutDays: requestedWorkoutFocus === 'auto' ? autoFocus.scheduledWorkoutDays : getWorkoutWeekSchedule(workoutsPerWeek),
     isRestDay,
     focus,
     frequency,
     targetCount,
+    warmupCount,
+    exerciseCount: targetCount + warmupCount,
   };
 }
 
@@ -1313,6 +1609,9 @@ async function generateWorkoutExercises(supabase, context) {
 
   const equipmentFilter = EQUIPMENT_FILTER[availableEquipment] || null;
   const muscleGroups = FOCUS_GROUPS[focus] || null;
+  const warmupResult = await buildWarmupExercises(supabase, availableEquipment);
+  if (warmupResult.response) return warmupResult;
+  const warmupExercises = warmupResult.exercises || [];
 
   const buildExerciseQuery = (selectClause) => {
     let q = supabase
@@ -1370,7 +1669,11 @@ async function generateWorkoutExercises(supabase, context) {
     };
   }
 
-  const videoRows = (rawRows || []).filter(hasExerciseVideo);
+  const videoRows = (rawRows || [])
+    .filter(hasExerciseVideo)
+    .filter(row => !MANDATORY_WARMUP_EXERCISE_IDS.has(String(row?.id || '')))
+    .filter(row => !isCardioExerciseRow(row))
+    .filter(row => rowAllowedForFocus(row, focus));
   let rows = filterExercisesForProfile(videoRows, exerciseProfile, focus);
   if (rows && rows.length > 0) {
     const levelOrder = { beginner: 0, intermediate: 1, advanced: 2 };
@@ -1405,10 +1708,10 @@ async function generateWorkoutExercises(supabase, context) {
     };
   }
 
-  const exercises = await Promise.all(selected.slice(0, targetCount).map(async ({ row, isPaired }, i) => {
+  const mainExercises = await Promise.all(selected.slice(0, targetCount).map(async ({ row, isPaired }, i) => {
     const { sets, reps, restSeconds } = prescribe(row, fitnessLevel, fitnessGoal, frequency, isPaired);
     return {
-      id: i + 1,
+      id: warmupExercises.length + i + 1,
       name: row.name_ro || row.name,
       sourceName: row.name,
       muscleGroup: muscleRo(row.muscle_group),
@@ -1419,6 +1722,8 @@ async function generateWorkoutExercises(supabase, context) {
       videoUrl: await resolveExerciseVideoUrl(supabase, row),
     };
   }));
+
+  const exercises = orderWorkoutExercises([...warmupExercises, ...mainExercises]);
 
   return { exercises, focus, trainingSplit };
 }
@@ -1433,7 +1738,11 @@ export async function GET(request) {
   if (auth.role !== 'user' && auth.role !== 'client') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
 
   const { searchParams } = new URL(request.url);
-  const requestedFocus = searchParams.get('focus');
+  const requestedFocusRaw = searchParams.get('focus');
+  const requestedFocus = requestedFocusRaw ? normalizeWorkoutFocus(requestedFocusRaw) : null;
+  if (requestedFocusRaw && !requestedFocus) {
+    return NextResponse.json({ error: 'Focus antrenament invalid.' }, { status: 400 });
+  }
   const rateLimit = await enforceRateLimit(request, {
     userId: auth.userId,
     endpoint: requestedFocus ? 'user-workout-session-generate' : 'user-workout-session-get',
@@ -1460,12 +1769,19 @@ export async function GET(request) {
         await supabase.from('users').update({ active_workout_session: null }).eq('id', auth.userId);
         return NextResponse.json({ activeSession: null });
       }
+      const orderedExercises = orderWorkoutExercises(hydratedExercises);
+      const orderedSession = {
+        ...session,
+        exercises: orderedExercises,
+        currentIndex: clampNumber(session.currentIndex, 0, orderedExercises.length, 0),
+      };
+      await supabase
+        .from('users')
+        .update({ active_workout_session: orderedSession })
+        .eq('id', auth.userId);
       // Return stored elapsedSeconds — timer continues from last saved checkpoint
       return NextResponse.json({
-        activeSession: {
-          ...session,
-          exercises: hydratedExercises,
-        },
+        activeSession: orderedSession,
       });
     }
     return NextResponse.json({ activeSession: null });
@@ -1481,7 +1797,7 @@ export async function GET(request) {
       workoutDayIndex: context.workoutDayIndex,
       workoutSlotIndex: context.workoutSlotIndex,
       scheduledWorkoutDays: context.scheduledWorkoutDays,
-      exerciseCount: context.targetCount,
+      exerciseCount: context.exerciseCount,
       message: context.isRestDay ? 'Azi este zi de odihnă.' : null,
     });
   }
@@ -1494,7 +1810,7 @@ export async function GET(request) {
     focus: context.focus,
     trainingSplit: context.trainingSplit,
     workoutDayIndex: context.workoutDayIndex,
-    exerciseCount: context.targetCount,
+    exerciseCount: generated.exercises.length,
   });
 }
 
@@ -1524,14 +1840,18 @@ export async function POST(request) {
   let body;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Body invalid.' }, { status: 400 }); }
   const { exercises, focus, generate } = body;
+  const requestedFocus = normalizeWorkoutFocus(focus || (generate ? 'auto' : 'fullBody'));
+  if (!requestedFocus) {
+    return NextResponse.json({ error: 'Focus antrenament invalid.' }, { status: 400 });
+  }
 
   const supabase = getSupabase();
-  let resolvedFocus = focus || 'fullBody';
+  let resolvedFocus = requestedFocus === 'auto' ? 'fullBody' : requestedFocus;
   let resolvedWorkoutDayIndex = null;
   let hydratedExercises = null;
 
   if (generate) {
-    const context = await getWorkoutContext(supabase, auth.userId, focus || 'auto');
+    const context = await getWorkoutContext(supabase, auth.userId, requestedFocus);
     if (context.isRestDay) {
       return NextResponse.json({
         error: 'Azi este zi de odihnă. Bifează recuperarea în loc să începi un antrenament.',
@@ -1561,10 +1881,11 @@ export async function POST(request) {
     );
   }
 
+  const orderedExercises = orderWorkoutExercises(hydratedExercises);
   const session = {
     focus: resolvedFocus,
     workoutDayIndex: resolvedWorkoutDayIndex,
-    exercises: hydratedExercises,
+    exercises: orderedExercises,
     currentIndex: 0,
     xpEarned: 0,
     startedAt: new Date().toISOString(),

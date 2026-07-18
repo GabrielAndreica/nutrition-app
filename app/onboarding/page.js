@@ -100,6 +100,7 @@ export default function OnboardingPage() {
   const [levelUpReward, setLevelUpReward] = useState(null); // { fromLevel, toLevel, levelInfo }
   const [direction, setDirection] = useState(null); // null = no animation on first render
   const [loadingMessageIndex, setLoadingMessageIndex] = useState(0);
+  const [usernameChecking, setUsernameChecking] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
@@ -191,9 +192,33 @@ export default function OnboardingPage() {
     return null;
   };
 
-  const handleNext = () => {
+  const checkUsernameAvailability = async () => {
+    const tok = token || localStorage.getItem('token');
+    if (!tok) throw new Error('Sesiunea a expirat. Autentifică-te din nou.');
+
+    const res = await fetch(`/api/user/onboarding?username=${encodeURIComponent(form.name.trim())}`, {
+      headers: { 'Authorization': `Bearer ${tok}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Nu am putut verifica numele de utilizator.');
+    if (data.available === false) throw new Error('Acest nume de utilizator este deja folosit. Alege altul.');
+  };
+
+  const handleNext = async () => {
     const err = validateStep();
     if (err) { setError(err); return; }
+    if (step === 1) {
+      setUsernameChecking(true);
+      setError('');
+      try {
+        await checkUsernameAvailability();
+      } catch (usernameError) {
+        setError(usernameError.message || 'Acest nume de utilizator este deja folosit. Alege altul.');
+        setUsernameChecking(false);
+        return;
+      }
+      setUsernameChecking(false);
+    }
     setError('');
     setDirection('forward');
     setStep(s => s + 1);
@@ -310,10 +335,10 @@ export default function OnboardingPage() {
                 <p className={styles.cardSub} style={{ marginBottom: 18 }}>Cu cât ești mai sincer, cu atât planul tău e mai precis.</p>
 
                 <div className={styles.formGroup}>
-                  <label htmlFor="name">Cum vrei să te numim?</label>
+                  <label htmlFor="name">Nume de utilizator</label>
                   <input type="text" id="name"
                     value={form.name} onChange={e => updateForm('name', e.target.value)}
-                    placeholder="Numele tău" maxLength="100"
+                    placeholder="Alege un nume unic" maxLength="60"
                     style={{ width: '100%', padding: '13px', border: '1.5px solid #e5e5e5', borderRadius: 13, fontSize: 15, background: '#fafafa', fontFamily: 'inherit', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
                     onFocus={e => e.target.style.borderColor = BRAND_GREEN}
                     onBlur={e => e.target.style.borderColor = '#e5e5e5'} />
@@ -379,7 +404,7 @@ export default function OnboardingPage() {
                 <div style={{ marginBottom: 16 }}>
                   <label style={{ display: 'block', marginBottom: 7, fontSize: 13, fontWeight: 600, color: '#555' }}>Antrenamente pe săptămână</label>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    {[2, 3, 4, 5, 6].map(n => (
+                    {[2, 3, 4, 5].map(n => (
                       <button key={n} type="button" onClick={() => updateForm('workoutsPerWeek', n)}
                         style={{ ...btnToggle(form.workoutsPerWeek === n), flexDirection: 'column', padding: '10px 4px', gap: 2 }}>
                         <span style={{ fontSize: 18, fontWeight: 800, lineHeight: 1 }}>{n}</span>
@@ -495,8 +520,8 @@ export default function OnboardingPage() {
               </button>
             )}
             {step < TOTAL_STEPS ? (
-              <button type="button" onClick={handleNext} className={styles.submitBtn} style={{ flex: step > 1 ? 2 : 1 }}>
-                Continuă →
+              <button type="button" onClick={handleNext} disabled={usernameChecking} className={styles.submitBtn} style={{ flex: step > 1 ? 2 : 1 }}>
+                {usernameChecking ? 'Verificăm...' : 'Continuă →'}
               </button>
             ) : (
               <button type="button" onClick={handleSubmit} disabled={loading} className={styles.submitBtn} style={{ flex: step > 1 ? 2 : 1 }}>

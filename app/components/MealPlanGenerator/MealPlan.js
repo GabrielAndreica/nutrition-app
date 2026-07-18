@@ -1017,19 +1017,21 @@ export default function MealPlan({
                     <h4>{meal.name || name}</h4>
                   </div>
                   <div className={styles.mealHeaderActions}>
-                    {onFinishMeals && !isReadOnlyDay && (
+                    {onFinishMeals && (
                       <button
                         type="button"
-                        className={`${styles.mealCheckBtn} ${mealChecked ? styles.mealCheckBtnChecked : ''}`}
-                        onClick={() => handleMealCheckToggle(mealIndex)}
-                        disabled={activeMealDayState.disabled}
+                        className={`${styles.mealCheckBtn} ${mealChecked ? styles.mealCheckBtnChecked : ''} ${isReadOnlyDay ? styles.mealCheckBtnReadOnly : ''}`}
+                        onClick={() => {
+                          if (!isReadOnlyDay) handleMealCheckToggle(mealIndex);
+                        }}
+                        disabled={isReadOnlyDay || activeMealDayState.disabled}
                         aria-label={mealChecked ? `${name} bifată` : `Bifează ${name}`}
-                        title={mealChecked ? 'Masă bifată' : 'Bifează masa'}
+                        title={isReadOnlyDay ? 'Zi blocată' : mealChecked ? 'Masă bifată' : 'Bifează masa'}
                       >
                         <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
-                        <span>{mealChecked ? 'Mâncat' : 'Bifează masa'}</span>
+                        <span>{mealChecked ? 'Mâncat' : isReadOnlyDay ? 'Nemâncat' : 'Bifează masa'}</span>
                       </button>
                     )}
                   </div>

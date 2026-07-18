@@ -86,10 +86,10 @@ export default function RegisterPage() {
         </div>
         <div className={styles.tagline}>
           <h1 className={styles.taglineHeading}>
-            Pentru antrenori<br />de fitness.
+            Începe cu un plan<br />pe care îl poți urma.
           </h1>
           <p className={styles.taglineSub}>
-            Gestionează clienții, planurile alimentare, antrenamentele și progresul într-un singur loc.
+            Trevano îți spune ce să mănânci, cum să te antrenezi și cum să-ți urmărești progresul.
           </p>
         </div>
 

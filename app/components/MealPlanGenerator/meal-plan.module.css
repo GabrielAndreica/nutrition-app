@@ -1616,6 +1616,23 @@
   opacity: 0.72;
 }
 
+.mealCheckBtnReadOnly {
+  border-color: #e4e4e7;
+  background: #f6f6f7;
+  color: #71717a;
+  transform: none;
+}
+
+.mealCheckBtnReadOnly.mealCheckBtnChecked {
+  border-color: rgba(183, 255, 0, 0.55);
+  background: rgba(183, 255, 0, 0.22);
+  color: #171717;
+}
+
+.mealCheckBtnReadOnly:not(.mealCheckBtnChecked) svg {
+  opacity: 0.28;
+}
+
 /* Meal List */
 .mealList {
   list-style: none;

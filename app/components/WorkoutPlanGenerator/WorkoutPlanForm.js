@@ -7,14 +7,14 @@ const SPLIT_OPTIONS = [
   'Full Body',
   'Push/Pull/Legs',
   'Upper/Lower',
-  'Bro Split',
+  'Upper/Lower/Push/Pull/Legs',
 ];
 
 const SPLIT_LABELS = {
   'Full Body': 'Full Body',
   'Push/Pull/Legs': 'PPL',
   'Upper/Lower': 'Upper/Lower',
-  'Bro Split': 'Bro Split',
+  'Upper/Lower/Push/Pull/Legs': 'ULPPL',
 };
 
 const WORKOUTS_OPTIONS = ['2', '3', '4', '5'];

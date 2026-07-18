@@ -15,7 +15,7 @@ const mapActivityToWorkouts = (activityLevel) => ({
   extra_active: 5,
 }[activityLevel] || 4);
 
-const ALLOWED_TRAINING_SPLITS = new Set(['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Bro Split', 'Upper/Lower/Push/Pull/Legs']);
+const ALLOWED_TRAINING_SPLITS = new Set(['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Upper/Lower/Push/Pull/Legs']);
 
 const normalizeTrainingSplit = (split) => {
   const raw = String(split || '')
@@ -53,7 +53,7 @@ const normalizeTrainingSplit = (split) => {
   if (
     ['bro split', 'bro-split', 'bro_split', 'brosplit'].includes(value)
     || compact === 'brosplit'
-  ) return 'Bro Split';
+  ) return 'Upper/Lower/Push/Pull/Legs';
 
   if (
     ['upper/lower/push/pull/legs', 'upper lower push pull legs', 'ulppl', 'ul/ppl'].includes(value)

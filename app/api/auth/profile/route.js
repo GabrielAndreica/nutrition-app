@@ -5,6 +5,12 @@ import { verifyToken } from '@/app/lib/verifyToken';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
+const USERNAME_PATTERN = /^[\p{L}\p{N} .-]+$/u;
+
+function normalizeUsername(value) {
+  return String(value || '').trim().replace(/\s+/g, ' ');
+}
+
 export async function PATCH(request) {
   const supabase = getSupabase();
   const auth = verifyToken(request);
@@ -29,8 +35,11 @@ export async function PATCH(request) {
   const { name, email, currentPassword, newPassword } = body;
 
   // Validări de bază
-  if (name !== undefined && (!name || name.trim().length < 2)) {
-    return NextResponse.json({ error: 'Numele trebuie să aibă cel puțin 2 caractere.' }, { status: 400 });
+  const normalizedName = name !== undefined ? normalizeUsername(name) : undefined;
+  if (name !== undefined && (!normalizedName || normalizedName.length < 2 || normalizedName.length > 60 || !USERNAME_PATTERN.test(normalizedName))) {
+    return NextResponse.json({
+      error: 'Numele de utilizator poate conține doar litere, cifre, spații, punct sau cratimă și trebuie să aibă 2–60 caractere.',
+    }, { status: 400 });
   }
   if (email !== undefined) {
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -103,9 +112,37 @@ export async function PATCH(request) {
     }
   }
 
+  if (normalizedName && normalizedName.toLowerCase() !== normalizeUsername(currentUser.name).toLowerCase()) {
+    const { data: existingName, error: nameLookupError } = await supabase
+      .from('users')
+      .select('id')
+      .ilike('name', normalizedName)
+      .eq('onboarding_completed', true)
+      .neq('id', auth.userId)
+      .limit(1);
+
+    if (nameLookupError) {
+      console.error('[auth/profile] username lookup error:', nameLookupError);
+      return NextResponse.json({ error: 'Nu am putut verifica numele de utilizator.' }, { status: 500 });
+    }
+
+    if (existingName?.length) {
+      await logActivity({
+        action: 'auth.profile_update',
+        status: 'failure',
+        userId: auth.userId,
+        email: currentUser.email,
+        ipAddress: ip,
+        userAgent,
+        details: { reason: 'username_exists', attemptedFields: ['name'] },
+      });
+      return NextResponse.json({ error: 'Acest nume de utilizator este deja folosit.' }, { status: 409 });
+    }
+  }
+
   // Construiește obiectul de update
   const updates = {};
-  if (name) updates.name = name.trim();
+  if (normalizedName) updates.name = normalizedName;
   if (email) updates.email = email.toLowerCase().trim();
   if (newPassword) updates.password = await bcrypt.hash(newPassword, 12);
 
@@ -128,6 +165,9 @@ export async function PATCH(request) {
       userAgent,
       details: { reason: 'db_error', error: updateError.message },
     });
+    if (updateError.code === '23505') {
+      return NextResponse.json({ error: 'Acest nume de utilizator este deja folosit.' }, { status: 409 });
+    }
     return NextResponse.json({ error: 'Eroare la salvarea datelor.' }, { status: 500 });
   }
 

@@ -414,7 +414,10 @@ function ClientDashboardContent() {
   const [visibleNotifications, setVisibleNotifications] = useState(5);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [friends, setFriends] = useState([]);
+  const [friendRequests, setFriendRequests] = useState([]);
+  const [sentFriendRequests, setSentFriendRequests] = useState([]);
   const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendsLoaded, setFriendsLoaded] = useState(false);
   const [friendsError, setFriendsError] = useState('');
   const [friendsSetupRequired, setFriendsSetupRequired] = useState(false);
   const [friendSearch, setFriendSearch] = useState('');
@@ -422,7 +425,12 @@ function ClientDashboardContent() {
   const [friendSearchLoading, setFriendSearchLoading] = useState(false);
   const [friendInviteMessage, setFriendInviteMessage] = useState('');
   const [friendInviteLoadingId, setFriendInviteLoadingId] = useState(null);
+  const [friendActionLoadingId, setFriendActionLoadingId] = useState(null);
+  const [friendRemoveLoadingId, setFriendRemoveLoadingId] = useState(null);
+  const [friendRemoveConfirm, setFriendRemoveConfirm] = useState(null);
+  const [visibleFriendsCount, setVisibleFriendsCount] = useState(10);
   const notificationsPanelRef = useRef(null);
+  const mainScrollRef = useRef(null);
   const fetchedRef = useRef(false);
   const enrichedMealPlanLoadedRef = useRef(false);
   const preloadedTodayMealImageRef = useRef('');
@@ -444,6 +452,10 @@ function ClientDashboardContent() {
   const [xpToast, setXpToast] = useState(null);       // { amount } | null
   const [xpFinishPopup, setXpFinishPopup] = useState(null); // { totalXp, elapsedSeconds, exerciseCount } | null
   const [loadedWorkoutVideos, setLoadedWorkoutVideos] = useState({});
+  const markWorkoutVideoLoaded = useCallback((url) => {
+    if (!url) return;
+    setLoadedWorkoutVideos(prev => prev[url] ? prev : { ...prev, [url]: true });
+  }, []);
   // Wall-clock timer: Date.now() at last start/resume
   const timerStartedAtRef = useRef(null);
   // Accumulated seconds before current segment
@@ -660,6 +672,9 @@ function ClientDashboardContent() {
       if (!response.ok) throw new Error(data.error || 'Nu am putut încărca prietenii.');
 
       setFriends(Array.isArray(data.friends) ? data.friends : []);
+      setFriendRequests(Array.isArray(data.incomingRequests) ? data.incomingRequests : []);
+      setSentFriendRequests(Array.isArray(data.outgoingRequests) ? data.outgoingRequests : []);
+      setFriendsLoaded(true);
       setFriendsSetupRequired(data.setupRequired === true);
     } catch (err) {
       setFriendsError(err.message || 'Nu am putut încărca prietenii.');
@@ -714,12 +729,92 @@ function ClientDashboardContent() {
       if (!response.ok) throw new Error(data.error || 'Nu am putut trimite invitația.');
 
       setFriendInviteMessage(data.message || 'Invitație trimisă.');
-      setFriendSearchResults(prev => prev.filter(item => Number(item.userId) !== Number(friendUserId)));
-      if (data.status === 'accepted') fetchFriends();
+      setFriendSearchResults(prev => prev.map(item => (
+        Number(item.userId) === Number(friendUserId)
+          ? { ...item, relationStatus: 'pending_outgoing', friendshipId: data.friendshipId || item.friendshipId || null }
+          : item
+      )));
+      if (data.status === 'accepted') {
+        fetchFriends();
+        fetchNotifications();
+      } else {
+        fetchFriends();
+      }
     } catch (err) {
       setFriendsError(err.message || 'Nu am putut trimite invitația.');
     } finally {
       setFriendInviteLoadingId(null);
+    }
+  };
+
+  const respondToFriendRequest = async (friendshipId, action) => {
+    const token = localStorage.getItem('token');
+    if (!token || friendActionLoadingId) return;
+
+    setFriendActionLoadingId(`${friendshipId}:${action}`);
+    setFriendsError('');
+    setFriendInviteMessage('');
+    try {
+      const response = await fetch('/api/user/friends', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ friendshipId, action }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nu am putut actualiza cererea.');
+
+      setFriendInviteMessage(data.message || (action === 'accept' ? 'Cerere acceptată.' : 'Cerere respinsă.'));
+      setFriendSearchResults(prev => prev.map(item => (
+        String(item.friendshipId || '') === String(friendshipId)
+          ? {
+              ...item,
+              relationStatus: action === 'accept' ? 'accepted' : 'none',
+              friendshipId: action === 'accept' ? item.friendshipId : null,
+            }
+          : item
+      )));
+      await Promise.all([fetchFriends(), fetchNotifications()]);
+    } catch (err) {
+      setFriendsError(err.message || 'Nu am putut actualiza cererea.');
+    } finally {
+      setFriendActionLoadingId(null);
+    }
+  };
+
+  const removeFriend = async (friendshipId) => {
+    const token = localStorage.getItem('token');
+    if (!token || friendRemoveLoadingId) return;
+
+    setFriendRemoveLoadingId(friendshipId);
+    setFriendsError('');
+    setFriendInviteMessage('');
+    try {
+      const response = await fetch('/api/user/friends', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ friendshipId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Nu am putut elimina prietenul.');
+
+      setFriendInviteMessage(data.message || 'Prieten eliminat.');
+      setFriendSearchResults(prev => prev.map(item => (
+        String(item.friendshipId || '') === String(friendshipId)
+          ? { ...item, relationStatus: 'none', friendshipId: null }
+          : item
+      )));
+      await fetchFriends();
+    } catch (err) {
+      setFriendsError(err.message || 'Nu am putut elimina prietenul.');
+    } finally {
+      setFriendRemoveLoadingId(null);
+      setFriendRemoveConfirm(null);
     }
   };
 
@@ -776,6 +871,29 @@ function ClientDashboardContent() {
     if (activeTab !== 'friends') return;
     fetchFriends();
   }, [activeTab, fetchFriends]);
+
+  useEffect(() => {
+    if (activeTab === 'friends') setVisibleFriendsCount(10);
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'friends' || visibleFriendsCount >= friends.length) return undefined;
+
+    const handleFriendsScroll = () => {
+      const scroller = mainScrollRef.current;
+      if (!scroller) return;
+      const nearBottom = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 360;
+      if (nearBottom) {
+        setVisibleFriendsCount(count => Math.min(count + 10, friends.length));
+      }
+    };
+
+    const scroller = mainScrollRef.current;
+    if (!scroller) return undefined;
+    scroller.addEventListener('scroll', handleFriendsScroll, { passive: true });
+    handleFriendsScroll();
+    return () => scroller.removeEventListener('scroll', handleFriendsScroll);
+  }, [activeTab, friends.length, visibleFriendsCount]);
 
   useEffect(() => {
     if (activeTab !== 'friends') return undefined;
@@ -973,11 +1091,14 @@ function ClientDashboardContent() {
       // Reîncarcă datele pentru a reflecta progresul
       await refreshClientData();
       setActiveTab('plan');
+    } else if (notif.type === 'friend_request' || notif.type === 'friend_request_accepted') {
+      await fetchFriends();
+      setActiveTab('friends');
     }
   };
 
   // Marchează toate ca citite
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
     const token = localStorage.getItem('token');
     if (!token) return;
 
@@ -995,7 +1116,7 @@ function ClientDashboardContent() {
     } catch (err) {
       console.error('Eroare la marcarea tuturor ca citite:', err);
     }
-  };
+  }, []);
 
   // Funcție pentru a reîncărca datele clientului
   const refreshClientData = async () => {
@@ -1298,6 +1419,11 @@ function ClientDashboardContent() {
     }
   }, [notificationsOpen]);
 
+  useEffect(() => {
+    if (!notificationsOpen || !allNotifications.some(n => n.unread)) return;
+    markAllAsRead();
+  }, [allNotifications, markAllAsRead, notificationsOpen]);
+
   // ── Wall-clock workout timer ─────────────────────────────────────────────
   useEffect(() => {
     if (workoutSession?.phase !== 'active') return;
@@ -1448,6 +1574,13 @@ function ClientDashboardContent() {
     : 0;
   const workoutPreloadVideoUrls = workoutStartScreen
     ? [...new Set((workoutStartScreen.exercises || []).map(ex => ex.videoUrl).filter(Boolean))]
+    : [];
+  const activeWorkoutPreloadVideoUrls = workoutSession?.phase === 'active'
+    ? [...new Set((workoutSession.exercises || [])
+      .slice(Math.max(0, (workoutSession.currentIndex || 0) + 1))
+      .map(ex => ex.videoUrl)
+      .filter(Boolean)
+      .filter(url => !loadedWorkoutVideos[url]))]
     : [];
   const waterDoneToday = hydrationTargetLoaded && waterLoaded && waterMl >= hydrationTargetMl;
   const hasWorkoutInProgress = hasActivePausedSession || workoutSession?.phase === 'active';
@@ -1933,7 +2066,7 @@ function ClientDashboardContent() {
     const waterStats = latest?.waterStats || metadata.waterStats || null;
     const mealAdherencePct = clampNumber(latest?.mealAdherencePct ?? latest?.meal_adherence_pct, 0, 100);
     const workoutAdherencePct = clampNumber(latest?.workoutAdherencePct ?? latest?.workout_adherence_pct, 0, 100);
-    const expectedWorkouts = clampNumber(clientData?.workoutsPerWeek || workoutClientData?.workouts_per_week || 3, 1, 7);
+    const expectedWorkouts = clampNumber(clientData?.workoutsPerWeek || workoutClientData?.workouts_per_week || 3, 1, 5);
     const completedWorkouts = Math.min(expectedWorkouts, Math.round((workoutAdherencePct / 100) * expectedWorkouts));
     const outcomeScore = {
       on_track: 100,
@@ -2132,6 +2265,22 @@ function ClientDashboardContent() {
     );
   };
 
+  const getFriendSearchActionLabel = (result) => {
+    if (result.relationStatus === 'accepted') return 'Prieten';
+    if (result.relationStatus === 'pending_outgoing') return 'Trimis';
+    if (result.relationStatus === 'pending_incoming') return 'Cerere primită';
+    return 'Invită';
+  };
+
+  const getFriendNotificationState = (friendshipId) => {
+    const id = String(friendshipId || '');
+    if (!id) return 'none';
+    if (friendRequests.some(request => String(request.id) === id)) return 'pending';
+    if (friends.some(friend => String(friend.id) === id)) return 'accepted';
+    if (!friendsLoaded) return 'pending';
+    return 'resolved';
+  };
+
   const renderFriendsPage = () => (
     <div className={styles.friendsPage}>
       <div className={styles.friendsHeader}>
@@ -2151,6 +2300,39 @@ function ClientDashboardContent() {
 
       {friendsError && (
         <div className={styles.shopError}>{friendsError}</div>
+      )}
+
+      {!friendsLoading && friendRequests.length > 0 && (
+        <section className={styles.friendRequestsPanel}>
+          <h2>Cereri de prietenie</h2>
+          <div className={styles.friendRequestsList}>
+            {friendRequests.map(request => (
+              <article key={request.id} className={styles.friendRequestCard}>
+                <div className={styles.friendAvatar}>{request.initials}</div>
+                <div className={styles.friendInfo}>
+                  <h2>{request.name}</h2>
+                  <p>Level {request.level} · {request.totalXp} XP</p>
+                </div>
+                <div className={styles.friendRequestActions}>
+                  <button
+                    className={styles.friendAcceptBtn}
+                    onClick={() => respondToFriendRequest(request.id, 'accept')}
+                    disabled={friendActionLoadingId !== null}
+                  >
+                    {friendActionLoadingId === `${request.id}:accept` ? '...' : 'Accept'}
+                  </button>
+                  <button
+                    className={styles.friendRejectBtn}
+                    onClick={() => respondToFriendRequest(request.id, 'reject')}
+                    disabled={friendActionLoadingId !== null}
+                  >
+                    {friendActionLoadingId === `${request.id}:reject` ? '...' : 'Respinge'}
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
       )}
 
       <section className={styles.friendSearchPanel}>
@@ -2192,13 +2374,46 @@ function ClientDashboardContent() {
                     <h2>{result.name}</h2>
                     <p>Level {result.level} · {result.totalXp} XP</p>
                   </div>
-                  <button
-                    className={styles.friendInviteBtn}
-                    onClick={() => inviteFriend(result.userId)}
-                    disabled={friendInviteLoadingId === result.userId}
-                  >
-                    {friendInviteLoadingId === result.userId ? '...' : 'Invită'}
-                  </button>
+                  {result.relationStatus === 'accepted' ? (
+                    <button
+                      className={styles.friendRemoveBtn}
+                      onClick={() => setFriendRemoveConfirm({
+                        id: result.friendshipId,
+                        name: result.name,
+                        action: 'remove',
+                      })}
+                      disabled={friendRemoveLoadingId === result.friendshipId}
+                      aria-label={`Elimină ${result.name} din lista de prieteni`}
+                      title="Elimină prieten"
+                    >
+                      {friendRemoveLoadingId === result.friendshipId ? '...' : '×'}
+                    </button>
+                  ) : result.relationStatus === 'pending_outgoing' ? (
+                    <div className={styles.friendSearchActions}>
+                      <div className={styles.friendPendingPill}>Trimis</div>
+                      <button
+                        className={styles.friendRemoveBtn}
+                        onClick={() => setFriendRemoveConfirm({
+                          id: result.friendshipId,
+                          name: result.name,
+                          action: 'cancel',
+                        })}
+                        disabled={friendRemoveLoadingId === result.friendshipId}
+                        aria-label={`Anulează invitația trimisă către ${result.name}`}
+                        title="Anulează invitația"
+                      >
+                        {friendRemoveLoadingId === result.friendshipId ? '...' : '×'}
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      className={`${styles.friendInviteBtn} ${result.relationStatus !== 'none' ? styles.friendInviteBtnSent : ''}`}
+                      onClick={() => inviteFriend(result.userId)}
+                      disabled={friendInviteLoadingId === result.userId || result.relationStatus !== 'none'}
+                    >
+                      {friendInviteLoadingId === result.userId ? '...' : getFriendSearchActionLabel(result)}
+                    </button>
+                  )}
                 </article>
               ))
             )}
@@ -2219,7 +2434,7 @@ function ClientDashboardContent() {
             </div>
           ))}
         </div>
-      ) : friends.length === 0 ? (
+      ) : friends.length === 0 && friendRequests.length === 0 && sentFriendRequests.length === 0 ? (
         <div className={styles.friendsEmptyState}>
           <div className={styles.friendsEmptyIcon}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -2237,21 +2452,69 @@ function ClientDashboardContent() {
           </p>
         </div>
       ) : (
-        <div className={styles.friendsList}>
-          {friends.map(friend => (
-            <article key={friend.id} className={styles.friendCard}>
-              <div className={styles.friendAvatar}>{friend.initials}</div>
-              <div className={styles.friendInfo}>
-                <h2>{friend.name}</h2>
-                <p>Level {friend.level} · {friend.totalXp} XP</p>
+        <>
+          {sentFriendRequests.length > 0 && (
+            <section className={styles.sentFriendRequestsPanel}>
+              <h2>Invitații trimise</h2>
+              <div className={styles.friendsList}>
+                {sentFriendRequests.map(request => (
+                  <article key={request.id} className={styles.friendCard}>
+                    <div className={styles.friendAvatar}>{request.initials}</div>
+                    <div className={styles.friendInfo}>
+                      <h2>{request.name}</h2>
+                      <p>Level {request.level} · {request.totalXp} XP</p>
+                    </div>
+                    <div className={styles.friendCardActions}>
+                      <div className={styles.friendPendingPill}>În așteptare</div>
+                      <button
+                        className={styles.friendRemoveBtn}
+                        onClick={() => setFriendRemoveConfirm({
+                          id: request.id,
+                          name: request.name,
+                          action: 'cancel',
+                        })}
+                        disabled={friendRemoveLoadingId === request.id}
+                        aria-label={`Anulează invitația trimisă către ${request.name}`}
+                        title="Anulează invitația"
+                      >
+                        {friendRemoveLoadingId === request.id ? '...' : '×'}
+                      </button>
+                    </div>
+                  </article>
+                ))}
               </div>
-              <div className={styles.friendStreak}>
-                <span>🔥</span>
-                <strong>{friend.streakCount}</strong>
-              </div>
-            </article>
-          ))}
-        </div>
+            </section>
+          )}
+
+          {friends.length > 0 && (
+            <div className={styles.friendsList}>
+              {friends.slice(0, visibleFriendsCount).map(friend => (
+                <article key={friend.id} className={styles.friendCard}>
+                  <div className={styles.friendAvatar}>{friend.initials}</div>
+                  <div className={styles.friendInfo}>
+                    <h2>{friend.name}</h2>
+                    <p>Level {friend.level} · {friend.totalXp} XP</p>
+                  </div>
+                  <div className={styles.friendCardActions}>
+                    <div className={styles.friendStreak}>
+                      <span>🔥</span>
+                      <strong>{friend.streakCount}</strong>
+                    </div>
+                    <button
+                      className={styles.friendRemoveBtn}
+                      onClick={() => setFriendRemoveConfirm({ ...friend, action: 'remove' })}
+                      disabled={friendRemoveLoadingId === friend.id}
+                      aria-label={`Elimină ${friend.name} din lista de prieteni`}
+                      title="Elimină prieten"
+                    >
+                      {friendRemoveLoadingId === friend.id ? '...' : '×'}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -2932,7 +3195,7 @@ function ClientDashboardContent() {
               </button>
             </div>
           </aside>
-          <main className={styles.main}>
+          <main className={styles.main} ref={mainScrollRef}>
             {weeklyPlanRegenerating ? (
               <div className={styles.generationLoadingWrapper}>
                 <div className={styles.generationLoadingBox}>
@@ -3131,6 +3394,11 @@ function ClientDashboardContent() {
                     if (notif.type === 'new_meal_plan') type = 'plan';
                     if (notif.type === 'new_workout_plan') type = 'workout';
                     if (notif.type === 'plan_continued') type = 'continued';
+                    if (notif.type === 'friend_request' || notif.type === 'friend_request_accepted') type = 'friend';
+                    const isFriendRequest = notif.type === 'friend_request' && notif.related_client_id;
+                    const friendNotificationState = isFriendRequest
+                      ? getFriendNotificationState(notif.related_client_id)
+                      : 'none';
 
                     return (
                       <div
@@ -3162,6 +3430,13 @@ function ClientDashboardContent() {
                               <path d="M20.5 9v6"/>
                               <path d="M6.5 12h11"/>
                             </svg>
+                          ) : type === 'friend' ? (
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                              <circle cx="9" cy="7" r="4"/>
+                              <path d="M19 8v6"/>
+                              <path d="M22 11h-6"/>
+                            </svg>
                           ) : (
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <circle cx="12" cy="12" r="10"/>
@@ -3174,6 +3449,35 @@ function ClientDashboardContent() {
                           {notif.title && <div className={styles.notificationTitle}>{notif.title}</div>}
                           <div className={styles.notificationMessage}>{notif.message}</div>
                           <div className={styles.notificationTime}>{formatNotificationTime(notif.created_at)}</div>
+                          {isFriendRequest && (
+                            <div className={styles.notificationFriendActions} onClick={(event) => event.stopPropagation()}>
+                              {friendNotificationState === 'pending' ? (
+                                <>
+                                  <button
+                                    className={styles.notificationFriendAccept}
+                                    onClick={() => respondToFriendRequest(notif.related_client_id, 'accept')}
+                                    disabled={friendActionLoadingId !== null}
+                                  >
+                                    {friendActionLoadingId === `${notif.related_client_id}:accept` ? '...' : 'Accept'}
+                                  </button>
+                                  <button
+                                    className={styles.notificationFriendReject}
+                                    onClick={() => respondToFriendRequest(notif.related_client_id, 'reject')}
+                                    disabled={friendActionLoadingId !== null}
+                                  >
+                                    {friendActionLoadingId === `${notif.related_client_id}:reject` ? '...' : 'Respinge'}
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  className={`${styles.notificationFriendAccept} ${styles.notificationFriendResolved}`}
+                                  disabled
+                                >
+                                  {friendNotificationState === 'accepted' ? 'Acceptat' : 'Respins'}
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
                         {notif.unread && <div className={styles.notificationDot} />}
                       </div>
@@ -3229,7 +3533,7 @@ function ClientDashboardContent() {
         </aside>
 
         {/* Main Content */}
-        <main className={`${styles.main} ${(!mealPlan && !loading && !error) ? styles.mainNoScroll : ''}`}>
+        <main className={`${styles.main} ${(!mealPlan && !loading && !error) ? styles.mainNoScroll : ''}`} ref={mainScrollRef}>
 
           {/* ── Workout Loading ───────────────────────────────────── */}
           {workoutSession?.phase === 'loading' && (
@@ -3260,9 +3564,8 @@ function ClientDashboardContent() {
                       muted
                       playsInline
                       preload="auto"
-                      onLoadedData={() => {
-                        setLoadedWorkoutVideos(prev => prev[url] ? prev : { ...prev, [url]: true });
-                      }}
+                      onLoadedData={() => markWorkoutVideoLoaded(url)}
+                      onCanPlay={() => markWorkoutVideoLoaded(url)}
                     />
                   ))}
                 </div>
@@ -3349,6 +3652,21 @@ function ClientDashboardContent() {
             const progressPct = Math.round((workoutSession.currentIndex / workoutSession.exercises.length) * 100);
             return (
               <div className={styles.wsWrap}>
+                {activeWorkoutPreloadVideoUrls.length > 0 && (
+                  <div className={styles.workoutVideoPreloadBank} aria-hidden="true">
+                    {activeWorkoutPreloadVideoUrls.map(url => (
+                      <video
+                        key={url}
+                        src={url}
+                        muted
+                        playsInline
+                        preload="auto"
+                        onLoadedData={() => markWorkoutVideoLoaded(url)}
+                        onCanPlay={() => markWorkoutVideoLoaded(url)}
+                      />
+                    ))}
+                  </div>
+                )}
                 <div className={styles.wsHeader}>
                   <button className={styles.wsBackBtn} onClick={() => {
                     // Save elapsed to DB before hiding UI
@@ -3397,9 +3715,8 @@ function ClientDashboardContent() {
                         loop
                         playsInline
                         preload="auto"
-                        onLoadedData={() => {
-                          setLoadedWorkoutVideos(prev => prev[ex.videoUrl] ? prev : { ...prev, [ex.videoUrl]: true });
-                        }}
+                        onLoadedData={() => markWorkoutVideoLoaded(ex.videoUrl)}
+                        onCanPlay={() => markWorkoutVideoLoaded(ex.videoUrl)}
                       />
                     </div>
                   )}
@@ -3752,6 +4069,49 @@ function ClientDashboardContent() {
           )}
         </main>
       </div>
+
+      {friendRemoveConfirm && (
+        <div
+          className={clientStyles.modalOverlay}
+          onClick={() => !friendRemoveLoadingId && setFriendRemoveConfirm(null)}
+        >
+          <div className={clientStyles.confirmModal} onClick={e => e.stopPropagation()}>
+            <div className={clientStyles.confirmIcon} style={{ background: 'rgba(10,10,10,0.07)', color: '#0a0a0a' }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <line x1="18" y1="8" x2="23" y2="13"/>
+                <line x1="23" y1="8" x2="18" y2="13"/>
+              </svg>
+            </div>
+            <h3>{friendRemoveConfirm.action === 'cancel' ? 'Anulezi invitația?' : 'Elimini prietenul?'}</h3>
+            <p>
+              {friendRemoveConfirm.action === 'cancel'
+                ? `Anulezi invitația trimisă către ${friendRemoveConfirm.name}?`
+                : `Îl elimini pe ${friendRemoveConfirm.name} din lista ta de prieteni? Nu vom trimite notificare.`}
+            </p>
+            <div className={clientStyles.confirmActions}>
+              <button
+                className={clientStyles.cancelBtn}
+                onClick={() => setFriendRemoveConfirm(null)}
+                disabled={friendRemoveLoadingId === friendRemoveConfirm.id}
+              >
+                Anulează
+              </button>
+              <button
+                className={clientStyles.saveBtn}
+                style={{ background: '#0a0a0a', color: '#b7ff00' }}
+                onClick={() => removeFriend(friendRemoveConfirm.id)}
+                disabled={friendRemoveLoadingId === friendRemoveConfirm.id}
+              >
+                {friendRemoveLoadingId === friendRemoveConfirm.id
+                  ? (friendRemoveConfirm.action === 'cancel' ? 'Se anulează...' : 'Se elimină...')
+                  : (friendRemoveConfirm.action === 'cancel' ? 'Anulează invitația' : 'Elimină')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {confirmWeeklyCheckIn && (
         <div className={clientStyles.modalOverlay} onClick={() => !weeklyCheckInSubmitting && setConfirmWeeklyCheckIn(false)}>

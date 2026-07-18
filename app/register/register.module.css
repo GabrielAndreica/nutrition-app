@@ -3,13 +3,13 @@
 .inlineLink {
   color: #0a0a0a;
   text-decoration: underline;
-  font-weight: 600;
+  font-weight: 650;
 }
-.inlineLink:hover { color: #333; }
+.inlineLink:hover { color: rgba(10, 10, 10, 0.72); }
 
 .hint {
   font-weight: 400;
-  color: rgba(255,255,255,0.4);
+  color: rgba(10, 10, 10, 0.46);
   font-size: 12px;
 }
 
@@ -27,14 +27,14 @@
   gap: 10px;
   cursor: pointer;
   font-size: 14px;
-  color: var(--text-secondary, #666);
+  color: rgba(10, 10, 10, 0.62);
   line-height: 1.5;
 }
 
 .checkLabel input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  min-width: 16px;
+  width: 17px;
+  height: 17px;
+  min-width: 17px;
   margin-top: 2px;
   accent-color: #B7FF00;
   cursor: pointer;
@@ -50,7 +50,7 @@
 }
 
 .successState p {
-  color: #1a1a1a;
+  color: rgba(10, 10, 10, 0.64);
   font-size: 15px;
   line-height: 1.65;
   margin: 0 0 4px;
@@ -60,8 +60,8 @@
   display: inline-block;
   margin-top: 16px;
   color: #0a0a0a;
-  font-weight: 600;
+  font-weight: 650;
   text-decoration: underline;
   font-size: 14px;
 }
-.backLink:hover { color: #333; }
+.backLink:hover { color: rgba(10, 10, 10, 0.72); }
