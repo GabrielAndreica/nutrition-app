@@ -31,6 +31,15 @@ const MUSCLE_GROUP_RO = {
 };
 
 const MUSCLE_GROUP_ALIASES = {
+  piept: 'chest',
+  pectorali: 'chest',
+  spate: 'back',
+  dorsali: 'lats',
+  trapeze: 'traps',
+  umeri: 'shoulders',
+  deltoizi: 'shoulders',
+  brate: 'arms',
+  brațe: 'arms',
   quadriceps: 'quads',
   quad: 'quads',
   cvadriceps: 'quads',
@@ -146,14 +155,14 @@ const FOCUS_GROUPS = {
   push:      ['chest', 'shoulders', 'triceps', 'arms', 'core'],
   pull:      ['back', 'lats', 'traps', 'biceps', 'rear_delts', 'arms'],
   legs:      LOWER_BODY_GROUP_VALUES,
-  upper:     ['chest', 'back', 'lats', 'traps', 'shoulders', 'triceps', 'biceps', 'rear_delts', 'arms', 'core'],
+  upper:     ['chest', 'back', 'lats', 'traps', 'shoulders', 'triceps', 'biceps', 'rear_delts', 'arms', 'core', 'abs', 'abdomen'],
   lower:     LOWER_BODY_GROUP_VALUES,
   fullBody:  null,
   chest:     ['chest'],
   back:      ['back', 'lats', 'traps'],
   shoulders: ['shoulders'],
   arms:      ['arms', 'biceps', 'triceps'],
-  core:      ['core'],
+  core:      ['core', 'abs', 'abdomen'],
 };
 
 const FOCUS_ALLOWED_SLOTS = {
@@ -235,6 +244,44 @@ const REQUIRED_SLOT_LABELS = {
   core: 'abdomen',
   arms: 'brațe',
 };
+
+const SLOT_DB_GROUP_VALUES = {
+  chest: ['chest', 'piept', 'pectorali'],
+  back: ['back', 'spate', 'lats', 'dorsali', 'traps', 'trapeze'],
+  shoulders: ['shoulders', 'umeri', 'deltoizi'],
+  rear_delts: ['rear_delts', 'umeri posteriori', 'deltoizi posteriori'],
+  triceps: ['triceps', 'arms', 'brate', 'brațe'],
+  biceps: ['biceps', 'arms', 'brate', 'brațe'],
+  arms: ['arms', 'brate', 'brațe', 'biceps', 'triceps'],
+  quads: ['quads', 'quadriceps', 'cvadriceps', 'legs', 'picioare'],
+  posterior: ['hamstrings', 'femurali', 'biceps femural', 'glutes', 'fesieri', 'glutei'],
+  calves: ['calves', 'gambe', 'gamba'],
+  core: ['core', 'abs', 'abdomen', 'abdominali', 'abdomene'],
+};
+
+function addCaseVariants(values) {
+  const variants = new Set();
+  for (const value of values || []) {
+    const clean = String(value || '').trim();
+    if (!clean) continue;
+    variants.add(clean);
+    variants.add(clean.toLowerCase());
+    variants.add(clean.charAt(0).toUpperCase() + clean.slice(1).toLowerCase());
+  }
+  return [...variants];
+}
+
+function getDbMuscleGroupsForFocus(focus) {
+  if (!focus || focus === 'fullBody') return null;
+
+  const slots = FOCUS_ALLOWED_SLOTS[focus] || FOCUS_REQUIRED_SLOTS[focus] || [];
+  const values = new Set(FOCUS_GROUPS[focus] || []);
+  for (const slot of slots) {
+    for (const value of SLOT_DB_GROUP_VALUES[slot] || []) values.add(value);
+  }
+
+  return addCaseVariants([...values]);
+}
 
 function normalizeTrainingSplit(value) {
   const raw = String(value || '').trim();
@@ -953,6 +1000,10 @@ function filterExercisesForProfile(rows, profile, focus) {
 function rowMatchesSlot(row, slot) {
   const group = normalizeMuscleGroup(row?.muscle_group);
   const text = rowSearchText(row);
+  const isLowerBody = isLowerBodyGroup(group);
+  const isUpperBodySlot = ['chest', 'back', 'shoulders', 'rear_delts', 'triceps', 'biceps', 'arms'].includes(slot);
+
+  if (isUpperBodySlot && isLowerBody) return false;
 
   switch (slot) {
     case 'chest':
@@ -1609,7 +1660,7 @@ async function generateWorkoutExercises(supabase, context) {
   }
 
   const equipmentFilter = EQUIPMENT_FILTER[availableEquipment] || null;
-  const muscleGroups = FOCUS_GROUPS[focus] || null;
+  const muscleGroups = getDbMuscleGroupsForFocus(focus);
   const warmupResult = await buildWarmupExercises(supabase, availableEquipment);
   if (warmupResult.response) return warmupResult;
   const warmupExercises = warmupResult.exercises || [];

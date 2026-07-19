@@ -1244,7 +1244,7 @@ function ClientDashboardContent() {
     // Check for active/paused workout session in DB — only show Continuă button
     fetch('/api/user/workout-session', { headers: { 'Authorization': `Bearer ${tok2}` } })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.activeSession) setHasActivePausedSession(true); })
+      .then(data => { setHasActivePausedSession(!!data?.activeSession); })
       .catch(() => {});
 
     refreshWorkoutTodayPreview(tok2);
@@ -2722,7 +2722,7 @@ function ClientDashboardContent() {
             </button>
           ) : (
             <button className={styles.dashboardActionBtn} onClick={openWorkoutPlan}>
-              START
+              {hasWorkoutInProgress ? 'CONTINUĂ' : 'START'}
             </button>
           )}
         </article>
