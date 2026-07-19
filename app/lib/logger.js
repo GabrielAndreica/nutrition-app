@@ -29,8 +29,8 @@ export async function logActivity({
   userAgent = null,
   details = null,
 }) {
-  const supabase = getSupabase();
   try {
+    const supabase = getSupabase();
     const { error } = await supabaseQuery(() => supabase.from('activity_logs').insert([{
       action,
       status,

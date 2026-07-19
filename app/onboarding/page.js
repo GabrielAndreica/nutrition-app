@@ -6,6 +6,7 @@ import { useAuth } from '@/app/contexts/AuthContext';
 import styles from '@/app/auth/auth.module.css';
 import clientStyles from '@/app/clients/clients.module.css';
 import dashStyles from '@/app/client/dashboard/dashboard.module.css';
+import onboardingStyles from './onboarding.module.css';
 import Link from 'next/link';
 
 const BRAND_GREEN = '#b7ff00';
@@ -237,12 +238,13 @@ export default function OnboardingPage() {
     setError('');
 
     try {
+      const authToken = token || localStorage.getItem('token');
       // Salvează datele de onboarding
       const res = await fetch('/api/user/onboarding', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${authToken}`,
         },
         body: JSON.stringify(form),
       });
@@ -252,7 +254,14 @@ export default function OnboardingPage() {
       // Marchează onboarding-ul ca finalizat în localStorage
       try {
         const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-        localStorage.setItem('user', JSON.stringify({ ...storedUser, onboarding_completed: true }));
+        const updatedUser = {
+          ...storedUser,
+          ...(data.user || {}),
+          name: data.user?.name || form.name.trim() || storedUser.name,
+          onboarding_completed: true,
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        if (authToken) login(updatedUser, authToken);
       } catch { /* ignore */ }
 
       try {
@@ -281,14 +290,14 @@ export default function OnboardingPage() {
 
   return (
   <>
-    <div className={styles.page}>
-      <div className={styles.leftPanel}>
+    <div className={`${styles.page} ${onboardingStyles.page}`}>
+      <div className={`${styles.leftPanel} ${onboardingStyles.leftPanel}`}>
         <div className={styles.brand}>
           <Link href="/" className={styles.brandLink}>
             <span className={styles.logoText}>trevano</span>
           </Link>
         </div>
-        <div className={styles.tagline} style={{ marginTop: 'auto', marginBottom: 'auto' }}>
+        <div className={`${styles.tagline} ${onboardingStyles.tagline}`}>
           <h1 className={styles.taglineHeading}>Personalizăm<br />planul tău.</h1>
           <p className={styles.taglineSub}>
             Răspunde la câteva întrebări rapide și primești un plan alimentar și de antrenament creat special pentru tine.
@@ -296,9 +305,9 @@ export default function OnboardingPage() {
         </div>
       </div>
 
-      <div className={styles.rightPanel}>
+      <div className={`${styles.rightPanel} ${onboardingStyles.rightPanel}`}>
         {/* Card cu înălțime fixă uniformă pentru toți pașii */}
-        <div className={styles.card} style={{ display: 'flex', flexDirection: 'column', minHeight: 500 }}>
+        <div className={`${styles.card} ${onboardingStyles.card}`} style={{ display: 'flex', flexDirection: 'column' }}>
 
           {/* Indicator pași — mereu sus */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexShrink: 0 }}>

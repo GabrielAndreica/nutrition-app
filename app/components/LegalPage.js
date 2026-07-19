@@ -37,6 +37,8 @@ export default function LegalPage({ eyebrow, title, meta = [], intro, sections }
           <Link href="/politica-de-confidentialitate">Politica de confidențialitate</Link>
           <Link href="/politica-cookies">Politica Cookies</Link>
           <CookieSettingsButton className={styles.cookieSettingsButton} />
+          <a href="https://anpc.ro/" target="_blank" rel="noopener noreferrer">ANPC</a>
+          <a href="https://reclamatiisal.anpc.ro/" target="_blank" rel="noopener noreferrer">ANPC SAL</a>
         </footer>
       </main>
     </div>

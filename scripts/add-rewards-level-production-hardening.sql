@@ -155,6 +155,20 @@ CREATE INDEX IF NOT EXISTS idx_users_streak_count
   ON users(streak_count DESC)
   WHERE streak_count > 0;
 
+CREATE INDEX IF NOT EXISTS idx_users_current_plan_due
+  ON users(current_plan_day_due_at)
+  WHERE current_plan_day_due_at IS NOT NULL
+    AND role IN ('user', 'client');
+
+CREATE INDEX IF NOT EXISTS idx_users_weekly_plan_due
+  ON users(weekly_plan_due_at)
+  WHERE weekly_plan_due_at IS NOT NULL
+    AND role IN ('user', 'client');
+
+CREATE INDEX IF NOT EXISTS idx_users_reward_cooldowns
+  ON users(id, meals_cooldown_until, workout_cooldown_until)
+  WHERE role IN ('user', 'client');
+
 DO $$
 BEGIN
   IF to_regclass('public.app_currency_ledger') IS NOT NULL THEN
@@ -172,6 +186,14 @@ BEGIN
     EXECUTE 'ALTER TABLE app_currency_ledger ENABLE ROW LEVEL SECURITY';
     EXECUTE 'DROP POLICY IF EXISTS "app_currency_ledger_select_own" ON app_currency_ledger';
     EXECUTE 'CREATE POLICY "app_currency_ledger_select_own" ON app_currency_ledger FOR SELECT USING (user_id = auth_user_id())';
+
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE 'REVOKE INSERT, UPDATE, DELETE ON app_currency_ledger FROM anon';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      EXECUTE 'REVOKE INSERT, UPDATE, DELETE ON app_currency_ledger FROM authenticated';
+    END IF;
   END IF;
 END $$;
 
@@ -191,6 +213,14 @@ BEGIN
     EXECUTE 'ALTER TABLE user_xp_ledger ENABLE ROW LEVEL SECURITY';
     EXECUTE 'DROP POLICY IF EXISTS "user_xp_ledger_select_own" ON user_xp_ledger';
     EXECUTE 'CREATE POLICY "user_xp_ledger_select_own" ON user_xp_ledger FOR SELECT USING (user_id = auth_user_id())';
+
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN
+      EXECUTE 'REVOKE INSERT, UPDATE, DELETE ON user_xp_ledger FROM anon';
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN
+      EXECUTE 'REVOKE INSERT, UPDATE, DELETE ON user_xp_ledger FROM authenticated';
+    END IF;
   END IF;
 END $$;
 

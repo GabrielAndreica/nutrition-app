@@ -11,9 +11,16 @@ import {
 export const runtime = 'nodejs';
 export const maxDuration = 300;
 
+function isClientUser(role) {
+  return role === 'client' || role === 'user';
+}
+
 export async function GET(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  if (!isClientUser(auth.role)) {
+    return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  }
 
   const rateLimit = await enforceRateLimit(request, {
     userId: auth.userId,

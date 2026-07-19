@@ -3,6 +3,7 @@ import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import { getLevelInfo } from '@/app/api/user/level/route';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 const MAX_FRIEND_INVITE_BODY_BYTES = 4 * 1024;
 
@@ -220,6 +221,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!isClientUser(auth.role)) {
@@ -304,6 +306,19 @@ export async function POST(request) {
         console.error('[user/friends] accept reciprocal error:', acceptError);
         return NextResponse.json({ error: 'Nu am putut accepta invitația existentă.' }, { status: 500 });
       }
+      await logActivity({
+        action: 'friends.request_accepted',
+        status: 'success',
+        userId,
+        email: auth.email,
+        ipAddress: ip,
+        userAgent,
+        details: {
+          friendshipId: String(existing.id),
+          friendUserId,
+          source: 'reciprocal_invite',
+        },
+      });
       return NextResponse.json({ message: 'Prieten adăugat.', status: 'accepted', friendshipId: String(existing.id) });
     }
 
@@ -341,6 +356,20 @@ export async function POST(request) {
     console.error('[user/friends] friend request notification error:', notificationError);
   }
 
+  await logActivity({
+    action: 'friends.request_sent',
+    status: 'success',
+    userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+    details: {
+      friendshipId: insertedFriendship?.id ? String(insertedFriendship.id) : null,
+      friendUserId,
+      notificationCreated: !notificationError,
+    },
+  });
+
   return NextResponse.json({
     message: 'Invitație trimisă.',
     status: 'pending',
@@ -349,6 +378,7 @@ export async function POST(request) {
 }
 
 export async function PATCH(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!isClientUser(auth.role)) {
@@ -417,6 +447,19 @@ export async function PATCH(request) {
       .eq('type', 'friend_request')
       .eq('related_client_id', friendshipId);
 
+    await logActivity({
+      action: 'friends.request_rejected',
+      status: 'success',
+      userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: {
+        friendshipId: String(friendshipId),
+        requesterUserId: Number(friendship.user_id),
+      },
+    });
+
     return NextResponse.json({ message: 'Cerere respinsă.', status: 'rejected' });
   }
 
@@ -462,6 +505,19 @@ export async function PATCH(request) {
       is_read: false,
     });
 
+  await logActivity({
+    action: 'friends.request_accepted',
+    status: 'success',
+    userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+    details: {
+      friendshipId: String(friendshipId),
+      requesterUserId: Number(friendship.user_id),
+    },
+  });
+
   return NextResponse.json({
     message: 'Cerere acceptată.',
     status: 'accepted',
@@ -470,6 +526,7 @@ export async function PATCH(request) {
 }
 
 export async function DELETE(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!isClientUser(auth.role)) {
@@ -560,6 +617,19 @@ export async function DELETE(request) {
       console.error('[user/friends] cancel notification cleanup error:', notificationDeleteError);
     }
   }
+
+  await logActivity({
+    action: isOutgoingPendingRequest ? 'friends.request_cancelled' : 'friends.removed',
+    status: 'success',
+    userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+    details: {
+      friendshipId: String(friendshipId),
+      otherUserId: getFriendId(friendship, userId),
+    },
+  });
 
   return NextResponse.json({
     message: isOutgoingPendingRequest ? 'Invitație anulată.' : 'Prieten eliminat.',

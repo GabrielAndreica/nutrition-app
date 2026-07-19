@@ -1,0 +1,14 @@
+.git
+.next
+.swc
+node_modules
+npm-debug.log*
+dev-server*.log
+.env
+.env.*
+!.env.example
+coverage
+__tests__
+scripts
+README.md
+DEPLOYMENT.md

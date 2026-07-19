@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 const ALLOWED_TRAINING_SPLITS = new Set(['Full Body', 'Push/Pull/Legs', 'Upper/Lower', 'Upper/Lower/Push/Pull/Legs']);
 
@@ -35,6 +36,7 @@ function computeTrainingSplit(fitnessLevel, workoutsPerWeek) {
  * Called client-side on first "Începe" click from the dashboard.
  */
 export async function PATCH(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const auth = verifyToken(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -75,6 +77,21 @@ export async function PATCH(request) {
     console.error('[training-split] update error:', updateError);
     return NextResponse.json({ error: 'Eroare la actualizarea profilului.' }, { status: 500 });
   }
+
+  await logActivity({
+    action: 'user.training_split_updated',
+    status: 'success',
+    userId: auth.userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+    details: {
+      previousTrainingSplit: userRow.training_split || null,
+      trainingSplit: recommendedSplit,
+      fitnessLevel: userRow.fitness_level || null,
+      workoutsPerWeek: userRow.workouts_per_week || null,
+    },
+  });
 
   return NextResponse.json({ trainingSplit: recommendedSplit, changed: true });
 }

@@ -12,6 +12,7 @@ import {
   releaseAutomaticMealPlanGenerationLock,
 } from '@/app/lib/automaticMealPlan';
 import { getLevelInfo } from '@/app/api/user/level/route';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import {
   APP_COIN_REWARDS,
   awardAppCoins,
@@ -136,6 +137,7 @@ async function awardOnboardingReward({ supabase, userId, previousUserRow }) {
 }
 
 export async function POST(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const auth = verifyToken(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -338,6 +340,18 @@ export async function POST(request) {
 
   if (updateError) {
     console.error('[onboarding] update error:', updateError);
+    await logActivity({
+      action: 'user.onboarding',
+      status: 'error',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: {
+        reason: 'profile_update_failed',
+        code: updateError.code || null,
+      },
+    });
     if (updateError.code === '23505') {
       return NextResponse.json({
         error: 'Acest nume de utilizator este deja folosit. Alege altul.',
@@ -407,10 +421,34 @@ export async function POST(request) {
     }
   }
 
+  await logActivity({
+    action: 'user.onboarding',
+    status: automaticMealPlanWarning ? 'failure' : 'success',
+    userId: auth.userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+    details: {
+      goal,
+      fitnessLevel,
+      trainingLocation,
+      workoutsPerWeek: workoutsNum,
+      mealPlanGenerated: !!automaticMealPlan?.mealPlanId,
+      mealPlanId: automaticMealPlan?.mealPlanId || null,
+      warning: automaticMealPlanWarning || null,
+      xpRewarded: !!onboardingReward,
+    },
+  });
+
   // clientId = userId (pentru compatibilitate cu codul existent)
   return NextResponse.json({
     clientId: auth.userId,
     success: true,
+    user: {
+      id: auth.userId,
+      name: userName,
+      onboarding_completed: true,
+    },
     mealPlanId: automaticMealPlan?.mealPlanId || null,
     reward: onboardingReward,
     warning: automaticMealPlanWarning,

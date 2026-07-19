@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabase, supabaseQuery } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import {
   buildDailyProgressUpdate,
   reconcileDailyPlanProgress,
@@ -1820,6 +1821,7 @@ export async function GET(request) {
  * Saves a new workout session to DB (overwrites any existing one).
  */
 export async function POST(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (auth.role !== 'user' && auth.role !== 'client') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
@@ -1892,6 +1894,20 @@ export async function POST(request) {
   };
 
   await supabase.from('users').update({ active_workout_session: session }).eq('id', auth.userId);
+  await logActivity({
+    action: 'workout_session.started',
+    status: 'success',
+    userId: auth.userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+    details: {
+      focus: resolvedFocus,
+      workoutDayIndex: resolvedWorkoutDayIndex,
+      generated: generate === true,
+      exerciseCount: orderedExercises.length,
+    },
+  });
   return NextResponse.json({ ok: true, session });
 }
 
@@ -1956,6 +1972,7 @@ export async function PATCH(request) {
  * Clears the active session (on finalize or abandon).
  */
 export async function DELETE(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (auth.role !== 'user' && auth.role !== 'client') return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
@@ -1971,5 +1988,13 @@ export async function DELETE(request) {
 
   const supabase = getSupabase();
   await supabase.from('users').update({ active_workout_session: null }).eq('id', auth.userId);
+  await logActivity({
+    action: 'workout_session.cleared',
+    status: 'success',
+    userId: auth.userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+  });
   return NextResponse.json({ ok: true });
 }

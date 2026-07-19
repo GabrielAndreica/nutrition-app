@@ -1,7 +1,10 @@
 import Link from 'next/link';
 import CookieSettingsButton from '@/app/components/CookieSettingsButton';
+import { getSupabase } from '@/app/lib/supabase';
 import styles from './landing.module.css';
 import ScrollReveal from './ScrollReveal';
+
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
   title: 'Planul pe care îl poți urma',
@@ -71,7 +74,9 @@ const coachChanges = [
 ];
 
 const LANDING_IMAGE_BUCKET = 'imagini-landing';
+const LANDING_IMAGE_SIGNED_URL_TTL_SECONDS = 60 * 60 * 24;
 const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://trevano.app').replace(/\/+$/, '');
+const landingImageUrlCache = new Map();
 
 function ProblemIcon() {
   return <span className={styles.problemIcon}>!</span>;
@@ -165,21 +170,50 @@ function getLandingImageCandidates(path) {
   return [`${cleanPath}.png`, `${cleanPath}.jpg`, `${cleanPath}.jpeg`, `${cleanPath}.webp`, cleanPath];
 }
 
-function resolveLandingImageUrl(path, options) {
+async function resolveLandingImageUrl(path, options) {
   const candidates = getLandingImageCandidates(path);
+  const cacheKey = `${candidates[0] || path}:${options?.width || ''}:${options?.height || ''}:${options?.quality || ''}`;
+  const cached = landingImageUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) return cached.url;
+
+  try {
+    const supabase = getSupabase();
+    for (const candidate of candidates) {
+      const { data, error } = await supabase.storage
+        .from(LANDING_IMAGE_BUCKET)
+        .createSignedUrl(candidate, LANDING_IMAGE_SIGNED_URL_TTL_SECONDS, {
+          transform: {
+            width: options?.width || 980,
+            height: options?.height || 552,
+            resize: 'cover',
+            quality: options?.quality || 78,
+          },
+        });
+      if (!error && data?.signedUrl) {
+        landingImageUrlCache.set(cacheKey, {
+          url: data.signedUrl,
+          expiresAt: Date.now() + (LANDING_IMAGE_SIGNED_URL_TTL_SECONDS - 300) * 1000,
+        });
+        return data.signedUrl;
+      }
+    }
+  } catch (error) {
+    console.error('[landing] image signed URL error:', error);
+  }
+
   return buildLandingImageUrl(candidates[0] || path, options);
 }
 
-function HeroImages() {
-  const femaleImage = resolveLandingImageUrl('female-before-after.png', { width: 980, height: 552, quality: 78 });
-  const maleImage = resolveLandingImageUrl('male-before-after.png', { width: 980, height: 552, quality: 78 });
+async function HeroImages() {
+  const femaleImage = await resolveLandingImageUrl('female-before-after.png', { width: 980, height: 552, quality: 78 });
+  const maleImage = await resolveLandingImageUrl('male-before-after.png', { width: 980, height: 552, quality: 78 });
 
   if (!femaleImage || !maleImage) return null;
 
   return (
     <div className={styles.heroImages} aria-label="Rezultate posibile cu un plan urmat consecvent">
       <figure className={styles.heroImageCard}>
-        {/* Supabase render/image already serves the optimized hero asset. */}
+        {/* Signed Supabase URL keeps the private landing bucket accessible without exposing keys. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={femaleImage}
@@ -192,7 +226,7 @@ function HeroImages() {
         />
       </figure>
       <figure className={`${styles.heroImageCard} ${styles.heroImageCardOffset}`}>
-        {/* Supabase render/image already serves the optimized hero asset. */}
+        {/* Signed Supabase URL keeps the private landing bucket accessible without exposing keys. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={maleImage}
@@ -207,13 +241,13 @@ function HeroImages() {
   );
 }
 
-function LandingSectionImage({ path, alt, className }) {
-  const imageUrl = resolveLandingImageUrl(path, { width: 900, height: 394, quality: 76 });
+async function LandingSectionImage({ path, alt, className }) {
+  const imageUrl = await resolveLandingImageUrl(path, { width: 900, height: 394, quality: 76 });
   if (!imageUrl) return null;
 
   return (
     <figure className={className}>
-      {/* Supabase render/image already serves the optimized landing asset. */}
+      {/* Signed Supabase URL keeps the private landing bucket accessible without exposing keys. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={imageUrl} alt={alt} width="900" height="394" loading="lazy" decoding="async" />
     </figure>
@@ -411,6 +445,8 @@ export default async function LandingPage() {
           <Link href="/politica-de-confidentialitate">Politica de confidențialitate</Link>
           <Link href="/politica-cookies">Politica Cookies</Link>
           <CookieSettingsButton className={styles.footerButtonLink} />
+          <a href="https://anpc.ro/" target="_blank" rel="noopener noreferrer">ANPC</a>
+          <a href="https://reclamatiisal.anpc.ro/" target="_blank" rel="noopener noreferrer">ANPC SAL</a>
           <Link href="/auth">Autentificare</Link>
         </div>
       </footer>

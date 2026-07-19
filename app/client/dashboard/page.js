@@ -1493,6 +1493,12 @@ function ClientDashboardContent() {
   const handleFinishDay = async (type, dayIndex = 0, previousLevelInfo = userLevel) => {
     const token = localStorage.getItem('token');
     if (!token) return null;
+    const previousMealsCooldownUntil = mealsCooldownUntil;
+    const previousWorkoutCooldownUntil = workoutCooldownUntil;
+    const previousMealsCompletedDays = mealsCompletedDays;
+    const previousWorkoutCompletedDays = workoutCompletedDays;
+    const previousMealDayStatus = mealDayStatus;
+    const previousWorkoutDayStatus = workoutDayStatus;
     // Optimistic: set cooldown to midnight
     const midnight = new Date(); midnight.setHours(24, 0, 0, 0);
     if (type === 'meals') {
@@ -1544,6 +1550,16 @@ function ClientDashboardContent() {
       return data;
     } catch (err) {
       if (optimisticLevel) setUserLevel(previousLevelInfo);
+      if (type === 'meals') {
+        setMealsCooldownUntil(previousMealsCooldownUntil);
+        setMealsCompletedDays(previousMealsCompletedDays);
+        setMealDayStatus(previousMealDayStatus || {});
+      }
+      if (type === 'workout') {
+        setWorkoutCooldownUntil(previousWorkoutCooldownUntil);
+        setWorkoutCompletedDays(previousWorkoutCompletedDays);
+        setWorkoutDayStatus(previousWorkoutDayStatus || {});
+      }
       if (type === 'day') setDayFinalized(false);
       setError(err.message || 'Nu am putut finaliza ziua.');
       return null;
@@ -1793,6 +1809,7 @@ function ClientDashboardContent() {
 
   const handleLogout = () => { logout(); router.push('/'); };
   const handleTabChange = (tab) => {
+    setError(null);
     setActiveTab(tab);
     setSidebarOpen(false);
     requestAnimationFrame(() => {
@@ -4172,18 +4189,21 @@ function ClientDashboardContent() {
                   const previousLevelInfo = userLevel;
                   setConfirmFinish(null);
                   if (isRecovery) setWorkoutStartScreen(null);
-                  fireConfetti();
                   const optimisticLevel = previousLevelInfo ? getLevelInfoFromXp((Number(previousLevelInfo.totalXp) || 0) + 50) : null;
-                  setFinishReward({ type, dayIndex, isRecovery, levelInfo: optimisticLevel });
+                  if (!isRecovery) {
+                    fireConfetti();
+                    setFinishReward({ type, dayIndex, isRecovery, levelInfo: optimisticLevel });
+                  }
                   handleFinishDay(type, dayIndex, previousLevelInfo).then((data) => {
                     if (!data) {
                       setFinishReward(null);
                       setPendingLevelUp(null);
                       return;
                     }
-                    if (data.level) {
-                      setFinishReward(prev => prev ? { ...prev, levelInfo: data } : prev);
-                    }
+                    setFinishReward(prev => prev
+                      ? { ...prev, levelInfo: data.level ? data : prev.levelInfo }
+                      : { type, dayIndex, isRecovery, levelInfo: data.level ? data : optimisticLevel });
+                    if (isRecovery) fireConfetti();
                     const token = localStorage.getItem('token');
                     if (token && type === 'workout') refreshWorkoutTodayPreview(token);
                   });

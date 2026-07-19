@@ -14,135 +14,223 @@ export default function TermsPage() {
       eyebrow="Legal"
       title="TERMENI ȘI CONDIȚII DE UTILIZARE"
       meta={[
-        'Trevano (trevano.app)',
-        'Ultima actualizare: 07.05.2026',
+        'Ultima actualizare: 19.07.2026',
       ]}
       sections={[
         {
-          title: '1. Acceptarea termenilor',
+          title: '1. Introducere',
           body: [
-            'Prin crearea unui cont și utilizarea platformei Trevano (trevano.app), accepți în mod expres acești Termeni și Condiții. Dacă nu ești de acord cu aceștia, nu utiliza serviciul.',
-            'Serviciul este operat de ANDREICA GABRIEL-Ioan PFA, CUI 46589606, cu sediul în Șișești, nr. 247, România.',
+            'Prezentul document stabilește Termenii și Condițiile de utilizare a aplicației și website-ului Trevano ("Trevano", "Aplicația", "Serviciul").',
+            'Prin crearea unui cont sau utilizarea aplicației confirmi că ai citit, ai înțeles și accepți integral acești Termeni și Condiții.',
+            'Dacă nu ești de acord cu aceștia, te rugăm să nu utilizezi aplicația.',
+            'Operatorul serviciului este:',
+            'ANDREICA GABRIEL-Ioan PFA',
+            'CUI: 46589606',
+            'Website: https://trevano.app',
           ],
         },
         {
           title: '2. Descrierea serviciului',
           body: [
-            'Trevano este o platformă SaaS (Software as a Service) destinată utilizatorilor care vor planuri alimentare, antrenamente și progres urmărit într-un singur loc, care oferă:',
+            'Trevano este o aplicație destinată persoanelor care doresc să își îmbunătățească stilul de viață prin alimentație și activitate fizică.',
+            'Aplicația poate oferi, fără a se limita la:',
           ],
           items: [
-            'Generare automată de planuri alimentare personalizate prin inteligență artificială',
-            'Generare automată de planuri de antrenament personalizate prin inteligență artificială',
-            'Dashboard personal pentru vizualizare planuri și trimitere progres',
-            'Sistem de urmărire și ajustare automată a planurilor în funcție de progres',
-            'Export PDF al planurilor',
-          ],
-        },
-        {
-          title: '3. Cont și autentificare',
-          body: [
-            'Pentru a utiliza Trevano trebuie să creezi un cont cu o adresă de email validă și o parolă. Ești responsabil pentru:',
-          ],
-          items: [
-            'Confidențialitatea credențialelor de acces',
-            'Toate activitățile desfășurate din contul tău',
-            'Notificarea imediată a oricărui acces neautorizat la: contact@trevano.app',
+            'planuri personalizate de alimentație;',
+            'planuri personalizate de antrenament;',
+            'obiective privind greutatea corporală;',
+            'misiuni zilnice;',
+            'urmărirea progresului;',
+            'check-in-uri periodice;',
+            'recomandări automate;',
+            'ajustarea planurilor în funcție de progres;',
+            'funcționalități premium disponibile prin abonament.',
           ],
           after: [
-            'Nu poți crea conturi multiple pentru a abuza de beneficiile planului gratuit sau de recompensele aplicației. Rezervăm dreptul de a suspenda conturile create abuziv.',
+            'Ne rezervăm dreptul de a modifica, adăuga sau elimina funcționalități fără notificare prealabilă.',
           ],
         },
         {
-          title: '4. Plan gratuit și abonament',
+          title: '3. Contul de utilizator',
           body: [
-            '4.1. Plan gratuit',
-            'La înregistrare, contul pornește pe planul gratuit. Anumite funcții, rețete sau beneficii pot necesita un plan plătit.',
-            '4.2. Planuri disponibile',
+            'Pentru utilizarea anumitor funcționalități este necesară crearea unui cont.',
+            'Utilizatorul este responsabil pentru:',
           ],
           items: [
-            'Starter — 149 RON/lună — funcții extinse pentru utilizator',
-            'Pro — 249 RON/lună — beneficii avansate și varietate extinsă',
+            'corectitudinea informațiilor introduse;',
+            'păstrarea confidențialității parolei;',
+            'toate activitățile desfășurate prin contul său.',
           ],
           after: [
-            '4.3. Facturare',
-            'Abonamentele sunt facturate lunar, prin card bancar, prin procesatorul de plăți Stripe. Factura fiscală este emisă automat și trimisă pe email după fiecare plată reușită.',
-            '4.4. Anulare',
-            'Poți anula abonamentul oricând din secțiunea "Gestionează abonamentul" din aplicație. Anularea intră în vigoare la sfârșitul perioadei de facturare curente. Nu oferim rambursări pentru perioadele parțiale.',
+            'Ne rezervăm dreptul de a suspenda sau închide conturile utilizate fraudulos, abuziv sau cu încălcarea prezentelor condiții.',
           ],
         },
         {
-          title: '5. Utilizare acceptabilă',
-          body: ['Ești de acord să nu utilizezi Trevano pentru:'],
+          title: '4. Eligibilitate',
+          body: [
+            'Prin utilizarea aplicației declari că:',
+          ],
           items: [
-            'Activități ilegale sau frauduloase',
-            'Prelucrarea datelor unor persoane fără consimțământul lor',
-            'Distribuirea de conținut fals, înșelător sau dăunător',
-            'Tentative de acces neautorizat la sistemele noastre',
-            'Revânzarea sau redistribuirea serviciului fără acordul nostru scris',
+            'ai cel puțin 18 ani sau utilizezi aplicația cu acordul părintelui ori tutorelui legal;',
+            'ai capacitatea legală de a accepta acești Termeni și Condiții;',
+            'informațiile introduse sunt reale și actualizate.',
           ],
         },
         {
-          title: '6. Datele utilizatorilor',
-          body: ['Ca utilizator, ești responsabil pentru:'],
+          title: '5. Abonamente și plăți',
+          body: [
+            'Trevano poate pune la dispoziție atât un plan gratuit, cât și unul sau mai multe abonamente premium.',
+            'Funcționalitățile disponibile diferă în funcție de tipul abonamentului activ.',
+            'Plățile sunt procesate prin intermediul unui procesator de plăți autorizat.',
+            'Abonamentele se reînnoiesc automat până la anularea acestora.',
+            'Utilizatorul poate anula abonamentul în orice moment, iar acesta va rămâne activ până la sfârșitul perioadei deja achitate.',
+            'Cu excepția situațiilor prevăzute de lege, plățile efectuate nu sunt rambursabile.',
+          ],
+        },
+        {
+          title: '6. Utilizarea aplicației',
+          body: [
+            'Utilizatorul se obligă să utilizeze aplicația exclusiv în scopuri legale.',
+            'Este interzisă:',
+          ],
           items: [
-            'Furnizarea unor date corecte în onboarding și în actualizările de progres',
-            'Protejarea accesului la contul tău',
-            'Folosirea aplicației în mod responsabil și conform scopului ei',
+            'utilizarea aplicației în scopuri frauduloase;',
+            'încercarea de acces neautorizat la infrastructura Trevano;',
+            'copierea, modificarea sau distribuirea aplicației fără acordul operatorului;',
+            'utilizarea de programe automate, scripturi sau alte metode care afectează funcționarea serviciului;',
+            'revânzarea sau redistribuirea serviciului.',
+          ],
+        },
+        {
+          title: '7. Recomandări privind sănătatea',
+          body: [
+            'Trevano este o aplicație destinată susținerii unui stil de viață sănătos.',
+            'Aplicația NU reprezintă un dispozitiv medical și NU oferă servicii medicale.',
+            'Planurile alimentare, planurile de antrenament, recomandările, analizele progresului, ajustările automate și orice alte informații furnizate prin aplicație au exclusiv caracter informativ și educațional.',
+            'Acestea:',
+          ],
+          items: [
+            'nu reprezintă recomandări medicale;',
+            'nu constituie diagnostic medical;',
+            'nu reprezintă tratament;',
+            'nu înlocuiesc consultația unui medic, dietetician, nutriționist, kinetoterapeut sau antrenor autorizat.',
+          ],
+        },
+        {
+          title: '8. Consultarea unui medic',
+          body: [
+            'Dacă suferi de afecțiuni medicale, urmezi un tratament, ești însărcinată, ai fost supus unei intervenții chirurgicale recente sau ai orice nelămurire privind starea ta de sănătate, îți recomandăm să consulți un medic înainte de a urma recomandările oferite de Trevano.',
+            'Dacă în timpul efectuării exercițiilor apar dureri, amețeli, dificultăți respiratorii sau orice alt simptom neobișnuit, trebuie să întrerupi imediat activitatea și să consulți un medic.',
+          ],
+        },
+        {
+          title: '9. Limitarea răspunderii',
+          body: [
+            'Utilizarea aplicației se face exclusiv pe propria răspundere.',
+            'În limita maximă permisă de lege, operatorul Trevano nu răspunde pentru:',
+          ],
+          items: [
+            'accidentări;',
+            'întinderi sau rupturi musculare;',
+            'entorse;',
+            'luxații;',
+            'fracturi;',
+            'reacții alergice;',
+            'intoleranțe alimentare;',
+            'agravarea unor afecțiuni existente;',
+            'complicații medicale;',
+            'pierderea sau creșterea în greutate;',
+            'lipsa rezultatelor dorite;',
+            'utilizarea necorespunzătoare a recomandărilor generate de aplicație;',
+            'orice prejudicii directe sau indirecte rezultate din utilizarea serviciului.',
           ],
           after: [
-            'Trevano procesează datele tale pentru a putea genera și adapta experiența din aplicație.',
+            'Rezultatele diferă de la persoană la persoană și depind de numeroși factori, inclusiv starea de sănătate, genetica, consecvența, alimentația, odihna și activitatea fizică.',
+            'Operatorul nu garantează atingerea unui anumit obiectiv de greutate, compoziție corporală sau performanță fizică.',
           ],
         },
         {
-          title: '7. Planurile generate de AI',
+          title: '10. Exactitatea informațiilor',
           body: [
-            'Planurile alimentare și de antrenament generate de Trevano sunt create prin inteligență artificială și au caracter informativ. Acestea:',
+            'Calitatea recomandărilor generate de Trevano depinde de informațiile introduse de utilizator.',
+            'Introducerea unor date incorecte, incomplete sau neactualizate poate conduce la recomandări nepotrivite.',
+            'Utilizatorul este singurul responsabil pentru corectitudinea datelor furnizate.',
+          ],
+        },
+        {
+          title: '11. Proprietate intelectuală',
+          body: [
+            'Întregul conținut al aplicației, inclusiv, fără limitare:',
           ],
           items: [
-            'Nu constituie consultanță medicală sau dietetică',
-            'Nu înlocuiesc evaluarea unui medic, nutriționist sau specialist în fitness',
+            'codul sursă;',
+            'designul;',
+            'interfața;',
+            'elementele grafice;',
+            'textele;',
+            'logo-ul;',
+            'funcționalitățile;',
           ],
           after: [
-            'Nu suntem răspunzători pentru consecințele utilizării planurilor generate fără supervizarea unui profesionist calificat.',
+            'reprezintă proprietatea operatorului sau a licențiatorilor acestuia și este protejat de legislația privind drepturile de autor.',
+            'Este interzisă copierea, reproducerea, distribuirea sau utilizarea acestora fără acordul prealabil scris.',
           ],
         },
         {
-          title: '8. Proprietate intelectuală',
+          title: '12. Disponibilitatea serviciului',
           body: [
-            'Platforma Trevano, codul sursă, designul și conținutul sunt proprietatea exclusivă a ANDREICA GABRIEL-IOAN PFA. Planurile generate pentru contul tău îți sunt puse la dispoziție pentru uz personal.',
+            'Depunem toate eforturile pentru a menține serviciul funcțional și disponibil.',
+            'Cu toate acestea, nu garantăm funcționarea neîntreruptă, lipsa erorilor sau disponibilitatea permanentă a aplicației.',
+            'Putem suspenda temporar accesul pentru:',
+          ],
+          items: [
+            'mentenanță;',
+            'actualizări;',
+            'remedieri tehnice;',
+            'îmbunătățirea serviciului.',
           ],
         },
         {
-          title: '9. Disponibilitatea serviciului',
+          title: '13. Suspendarea sau încetarea contului',
           body: [
-            'Ne străduim să menținem disponibilitatea serviciului 24/7, dar nu garantăm funcționarea neîntreruptă. Rezervăm dreptul de a efectua întreținere programată cu notificare prealabilă.',
-            'Nu suntem răspunzători pentru pierderile cauzate de indisponibilitatea temporară a serviciului.',
+            'Ne rezervăm dreptul de a suspenda sau închide conturile utilizatorilor care:',
+          ],
+          items: [
+            'încalcă acești Termeni și Condiții;',
+            'utilizează aplicația în mod fraudulos;',
+            'afectează securitatea sau funcționarea serviciului;',
+            'încearcă să exploateze vulnerabilități ale aplicației;',
+            'aduc prejudicii operatorului sau altor utilizatori.',
           ],
         },
         {
-          title: '10. Limitarea răspunderii',
-          body: ['Nu suntem răspunzători pentru daune indirecte, pierderi de profit sau de date.'],
-        },
-        {
-          title: '11. Modificări ale termenilor',
+          title: '14. Modificarea serviciului',
           body: [
-            'Putem modifica acești termeni cu o notificare de 14 zile transmisă prin email. Continuarea utilizării serviciului după această perioadă constituie acceptul noilor termeni.',
+            'Ne rezervăm dreptul de a modifica, suspenda sau elimina funcționalități ale aplicației, precum și structura abonamentelor și a serviciilor oferite.',
           ],
         },
         {
-          title: '12. Legea aplicabilă',
+          title: '15. Modificarea Termenilor și Condițiilor',
           body: [
-            'Acești termeni sunt guvernați de legea română. Orice litigiu va fi soluționat de instanțele competente din România.',
+            'Putem modifica periodic acești Termeni și Condiții.',
+            'Versiunea actualizată va fi publicată pe website și va produce efecte de la data publicării.',
+            'Continuarea utilizării aplicației după publicarea modificărilor reprezintă acceptarea noii versiuni.',
           ],
         },
         {
-          title: '13. Contact',
+          title: '16. Legea aplicabilă',
           body: [
+            'Acești Termeni și Condiții sunt guvernați de legislația din România.',
+            'Orice litigiu va fi soluționat de instanțele competente din România.',
+          ],
+        },
+        {
+          title: '17. Contact',
+          body: [
+            'Operator:',
             'ANDREICA GABRIEL-Ioan PFA',
             'CUI: 46589606',
-            'Adresa: Șișești, nr. 247, România',
-            'Email: contact@trevano.app',
-            'Website: trevano.app',
+            'Website: https://trevano.app',
           ],
         },
       ]}

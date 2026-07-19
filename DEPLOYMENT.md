@@ -76,7 +76,70 @@ docker run -p 3000:3000 \
   aplicatie-nutritie
 ```
 
-#### C. VPS (Ubuntu/Debian)
+#### C. Hetzner VPS (Ubuntu/Debian + Docker + Nginx)
+
+Aceasta este varianta recomandată pentru VPS: aplicația rulează în Docker pe `127.0.0.1:3000`, iar nginx termină HTTPS-ul public.
+
+```bash
+# 1. Instalează Docker
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# 2. Clonează aplicația
+git clone <repo-url>
+cd aplicatienutritie
+
+# 3. Configurează env-ul de producție
+cp .env.example .env.production
+nano .env.production
+
+# 4. Verifică env-ul înainte de build
+docker run --rm -v "$PWD":/app -w /app node:20-bookworm-slim node scripts/check-production-env.mjs .env.production
+
+# 5. Build + start
+docker compose --env-file .env.production up -d --build
+
+# 6. Verifică healthcheck local
+curl http://127.0.0.1:3000/api/health
+```
+
+Nginx:
+
+```bash
+sudo apt-get install -y nginx certbot python3-certbot-nginx
+sudo cp deploy/nginx/trevano.conf.example /etc/nginx/sites-available/trevano
+sudo nano /etc/nginx/sites-available/trevano
+sudo ln -s /etc/nginx/sites-available/trevano /etc/nginx/sites-enabled/trevano
+sudo nginx -t
+sudo certbot --nginx -d trevano.app -d www.trevano.app
+sudo systemctl reload nginx
+```
+
+Update deploy:
+
+```bash
+git pull
+docker compose --env-file .env.production up -d --build
+docker image prune -f
+```
+
+Loguri:
+
+```bash
+docker compose logs -f trevano
+```
+
+Notă: `docker compose config` este util pentru debugging, dar poate afișa variabilele de mediu. Nu publica output-ul acestei comenzi.
+
+În Supabase rulează și `scripts/add-activity-logs-production-hardening.sql` ca să ai tabela `activity_logs`, indexurile și RLS-ul pregătite.
+
+#### D. VPS clasic (Ubuntu/Debian + PM2)
 ```bash
 # 1. Instalează Node.js 20
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -

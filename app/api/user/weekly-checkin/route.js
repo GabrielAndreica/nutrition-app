@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getSupabase, supabaseQuery } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import {
   adjustMealPlanCarbs,
   adjustWorkoutPlanProgression,
@@ -277,6 +278,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (auth.role !== 'user' && auth.role !== 'client') {
@@ -584,6 +586,28 @@ export async function POST(request) {
       related_plan_id: adjustedMealPlanId || latestMealPlan?.id || null,
       is_read: false,
     });
+
+  await logActivity({
+    action: 'weekly_checkin.submitted',
+    status: 'success',
+    userId: auth.userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+    details: {
+      checkInId: checkIn?.id || null,
+      weekKey,
+      accountType,
+      goal,
+      weightDeltaKg: evaluation.deltaKg,
+      outcome: evaluation.outcome,
+      planAdjusted,
+      workoutPlanAdjusted,
+      adjustedMealPlanId,
+      adjustedWorkoutPlanId,
+      appliedAdjustmentCalories: planAdjusted ? achievedCaloriesDelta : 0,
+    },
+  });
 
   return NextResponse.json({
     success: true,

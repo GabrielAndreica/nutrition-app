@@ -108,6 +108,7 @@ export async function GET(request) {
 
 // Mark notifications as read
 export async function PATCH(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const auth = verifyToken(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -149,6 +150,18 @@ export async function PATCH(request) {
         return NextResponse.json({ error: 'Failed to update notifications' }, { status: 500 });
       }
 
+      await logActivity({
+        action: 'notifications.mark_read',
+        status: 'success',
+        userId: auth.userId,
+        email: auth.email,
+        ipAddress: ip,
+        userAgent,
+        details: {
+          markAll: true,
+        },
+      });
+
       return NextResponse.json({ message: 'All notifications marked as read' }, { status: 200 });
     }
 
@@ -168,6 +181,19 @@ export async function PATCH(request) {
       console.error('Error marking notifications as read:', updateError);
       return NextResponse.json({ error: 'Failed to update notifications' }, { status: 500 });
     }
+
+    await logActivity({
+      action: 'notifications.mark_read',
+      status: 'success',
+      userId: auth.userId,
+      email: auth.email,
+      ipAddress: ip,
+      userAgent,
+      details: {
+        markAll: false,
+        count: safeNotificationIds.length,
+      },
+    });
 
     return NextResponse.json({ message: 'Notifications marked as read' }, { status: 200 });
   } catch (error) {

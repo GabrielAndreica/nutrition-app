@@ -16,6 +16,7 @@ import {
   getCoinRewardForXpEvent,
   getCoinRewardReason,
 } from '@/app/lib/appCurrency';
+import { logActivity, getRequestMeta } from '@/app/lib/logger';
 
 const MAX_XP_BODY_BYTES = 8 * 1024;
 const WATER_XP_AMOUNT = 20;
@@ -30,6 +31,15 @@ function isClientUser(role) {
 function requestBodyTooLarge(request, maxBytes) {
   const contentLength = Number(request.headers.get('content-length') || 0);
   return Number.isFinite(contentLength) && contentLength > maxBytes;
+}
+
+async function readXpBody(request) {
+  const bodyText = await request.text();
+  if (bodyText.length > MAX_XP_BODY_BYTES) {
+    return { tooLarge: true, body: {} };
+  }
+
+  return { tooLarge: false, body: bodyText ? JSON.parse(bodyText) : {} };
 }
 
 function isMissingWaterRewardColumnError(error) {
@@ -48,6 +58,7 @@ function isMissingXpLedgerError(error) {
 }
 
 export async function POST(request) {
+  const { ip, userAgent } = getRequestMeta(request);
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
   if (!isClientUser(auth.role)) {
@@ -71,7 +82,11 @@ export async function POST(request) {
   let type = null;
   let dayIndex = null;
   try {
-    const body = await request.json();
+    const parsedBody = await readXpBody(request);
+    if (parsedBody.tooLarge) {
+      return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
+    }
+    const body = parsedBody.body;
     const parsed = Number(body?.amount);
     if (Number.isFinite(parsed) && parsed > 0 && parsed <= 500) amount = parsed;
     if (ALLOWED_XP_TYPES.includes(body?.type)) {
@@ -138,11 +153,12 @@ export async function POST(request) {
       .eq('id', auth.userId);
   }
   const midnightIso = dailyState.currentPlanDayDueAt;
+  const completionDayStatusKey = String(dailyState.currentPlanDay);
 
-  if (completionType === 'meals' && clientRow.meals_cooldown_until && new Date(clientRow.meals_cooldown_until) > now) {
+  if (completionType === 'meals' && dailyState.mealStatus?.[completionDayStatusKey] === true) {
     return NextResponse.json({ error: 'Ziua de mese a fost deja finalizată.' }, { status: 409 });
   }
-  if (completionType === 'workout' && clientRow.workout_cooldown_until && new Date(clientRow.workout_cooldown_until) > now) {
+  if (completionType === 'workout' && dailyState.workoutStatus?.[completionDayStatusKey] === true) {
     return NextResponse.json({ error: 'Antrenamentul a fost deja finalizat.' }, { status: 409 });
   }
   if (completionType === 'meals' && dailyState.currentPlanDay >= 7) {
@@ -384,13 +400,6 @@ export async function POST(request) {
     .update(updatePayload)
     .eq('id', auth.userId);
 
-  if (completionType === 'meals') {
-    updateQuery = updateQuery.or(`meals_cooldown_until.is.null,meals_cooldown_until.lte.${now.toISOString()}`);
-  }
-  if (completionType === 'workout') {
-    updateQuery = updateQuery.or(`workout_cooldown_until.is.null,workout_cooldown_until.lte.${now.toISOString()}`);
-  }
-
   const { data: updatedUser, error: updateError } = await updateQuery
     .select('id')
     .maybeSingle();
@@ -514,6 +523,25 @@ export async function POST(request) {
   }
 
   const coinsAwarded = coinAwards.reduce((sum, award) => sum + award.amount, 0);
+
+  await logActivity({
+    action: 'user.xp_awarded',
+    status: 'success',
+    userId: auth.userId,
+    email: auth.email,
+    ipAddress: ip,
+    userAgent,
+    details: {
+      type: type || 'manual',
+      amount,
+      previousLevel: Number(clientRow.level) || 1,
+      nextLevel: info.level,
+      leveledUp,
+      coinsAwarded,
+      dayIndex: completionType ? completionDay : dayIndex,
+      progressDate,
+    },
+  });
 
   return NextResponse.json({
     ...info,
