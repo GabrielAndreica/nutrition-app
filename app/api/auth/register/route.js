@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import crypto from 'node:crypto';
 import { getSupabase } from '@/app/lib/supabase';
 import bcrypt from 'bcrypt';
 import { Resend } from 'resend';
@@ -7,6 +8,13 @@ import { sanitizeEmail, sanitizeName } from '@/app/lib/sanitize';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 // ── Validation helpers ──────────────────────────────────────────────────────
+
+const MAX_REGISTER_BODY_BYTES = 16 * 1024;
+
+function requestBodyTooLarge(request, maxBytes) {
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  return Number.isFinite(contentLength) && contentLength > maxBytes;
+}
 
 const validateName = (name) => {
   if (!name || name.trim().length < 2) return 'Numele trebuie să aibă cel puțin 2 caractere.';
@@ -44,6 +52,10 @@ export async function POST(request) {
   const supabase = getSupabase();
   const resend = new Resend(process.env.RESEND_API_KEY);
   const { ip, userAgent } = getRequestMeta(request);
+
+  if (requestBodyTooLarge(request, MAX_REGISTER_BODY_BYTES)) {
+    return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
+  }
 
   // Rate limit: max 3 înregistrări per zi per IP
   const registerLimit = await enforceRateLimit(request, {
@@ -112,7 +124,7 @@ export async function POST(request) {
   }
 
   // Generate confirmation token
-  const confirmationToken = crypto.randomUUID();
+  const confirmationToken = crypto.randomBytes(32).toString('hex');
   const tokenExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24h
 
   // Insert user

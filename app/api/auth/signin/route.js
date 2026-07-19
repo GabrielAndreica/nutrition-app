@@ -8,6 +8,12 @@ import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import { resolveUserOnboardingCompletion } from '@/app/lib/onboardingStatus';
 
 const AUTH_COOKIE_MAX_AGE = 7 * 24 * 60 * 60;
+const MAX_SIGNIN_BODY_BYTES = 8 * 1024;
+
+function requestBodyTooLarge(request, maxBytes) {
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  return Number.isFinite(contentLength) && contentLength > maxBytes;
+}
 
 const validateEmail = (email) => {
   if (!email) return 'Adresa de email este obligatorie';
@@ -25,6 +31,13 @@ export async function POST(request) {
   const { ip, userAgent } = getRequestMeta(request);
 
   try {
+    if (requestBodyTooLarge(request, MAX_SIGNIN_BODY_BYTES)) {
+      return new Response(
+        JSON.stringify({ error: 'Body prea mare.' }),
+        { status: 413, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+
     const body = await request.json();
 
     let { email, password } = body;

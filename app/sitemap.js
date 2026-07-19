@@ -1,4 +1,4 @@
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://trevano.app';
+const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://trevano.app').replace(/\/+$/, '');
 
 export default function sitemap() {
   const now = new Date();

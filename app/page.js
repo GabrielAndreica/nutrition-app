@@ -1,10 +1,8 @@
 import LandingPage from '@/app/landing/page';
 
-export const dynamic = 'force-dynamic';
-
 export const metadata = {
-  title: 'Trevano - Planul pe care il poti urma',
-  description: 'Trevano iti spune ce sa mananci, cum sa te antrenezi si iti adapteaza planul pe masura ce progresezi.',
+  title: 'Planul pe care îl poți urma',
+  description: 'Trevano îți spune ce să mănânci, cum să te antrenezi și îți adaptează planul pe măsură ce progresezi.',
   alternates: {
     canonical: '/',
   },

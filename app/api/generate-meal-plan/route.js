@@ -13,6 +13,12 @@ const openai = new OpenAI({
 });
 
 const MEAL_AI_MODEL = process.env.OPENAI_MEAL_MODEL || 'gpt-4o-mini';
+const MAX_MEAL_GENERATION_PAYLOAD_BYTES = 64 * 1024;
+
+function requestBodyTooLarge(request, maxBytes) {
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  return Number.isFinite(contentLength) && contentLength > maxBytes;
+}
 
 // ── Constante pentru generarea bazată pe rețete ───────────────────────────────
 
@@ -1731,6 +1737,10 @@ export async function POST(request) {
       failClosed: true,
     });
     if (rateLimit) return rateLimit;
+
+    if (requestBodyTooLarge(request, MAX_MEAL_GENERATION_PAYLOAD_BYTES)) {
+      return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
+    }
 
     // ── Subscription check (live from DB — JWT can be stale) ─────────────
     let subscription = null;

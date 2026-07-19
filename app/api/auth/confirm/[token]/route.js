@@ -3,6 +3,8 @@ import { getSupabase } from '@/app/lib/supabase';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
+const CONFIRMATION_TOKEN_PATTERN = /^(?:[a-f0-9]{64}|[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$/i;
+
 // GET /api/auth/confirm/[token]
 export async function GET(request, { params }) {
   const supabase = getSupabase();
@@ -20,6 +22,11 @@ export async function GET(request, { params }) {
 
   if (!token) {
     return NextResponse.json({ error: 'Token lipsă.' }, { status: 400 });
+  }
+
+  if (String(token).length > 128 || !CONFIRMATION_TOKEN_PATTERN.test(String(token))) {
+    await logActivity({ action: 'auth.confirm_email', status: 'failure', ipAddress: ip, userAgent, details: { reason: 'malformed_token' } });
+    return NextResponse.json({ error: 'Link de confirmare invalid sau deja folosit.' }, { status: 404 });
   }
 
   // Find user with this token
@@ -56,7 +63,8 @@ export async function GET(request, { params }) {
       subscription_status: 'free',
       subscription_plan: null,
     })
-    .eq('id', user.id);
+    .eq('id', user.id)
+    .eq('confirmation_token', token);
 
   if (updateError) {
     console.error('[confirm] update error:', updateError);

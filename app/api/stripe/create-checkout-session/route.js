@@ -4,6 +4,11 @@ import { verifyToken } from '@/app/lib/verifyToken';
 import { getStripe, getStripePriceId } from '@/app/lib/stripe';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
+import {
+  readLimitedJsonBody,
+  requestBodyExceedsLimit,
+  payloadTooLargeResponse,
+} from '@/app/lib/billingRequestLimits';
 
 export const runtime = 'nodejs';
 
@@ -31,12 +36,19 @@ export async function POST(request) {
     endpoint: 'stripe-create-checkout-session',
     maxRequests: 10,
     windowMinutes: 10,
+    failClosed: true,
   });
   if (rateLimit) return rateLimit;
 
+  if (requestBodyExceedsLimit(request, 8 * 1024)) {
+    return payloadTooLargeResponse();
+  }
+
   let body;
   try {
-    body = await request.json();
+    const parsedBody = await readLimitedJsonBody(request);
+    if (parsedBody.tooLarge) return payloadTooLargeResponse();
+    body = parsedBody.body;
   } catch {
     return NextResponse.json({ error: 'Body invalid.' }, { status: 400 });
   }

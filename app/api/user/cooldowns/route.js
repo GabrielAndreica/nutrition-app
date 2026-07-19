@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 import {
   buildDailyProgressUpdate,
   getDayStatusPayload,
@@ -13,6 +14,15 @@ export const maxDuration = 300;
 export async function GET(request) {
   const auth = verifyToken(request);
   if (auth.error) return NextResponse.json({ error: auth.error }, { status: auth.status });
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'user-cooldowns-get',
+    maxRequests: 120,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
 
   const supabase = getSupabase();
   const { data: clientRow, error } = await supabase

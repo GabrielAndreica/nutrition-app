@@ -6,6 +6,13 @@ import { getCurrentPlanDateKey } from '@/app/lib/weeklyPlanRegeneration';
 
 export const runtime = 'nodejs';
 
+const MAX_DAILY_PROGRESS_PAYLOAD_BYTES = 16 * 1024;
+
+function requestBodyTooLarge(request, maxBytes) {
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  return Number.isFinite(contentLength) && contentLength > maxBytes;
+}
+
 function normalizePlanKey(value) {
   return String(value || 'default')
     .trim()
@@ -133,6 +140,10 @@ export async function PATCH(request) {
     failClosed: true,
   });
   if (rl) return rl;
+
+  if (requestBodyTooLarge(request, MAX_DAILY_PROGRESS_PAYLOAD_BYTES)) {
+    return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
+  }
 
   let body = {};
   try {

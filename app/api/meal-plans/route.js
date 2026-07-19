@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 function isClientUser(role) {
   return role === 'client' || role === 'user';
@@ -15,6 +16,15 @@ export async function GET(request) {
   if (!isClientUser(auth.role)) {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'meal-plans-list',
+    maxRequests: 90,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
 
   const { searchParams } = new URL(request.url);
   const clientIdFilter = searchParams.get('clientId');

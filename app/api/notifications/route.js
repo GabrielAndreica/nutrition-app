@@ -5,8 +5,51 @@ import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { sanitizeText, sanitizeNumber } from '@/app/lib/sanitize';
 import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
+const DEFAULT_NOTIFICATION_LIMIT = 20;
+const MAX_NOTIFICATION_LIMIT = 50;
+const MAX_NOTIFICATION_IDS = 100;
+const MAX_NOTIFICATION_ID_LENGTH = 120;
+const MAX_NOTIFICATION_BODY_BYTES = 16 * 1024;
+
+function parseNotificationLimit(value) {
+  const parsed = Number.parseInt(value || String(DEFAULT_NOTIFICATION_LIMIT), 10);
+  if (!Number.isFinite(parsed)) return DEFAULT_NOTIFICATION_LIMIT;
+  return Math.min(MAX_NOTIFICATION_LIMIT, Math.max(1, parsed));
+}
+
+function requestBodyTooLarge(request) {
+  const contentLength = Number.parseInt(request.headers.get('content-length') || '0', 10);
+  return Number.isFinite(contentLength) && contentLength > MAX_NOTIFICATION_BODY_BYTES;
+}
+
+async function readNotificationJsonBody(request) {
+  const bodyText = await request.text();
+  if (bodyText.length > MAX_NOTIFICATION_BODY_BYTES) {
+    return { tooLarge: true, body: null };
+  }
+
+  return { tooLarge: false, body: bodyText ? JSON.parse(bodyText) : {} };
+}
+
+function normalizeNotificationIds(value) {
+  if (!Array.isArray(value)) return null;
+
+  const ids = [];
+  const seen = new Set();
+
+  for (const rawId of value) {
+    const id = String(rawId || '').trim();
+    if (!id || id.length > MAX_NOTIFICATION_ID_LENGTH || seen.has(id)) continue;
+
+    seen.add(id);
+    ids.push(id);
+    if (ids.length >= MAX_NOTIFICATION_IDS) break;
+  }
+
+  return ids.length ? ids : null;
+}
+
 export async function GET(request) {
-  const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -17,13 +60,15 @@ export async function GET(request) {
     endpoint: 'notifications-get',
     maxRequests: 120,
     windowMinutes: 1,
+    failClosed: true,
   });
   if (rateLimit) return rateLimit;
 
   try {
+    const supabase = getSupabase();
     // Get query parameters
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '20');
+    const limit = parseNotificationLimit(searchParams.get('limit'));
     const unreadOnly = searchParams.get('unread_only') === 'true';
 
     // Build query using integer user_id
@@ -63,7 +108,6 @@ export async function GET(request) {
 
 // Mark notifications as read
 export async function PATCH(request) {
-  const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) {
     return NextResponse.json({ error: auth.error }, { status: auth.status });
@@ -74,12 +118,23 @@ export async function PATCH(request) {
     endpoint: 'notifications-patch',
     maxRequests: 60,
     windowMinutes: 1,
+    failClosed: true,
   });
   if (rateLimit) return rateLimit;
 
+  if (requestBodyTooLarge(request)) {
+    return NextResponse.json({ error: 'Payload prea mare' }, { status: 413 });
+  }
+
   try {
-    const body = await request.json();
+    const parsedBody = await readNotificationJsonBody(request);
+    if (parsedBody.tooLarge) {
+      return NextResponse.json({ error: 'Payload prea mare' }, { status: 413 });
+    }
+
+    const body = parsedBody.body;
     const { notification_ids, mark_all } = body;
+    const supabase = getSupabase();
 
     if (mark_all) {
       // Mark all notifications as read
@@ -97,7 +152,8 @@ export async function PATCH(request) {
       return NextResponse.json({ message: 'All notifications marked as read' }, { status: 200 });
     }
 
-    if (!notification_ids || !Array.isArray(notification_ids)) {
+    const safeNotificationIds = normalizeNotificationIds(notification_ids);
+    if (!safeNotificationIds) {
       return NextResponse.json({ error: 'Invalid notification_ids' }, { status: 400 });
     }
 
@@ -105,7 +161,7 @@ export async function PATCH(request) {
     const { error: updateError } = await supabase
       .from('notifications')
       .update({ is_read: true })
-      .in('id', notification_ids)
+      .in('id', safeNotificationIds)
       .eq('user_id', auth.userId);
 
     if (updateError) {
@@ -121,7 +177,6 @@ export async function PATCH(request) {
 }
 
 export async function POST(request) {
-  const supabase = getSupabase();
   const auth = verifyToken(request);
   if (auth.error) {
     console.error('[Notifications POST] Auth error:', auth.error);
@@ -133,16 +188,28 @@ export async function POST(request) {
     endpoint: 'notifications-post',
     maxRequests: 30,
     windowMinutes: 1,
+    failClosed: true,
   });
   if (rateLimit) return rateLimit;
 
+  if (requestBodyTooLarge(request)) {
+    return NextResponse.json({ error: 'Payload prea mare' }, { status: 413 });
+  }
+
   try {
-    const body = await request.json();
+    const parsedBody = await readNotificationJsonBody(request);
+    if (parsedBody.tooLarge) {
+      return NextResponse.json({ error: 'Payload prea mare' }, { status: 413 });
+    }
+
+    const body = parsedBody.body;
     let { user_id, type, title, message, related_client_id, related_plan_id } = body;
 
     if (!type || !message) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
+
+    const supabase = getSupabase();
 
     // Pentru notificările către client, user_id este derivat din relația trainer-client.
     if (related_client_id) {

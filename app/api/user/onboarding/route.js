@@ -27,6 +27,12 @@ const ALLOWED_GENDERS = ['M', 'F'];
 const ALLOWED_WORKOUTS_PER_WEEK = [2, 3, 4, 5];
 const ONBOARDING_XP_REWARD = 50;
 const USERNAME_PATTERN = /^[\p{L}\p{N} .-]+$/u;
+const MAX_ONBOARDING_BODY_BYTES = 32 * 1024;
+
+function requestBodyTooLarge(request, maxBytes) {
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  return Number.isFinite(contentLength) && contentLength > maxBytes;
+}
 
 function normalizeUsername(value) {
   return String(value || '').trim().replace(/\s+/g, ' ');
@@ -147,6 +153,10 @@ export async function POST(request) {
     failClosed: true,
   });
   if (rl) return rl;
+
+  if (requestBodyTooLarge(request, MAX_ONBOARDING_BODY_BYTES)) {
+    return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
+  }
 
   let body;
   try {

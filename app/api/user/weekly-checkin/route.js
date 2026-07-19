@@ -232,6 +232,7 @@ export async function GET(request) {
     endpoint: 'user-weekly-checkin-get',
     maxRequests: 60,
     windowMinutes: 1,
+    failClosed: true,
   });
   if (rl) return rl;
 

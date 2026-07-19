@@ -3,6 +3,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import ExternalNavigationReloadGuard from "./components/ExternalNavigationReloadGuard";
 import CookieConsentBanner from "./components/CookieConsentBanner";
 import MarketingPixels from "./components/MarketingPixels";
+import ResourceHints from "./components/ResourceHints";
 import "./globals.css";
 
 const inter = Inter({
@@ -20,21 +21,22 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://trevano.app'),
   title: {
-    default: "Trevano - Aplicație pentru antrenori de fitness",
+    default: "Trevano - Plan personalizat de alimentație și antrenament",
     template: "%s | Trevano"
   },
-  description: "Trevano este aplicația pentru antrenori de fitness unde ții clienții, planurile alimentare, antrenamentele și progresul într-un singur loc.",
+  description: "Trevano îți spune ce să mănânci, cum să te antrenezi și îți adaptează planul pe măsură ce progresezi, până îți atingi obiectivul.",
   keywords: [
     'Trevano',
     'trevano app',
-    'aplicatie antrenori fitness',
-    'software antrenori personali',
-    'aplicatie antrenori',
-    'planuri alimentare',
-    'planuri antrenament',
-    'monitorizare progres clienti',
-    'platforma fitness Romania',
-    'organizare clienti antrenor',
+    'plan alimentar personalizat',
+    'plan antrenament personalizat',
+    'aplicatie fitness Romania',
+    'aplicatie slabit',
+    'aplicatie masa musculara',
+    'monitorizare progres fitness',
+    'antrenamente acasa',
+    'antrenamente sala',
+    'Trevano Coach',
   ],
   applicationName: 'Trevano',
   authors: [{ name: 'Trevano' }],
@@ -44,7 +46,7 @@ export const metadata = {
   alternates: {
     canonical: '/',
   },
-  category: 'fitness software',
+  category: 'health and fitness',
   icons: {
     icon: '/favicon-patrat-verde.svg',
     apple: '/favicon-patrat-verde.svg',
@@ -66,19 +68,21 @@ export const metadata = {
     locale: 'ro_RO',
     url: '/',
     siteName: 'Trevano',
-    title: 'Trevano - Aplicație pentru antrenori de fitness',
-    description: 'Clienți, planuri alimentare, antrenamente și progres într-un singur loc.',
+    title: 'Trevano - Plan personalizat de alimentație și antrenament',
+    description: 'Planuri zilnice de mese și antrenamente, progres urmărit săptămânal și ajustări automate cu Trevano Coach.',
     images: [
       {
         url: '/screenshots/mockup-meal-plan.png',
-        alt: 'Trevano - aplicație pentru antrenori de fitness',
+        width: 1200,
+        height: 630,
+        alt: 'Trevano - plan alimentar și antrenament personalizat',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Trevano - Aplicație pentru antrenori de fitness',
-    description: 'Clienți, planuri alimentare, antrenamente și progres într-un singur loc.',
+    title: 'Trevano - Plan personalizat de alimentație și antrenament',
+    description: 'Trevano îți spune ce să mănânci, cum să te antrenezi și cum să continui progresul.',
     images: ['/screenshots/mockup-meal-plan.png'],
   },
 };
@@ -97,6 +101,7 @@ export default function RootLayout({ children }) {
       className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <ResourceHints />
         <AuthProvider>
           <ExternalNavigationReloadGuard />
           <MarketingPixels />

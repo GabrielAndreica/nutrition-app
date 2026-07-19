@@ -10,6 +10,19 @@ ALTER TABLE users
   ADD COLUMN IF NOT EXISTS nutrition_target_fat_g integer,
   ADD COLUMN IF NOT EXISTS last_weekly_checkin_at timestamptz;
 
+CREATE OR REPLACE FUNCTION public.auth_user_id()
+RETURNS integer
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT (
+    NULLIF(
+      NULLIF(current_setting('request.jwt.claims', true), ''),
+      'null'
+    )::jsonb ->> 'id'
+  )::integer;
+$$;
+
 CREATE TABLE IF NOT EXISTS weekly_checkins (
   id bigserial PRIMARY KEY,
   user_id integer NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -67,9 +80,33 @@ CREATE INDEX IF NOT EXISTS idx_weekly_checkins_user_created
 CREATE INDEX IF NOT EXISTS idx_weekly_checkins_user_week
   ON weekly_checkins(user_id, week_key DESC);
 
+CREATE INDEX IF NOT EXISTS idx_weekly_checkins_user_outcome_created
+  ON weekly_checkins(user_id, outcome, created_at DESC);
+
 CREATE INDEX IF NOT EXISTS idx_weekly_checkins_user_week_unawarded_xp
   ON weekly_checkins(user_id, week_key)
   WHERE xp_awarded = false;
+
+ALTER TABLE weekly_checkins
+  DROP CONSTRAINT IF EXISTS weekly_checkins_targets_before_object;
+
+ALTER TABLE weekly_checkins
+  ADD CONSTRAINT weekly_checkins_targets_before_object
+  CHECK (jsonb_typeof(targets_before) = 'object');
+
+ALTER TABLE weekly_checkins
+  DROP CONSTRAINT IF EXISTS weekly_checkins_targets_after_object;
+
+ALTER TABLE weekly_checkins
+  ADD CONSTRAINT weekly_checkins_targets_after_object
+  CHECK (jsonb_typeof(targets_after) = 'object');
+
+ALTER TABLE weekly_checkins
+  DROP CONSTRAINT IF EXISTS weekly_checkins_metadata_object;
+
+ALTER TABLE weekly_checkins
+  ADD CONSTRAINT weekly_checkins_metadata_object
+  CHECK (jsonb_typeof(metadata) = 'object');
 
 CREATE OR REPLACE FUNCTION public.update_weekly_checkins_updated_at()
 RETURNS trigger
@@ -92,3 +129,14 @@ ALTER TABLE weekly_checkins ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "weekly_checkins_select_own" ON weekly_checkins;
 CREATE POLICY "weekly_checkins_select_own" ON weekly_checkins
   FOR SELECT USING (user_id = auth_user_id());
+
+-- Scrierile in weekly_checkins raman server-side prin API/service_role.
+DROP POLICY IF EXISTS "weekly_checkins_insert_own" ON weekly_checkins;
+DROP POLICY IF EXISTS "weekly_checkins_update_own" ON weekly_checkins;
+DROP POLICY IF EXISTS "weekly_checkins_delete_own" ON weekly_checkins;
+
+SELECT
+  'weekly_checkins RLS enabled' AS check_name,
+  relrowsecurity AS enabled
+FROM pg_class
+WHERE oid = 'public.weekly_checkins'::regclass;

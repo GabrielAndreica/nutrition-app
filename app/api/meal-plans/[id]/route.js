@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getSupabase } from '@/app/lib/supabase';
 import { verifyToken } from '@/app/lib/verifyToken';
+import { enforceRateLimit } from '@/app/lib/apiRateLimit';
+
+const MAX_MEAL_PLAN_BODY_BYTES = 512 * 1024;
 
 function isClientUser(role) {
   return role === 'client' || role === 'user';
+}
+
+function requestBodyTooLarge(request, maxBytes) {
+  const contentLength = Number(request.headers.get('content-length') || 0);
+  return Number.isFinite(contentLength) && contentLength > maxBytes;
 }
 
 export async function GET(request, { params }) {
@@ -15,6 +23,15 @@ export async function GET(request, { params }) {
   if (!isClientUser(auth.role)) {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'meal-plan-detail',
+    maxRequests: 90,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
 
   const { data, error } = await supabase
     .from('meal_plans')
@@ -38,7 +55,8 @@ export async function GET(request, { params }) {
     client,
     previousPlanCalories: data.previous_plan_calories || null,
   });
-  res.headers.set('Cache-Control', 'private, max-age=10');
+  res.headers.set('Cache-Control', 'no-store, max-age=0');
+  res.headers.set('Pragma', 'no-cache');
   res.headers.set('Vary', 'Authorization');
   return res;
 }
@@ -51,6 +69,19 @@ export async function PATCH(request, { params }) {
 
   if (!isClientUser(auth.role)) {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
+  }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'meal-plan-update',
+    maxRequests: 20,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
+
+  if (requestBodyTooLarge(request, MAX_MEAL_PLAN_BODY_BYTES)) {
+    return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
   }
 
   let body;
@@ -97,6 +128,15 @@ export async function DELETE(request, { params }) {
   if (!isClientUser(auth.role)) {
     return NextResponse.json({ error: 'Acces interzis.' }, { status: 403 });
   }
+
+  const rateLimit = await enforceRateLimit(request, {
+    userId: auth.userId,
+    endpoint: 'meal-plan-delete',
+    maxRequests: 20,
+    windowMinutes: 1,
+    failClosed: true,
+  });
+  if (rateLimit) return rateLimit;
 
   const { error, count } = await supabase
     .from('meal_plans')

@@ -42,6 +42,7 @@ export async function POST(request) {
     endpoint: 'stripe-sync-subscription',
     maxRequests: 30,
     windowMinutes: 5,
+    failClosed: true,
   });
   if (rateLimit) return rateLimit;
 

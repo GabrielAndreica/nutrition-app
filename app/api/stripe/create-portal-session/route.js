@@ -21,6 +21,7 @@ export async function POST(request) {
     endpoint: 'stripe-create-portal-session',
     maxRequests: 20,
     windowMinutes: 10,
+    failClosed: true,
   });
   if (rateLimit) return rateLimit;
 

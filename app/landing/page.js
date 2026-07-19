@@ -1,14 +1,11 @@
 import Link from 'next/link';
 import CookieSettingsButton from '@/app/components/CookieSettingsButton';
-import { getSupabase } from '@/app/lib/supabase';
 import styles from './landing.module.css';
 import ScrollReveal from './ScrollReveal';
 
-export const dynamic = 'force-dynamic';
-
 export const metadata = {
-  title: 'Trevano - Planul pe care il poti urma',
-  description: 'Trevano iti spune ce sa mananci, cum sa te antrenezi si iti adapteaza planul pe masura ce progresezi.',
+  title: 'Planul pe care îl poți urma',
+  description: 'Trevano îți spune ce să mănânci, cum să te antrenezi și îți adaptează planul pe măsură ce progresezi.',
   alternates: {
     canonical: '/',
   },
@@ -74,7 +71,7 @@ const coachChanges = [
 ];
 
 const LANDING_IMAGE_BUCKET = 'imagini-landing';
-const LANDING_IMAGE_TTL_SECONDS = 60 * 60 * 12;
+const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://trevano.app').replace(/\/+$/, '');
 
 function ProblemIcon() {
   return <span className={styles.problemIcon}>!</span>;
@@ -146,11 +143,18 @@ function encodeStoragePath(path = '') {
     .join('/');
 }
 
-function buildLandingImageUrl(path) {
+function buildLandingImageUrl(path, { width = 980, height = 552, quality = 78 } = {}) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!supabaseUrl) return '';
 
-  return `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/object/public/${LANDING_IMAGE_BUCKET}/${encodeStoragePath(path)}`;
+  const params = new URLSearchParams({
+    width: String(width),
+    height: String(height),
+    resize: 'cover',
+    quality: String(quality),
+  });
+
+  return `${supabaseUrl.replace(/\/+$/, '')}/storage/v1/render/image/public/${encodeURIComponent(LANDING_IMAGE_BUCKET)}/${encodeStoragePath(path)}?${params.toString()}`;
 }
 
 function getLandingImageCandidates(path) {
@@ -161,37 +165,14 @@ function getLandingImageCandidates(path) {
   return [`${cleanPath}.png`, `${cleanPath}.jpg`, `${cleanPath}.jpeg`, `${cleanPath}.webp`, cleanPath];
 }
 
-async function resolveLandingImageUrl(path) {
+function resolveLandingImageUrl(path, options) {
   const candidates = getLandingImageCandidates(path);
-
-  try {
-    for (const candidate of candidates) {
-      const { data, error } = await getSupabase()
-        .storage
-        .from(LANDING_IMAGE_BUCKET)
-        .createSignedUrl(candidate, LANDING_IMAGE_TTL_SECONDS, {
-          transform: {
-            width: 980,
-            height: 552,
-            resize: 'cover',
-            quality: 78,
-          },
-        });
-
-      if (!error && data?.signedUrl) return data.signedUrl;
-    }
-  } catch (err) {
-    console.error('[landing] image signed URL error:', err);
-  }
-
-  return buildLandingImageUrl(candidates[0] || path);
+  return buildLandingImageUrl(candidates[0] || path, options);
 }
 
-async function HeroImages() {
-  const [femaleImage, maleImage] = await Promise.all([
-    resolveLandingImageUrl('female-before-after.png'),
-    resolveLandingImageUrl('male-before-after.png'),
-  ]);
+function HeroImages() {
+  const femaleImage = resolveLandingImageUrl('female-before-after.png', { width: 980, height: 552, quality: 78 });
+  const maleImage = resolveLandingImageUrl('male-before-after.png', { width: 980, height: 552, quality: 78 });
 
   if (!femaleImage || !maleImage) return null;
 
@@ -200,26 +181,41 @@ async function HeroImages() {
       <figure className={styles.heroImageCard}>
         {/* Supabase render/image already serves the optimized hero asset. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={femaleImage} alt="Transformare femeie inainte si dupa" loading="eager" fetchPriority="high" />
+        <img
+          src={femaleImage}
+          alt="Transformare femeie înainte și după"
+          width="980"
+          height="552"
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
+        />
       </figure>
       <figure className={`${styles.heroImageCard} ${styles.heroImageCardOffset}`}>
         {/* Supabase render/image already serves the optimized hero asset. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={maleImage} alt="Transformare barbat inainte si dupa" loading="eager" fetchPriority="high" />
+        <img
+          src={maleImage}
+          alt="Transformare bărbat înainte și după"
+          width="980"
+          height="552"
+          loading="eager"
+          decoding="async"
+        />
       </figure>
     </div>
   );
 }
 
-async function LandingSectionImage({ path, alt, className }) {
-  const imageUrl = await resolveLandingImageUrl(path);
+function LandingSectionImage({ path, alt, className }) {
+  const imageUrl = resolveLandingImageUrl(path, { width: 900, height: 394, quality: 76 });
   if (!imageUrl) return null;
 
   return (
     <figure className={className}>
       {/* Supabase render/image already serves the optimized landing asset. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={imageUrl} alt={alt} loading="lazy" />
+      <img src={imageUrl} alt={alt} width="900" height="394" loading="lazy" decoding="async" />
     </figure>
   );
 }
@@ -230,39 +226,39 @@ export default async function LandingPage() {
     '@graph': [
       {
         '@type': 'Organization',
-        '@id': 'https://trevano.app/#organization',
+        '@id': `${SITE_URL}/#organization`,
         name: 'Trevano',
-        url: 'https://trevano.app',
-        logo: 'https://trevano.app/logo-verde-transparent.svg',
+        url: SITE_URL,
+        logo: `${SITE_URL}/logo-verde-transparent.svg`,
       },
       {
         '@type': 'WebSite',
-        '@id': 'https://trevano.app/#website',
+        '@id': `${SITE_URL}/#website`,
         name: 'Trevano',
-        url: 'https://trevano.app',
+        url: SITE_URL,
         inLanguage: 'ro-RO',
         publisher: {
-          '@id': 'https://trevano.app/#organization',
+          '@id': `${SITE_URL}/#organization`,
         },
       },
       {
         '@type': 'SoftwareApplication',
-        '@id': 'https://trevano.app/#software',
+        '@id': `${SITE_URL}/#software`,
         name: 'Trevano',
         applicationCategory: 'HealthApplication',
         operatingSystem: 'Web',
-        url: 'https://trevano.app',
+        url: SITE_URL,
         description: 'Trevano iti spune ce sa mananci, cum sa te antrenezi si iti adapteaza planul pe masura ce progresezi.',
         publisher: {
-          '@id': 'https://trevano.app/#organization',
+          '@id': `${SITE_URL}/#organization`,
         },
         audience: {
           '@type': 'Audience',
           audienceType: 'Persoane care vor sa slabeasca, sa ia in greutate sau sa inceapa sala',
         },
         offers: [
-          { '@type': 'Offer', name: 'Gratuit', price: '0', priceCurrency: 'RON', url: 'https://trevano.app/auth' },
-          { '@type': 'Offer', name: 'Trevano Coach', price: '29.99', priceCurrency: 'RON', url: 'https://trevano.app/upgrade' },
+          { '@type': 'Offer', name: 'Gratuit', price: '0', priceCurrency: 'RON', url: `${SITE_URL}/auth` },
+          { '@type': 'Offer', name: 'Trevano Coach', price: '29.99', priceCurrency: 'RON', url: `${SITE_URL}/upgrade` },
         ],
       },
     ],

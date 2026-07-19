@@ -2,7 +2,7 @@ import LegalPage from '@/app/components/LegalPage';
 
 export const metadata = {
   title: 'Politica de confidențialitate',
-  description: 'Cum protejează Trevano datele antrenorilor de fitness și ale clienților lor.',
+  description: 'Cum protejează Trevano datele utilizatorilor care folosesc planurile de alimentație, antrenament și progres.',
   alternates: {
     canonical: '/politica-de-confidentialitate',
   },

@@ -3,6 +3,11 @@ import { getSupabase } from '@/app/lib/supabase';
 import { getStripe, getPlanTypeFromPriceId } from '@/app/lib/stripe';
 import { logActivity, getRequestMeta } from '@/app/lib/logger';
 import { applyPremiumCheckInUpgrade } from '@/app/lib/premiumCheckInUpgrade';
+import {
+  STRIPE_WEBHOOK_BODY_LIMIT_BYTES,
+  requestBodyExceedsLimit,
+  payloadTooLargeResponse,
+} from '@/app/lib/billingRequestLimits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -50,7 +55,15 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Semnătură Stripe lipsă.' }, { status: 400 });
   }
 
+  if (requestBodyExceedsLimit(request, STRIPE_WEBHOOK_BODY_LIMIT_BYTES)) {
+    return payloadTooLargeResponse();
+  }
+
   const rawBody = await request.text();
+  if (rawBody.length > STRIPE_WEBHOOK_BODY_LIMIT_BYTES) {
+    return payloadTooLargeResponse();
+  }
+
   const stripe = getStripe();
   let event;
 
