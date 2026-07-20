@@ -52,7 +52,7 @@ export default function CookiesPage() {
             'Cookie-urile de marketing sunt activate numai după acordul tău explicit.',
             '2.4. Cookie-uri ale furnizorilor de plăți',
             'În cazul efectuării unei plăți, procesatorul de plăți utilizat de Trevano poate utiliza propriile cookie-uri pentru procesarea tranzacțiilor, prevenirea fraudelor și securizarea plăților.',
-            'Aceste cookie-uri sunt administrate exclusiv de furnizorul serviciului de plată și sunt guvernate de propria sa politică de confidențialitate.',
+            'Aceste cookie-uri sunt administrate exclusiv de furnizorul serviciului de plată și sunt guvernate de propria să politică de confidențialitate.',
           ],
         },
         {

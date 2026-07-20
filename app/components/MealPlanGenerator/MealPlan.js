@@ -969,7 +969,6 @@ export default function MealPlan({
         <div className={styles.tabsRow}>
           <div className={styles.dayTabs}>
             {plan.days.map((day, index) => {
-              const isCompleted = dayStatus[String(index)] === true;
               const dayState = getMealDayState(index);
               const isCurrentDay = index === safeCurrentPlanDay && safeCurrentPlanDay < 7;
               const isReadOnlyTab = !isCurrentDay || dayState.disabled;
@@ -984,11 +983,6 @@ export default function MealPlan({
                   <span className={styles.dayTabInner}>
                     <span className={styles.dayFull}>{dayNames[index % dayNames.length]}</span>
                     <span className={styles.dayShort}>{dayNamesShort[index % dayNamesShort.length]}</span>
-                    {isCompleted && (
-                      <svg className={styles.dayTabLockIcon} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M20 6 9 17l-5-5" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    )}
                 </span>
               </button>
               );

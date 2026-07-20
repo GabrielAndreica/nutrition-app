@@ -123,7 +123,7 @@ export async function PATCH(request) {
 
     if (nameLookupError) {
       console.error('[auth/profile] username lookup error:', nameLookupError);
-      return NextResponse.json({ error: 'Nu am putut verifica numele de utilizator.' }, { status: 500 });
+      return NextResponse.json({ error: 'Nu am putut verifică numele de utilizator.' }, { status: 500 });
     }
 
     if (existingName?.length) {

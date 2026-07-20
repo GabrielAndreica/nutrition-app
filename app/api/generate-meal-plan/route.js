@@ -937,7 +937,7 @@ function getAllergyTerms(allergyInput) {
   return [norm];
 }
 
-// Verifica daca o reteta contine vreun termen dintr-o lista
+// Verifică dacă o rețetă conține vreun termen dintr-o listă
 function recipeContainsTerm(recipe, terms) {
   const ingNames = (recipe.ingredients || []).map(i => normalizeForMatch(i.food_name));
   const name     = normalizeForMatch(recipe.name || '');

@@ -73,7 +73,7 @@ export async function reserveMonthlyClientUsage({
     return {
       allowed: false,
       response: NextResponse.json(
-        { error: 'Eroare internă la verificarea limitei de clienți.' },
+        { error: 'Eroare internă la verificărea limitei de clienți.' },
         { status: 500 }
       ),
       subscription: sub,

@@ -66,24 +66,24 @@ export async function POST(request) {
       const { data: emailData, error: emailError } = await resend.emails.send({
         from: 'trevano <noreply@trevano.app>',
         to: user.email,
-        subject: 'Resetare parola — trevano',
+        subject: 'Resetare parolă — trevano',
         html: `
           <div style="font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; background: #fff;">
             <div style="margin-bottom: 32px;">
               <span style="display: inline-block; width: 34px; height: 34px; background: #B7FF00; border-radius: 8px; text-align: center; line-height: 34px; font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #0A0A0A;">t</span>
               <span style="font-family: 'Space Grotesk', Inter, sans-serif; font-size: 17px; font-weight: 700; color: #0A0A0A; margin-left: 10px; vertical-align: middle;">trevano</span>
             </div>
-            <h1 style="font-size: 22px; font-weight: 800; color: #0A0A0A; letter-spacing: -0.5px; margin: 0 0 8px;">Resetare parola</h1>
+            <h1 style="font-size: 22px; font-weight: 800; color: #0A0A0A; letter-spacing: -0.5px; margin: 0 0 8px;">Resetare parolă</h1>
             <p style="font-size: 15px; color: #555; line-height: 1.6; margin: 0 0 28px;">
-              Buna, ${user.name || 'utilizator'}!<br/>
-              Am primit o cerere de resetare a parolei. Apasa butonul de mai jos pentru a seta o parola noua.
+              Bună, ${user.name || 'utilizator'}!<br/>
+              Am primit o cerere de resetare a parolei. Apasă butonul de mai jos pentru a seta o parolă nouă.
             </p>
             <a href="${resetLink}" style="display: inline-block; padding: 13px 28px; background: #0A0A0A; color: #B7FF00; text-decoration: none; border-radius: 12px; font-size: 15px; font-weight: 700;">
-              Reseteaza parola
+              Resetează parola
             </a>
             <p style="font-size: 13px; color: #999; margin-top: 28px; line-height: 1.6;">
-              Link-ul este valabil timp de <strong>1 ora</strong>.<br/>
-              Daca nu tu ai solicitat resetarea, poti ignora acest email.
+              Link-ul este valabil timp de <strong>1 oră</strong>.<br/>
+              Dacă nu tu ai solicitat resetarea, poți ignora acest email.
             </p>
           </div>
         `,

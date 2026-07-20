@@ -191,7 +191,7 @@ export async function POST(request) {
       if (isMissingWaterRewardColumnError(progressError)) {
         return NextResponse.json({ error: 'Rulează scriptul add-daily-user-progress.sql pentru recompensa de apă.' }, { status: 500 });
       }
-      return NextResponse.json({ error: 'Nu am putut verifica progresul de apă.' }, { status: 500 });
+      return NextResponse.json({ error: 'Nu am putut verifică progresul de apă.' }, { status: 500 });
     }
 
     const hydrationTargetMl = Math.max(0, Number(clientRow.hydration_target_ml) || 0);
@@ -249,7 +249,7 @@ export async function POST(request) {
 
     if (progressError) {
       console.error('[user/xp] daily progress read error:', progressError);
-      return NextResponse.json({ error: 'Nu am putut verifica progresul zilei.' }, { status: 500 });
+      return NextResponse.json({ error: 'Nu am putut verifică progresul zilei.' }, { status: 500 });
     }
 
     const hydrationTargetMl = Math.max(0, Number(clientRow.hydration_target_ml) || 0);
@@ -319,7 +319,7 @@ export async function POST(request) {
         if (isMissingWeeklyCheckInXpColumnError(existingCheckInError)) {
           return NextResponse.json({ error: 'Rulează scriptul add-weekly-checkins.sql pentru recompensa de check-in.' }, { status: 500 });
         }
-        return NextResponse.json({ error: 'Nu am putut verifica recompensa de check-in.' }, { status: 500 });
+        return NextResponse.json({ error: 'Nu am putut verifică recompensa de check-in.' }, { status: 500 });
       }
 
       if (!existingCheckIn) {

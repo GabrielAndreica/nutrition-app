@@ -55,7 +55,7 @@ function GeneratorContent() {
 
     try {
       const token = localStorage.getItem('token');
-      if (!token) throw new Error('Token de autentificare lipsă. Vă rog reconectați.');
+      if (!token) throw new Error('Token de autentificare lipsă. Te rog reconectează-te.');
 
       const response = await fetch('/api/generate-workout-plan', {
         method: 'POST',

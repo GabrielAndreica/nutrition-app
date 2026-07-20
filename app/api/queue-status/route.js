@@ -34,7 +34,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error getting queue status:', error);
     return NextResponse.json(
-      { error: 'Eroare la verificarea statusului' },
+      { error: 'Eroare la verificărea statusului' },
       { status: 500 }
     );
   }

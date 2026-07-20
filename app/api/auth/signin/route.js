@@ -85,7 +85,7 @@ export async function POST(request) {
     const ipLimit = await enforceRateLimit(request, {
       identifier: `ip:${ip}`,
       endpoint: 'auth-signin-ip',
-      maxRequests: 30,
+      maxRequests: 80,
       windowMinutes: 15,
       failClosed: true,
     });

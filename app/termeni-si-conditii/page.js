@@ -72,7 +72,7 @@ export default function TermsPage() {
           ],
           items: [
             'ai cel puțin 18 ani sau utilizezi aplicația cu acordul părintelui ori tutorelui legal;',
-            'ai capacitatea legală de a accepta acești Termeni și Condiții;',
+            'ai capăcitatea legală de a accepta acești Termeni și Condiții;',
             'informațiile introduse sunt reale și actualizate.',
           ],
         },
@@ -120,7 +120,7 @@ export default function TermsPage() {
           title: '8. Consultarea unui medic',
           body: [
             'Dacă suferi de afecțiuni medicale, urmezi un tratament, ești însărcinată, ai fost supus unei intervenții chirurgicale recente sau ai orice nelămurire privind starea ta de sănătate, îți recomandăm să consulți un medic înainte de a urma recomandările oferite de Trevano.',
-            'Dacă în timpul efectuării exercițiilor apar dureri, amețeli, dificultăți respiratorii sau orice alt simptom neobișnuit, trebuie să întrerupi imediat activitatea și să consulți un medic.',
+            'Dacă în timpul efectuării exercițiilor apăr dureri, amețeli, dificultăți respiratorii sau orice alt simptom neobișnuit, trebuie să întrerupi imediat activitatea și să consulți un medic.',
           ],
         },
         {

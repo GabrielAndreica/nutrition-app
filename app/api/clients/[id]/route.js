@@ -383,7 +383,7 @@ params }) {
       .single();
 
     if (userCheckError) {
-      console.error('Eroare la verificarea userului:', userCheckError.message);
+      console.error('Eroare la verificărea userului:', userCheckError.message);
     } else if (userToDelete && userToDelete.role === 'client') {
       // Șterge doar dacă este client
       const { error: userDeleteError } = await supabase

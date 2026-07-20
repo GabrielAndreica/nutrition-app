@@ -59,7 +59,7 @@ function ResetPasswordContent() {
       <div className={styles.rightPanel}>
         <div className={styles.card}>
           <h2 className={styles.cardTitle}>Parolă nouă</h2>
-          <p className={styles.cardSub}>Introdu noua ta parolă mai jos.</p>
+          <p className={styles.cardSub}>Introdu nouă ta parolă mai jos.</p>
 
           {success ? (
             <>

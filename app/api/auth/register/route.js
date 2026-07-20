@@ -57,16 +57,6 @@ export async function POST(request) {
     return NextResponse.json({ error: 'Body prea mare.' }, { status: 413 });
   }
 
-  // Rate limit: max 3 înregistrări per zi per IP
-  const registerLimit = await enforceRateLimit(request, {
-    identifier: `ip:${ip}`,
-    endpoint: 'auth-register',
-    maxRequests: 3,
-    windowMinutes: 1440,
-    failClosed: true,
-  });
-  if (registerLimit) return registerLimit;
-
   let body;
   try {
     body = await request.json();
@@ -98,6 +88,24 @@ export async function POST(request) {
 
   if (!terms) return NextResponse.json({ error: 'Trebuie să accepți termenii și condițiile.', field: 'terms' }, { status: 400 });
   if (!privacy) return NextResponse.json({ error: 'Trebuie să accepți politica de confidențialitate.', field: 'privacy' }, { status: 400 });
+
+  const ipRegisterLimit = await enforceRateLimit(request, {
+    identifier: `ip:${ip}`,
+    endpoint: 'auth-register-ip',
+    maxRequests: 25,
+    windowMinutes: 1440,
+    failClosed: true,
+  });
+  if (ipRegisterLimit) return ipRegisterLimit;
+
+  const emailRegisterLimit = await enforceRateLimit(request, {
+    identifier: `email:${email.toLowerCase()}`,
+    endpoint: 'auth-register-email',
+    maxRequests: 5,
+    windowMinutes: 1440,
+    failClosed: true,
+  });
+  if (emailRegisterLimit) return emailRegisterLimit;
 
   // Check existing email
   const { data: existing } = await supabase
@@ -162,8 +170,8 @@ export async function POST(request) {
   }
 
   // Send confirmation email
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-  const confirmLink = `${appUrl}/confirm/${confirmationToken}`;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  const confirmLink = `${appUrl}/api/auth/confirm/${confirmationToken}?redirect=1`;
 
   try {
     const { data: emailData, error: emailError } = await resend.emails.send({
@@ -181,15 +189,31 @@ export async function POST(request) {
             Bună, ${newUser.name}!<br/>
             Cont creat cu succes. Apasă butonul de mai jos pentru a-ți confirma adresa de email și a activa contul.
           </p>
-          <a href="${confirmLink}" style="display: inline-block; padding: 13px 28px; background: #0A0A0A; color: #B7FF00; text-decoration: none; border-radius: 12px; font-size: 15px; font-weight: 700;">
-            Confirmă adresa de email
-          </a>
+          <table role="presentation" border="0" cellspacing="0" cellpadding="0" style="margin: 0 0 24px;">
+            <tr>
+              <td bgcolor="#0A0A0A" style="border-radius: 12px;">
+                <a href="${confirmLink}" target="_blank" style="display: block; padding: 13px 28px; color: #B7FF00; text-decoration: none; font-size: 15px; font-weight: 700;">
+                  Confirmă adresa de email
+                </a>
+              </td>
+            </tr>
+          </table>
           <p style="font-size: 13px; color: #999; margin-top: 28px; line-height: 1.6;">
             Link-ul este valabil timp de <strong>24 de ore</strong>.<br/>
+            Dacă butonul nu se deschide, copiază linkul acesta în browser:<br/>
+            <a href="${confirmLink}" target="_blank" style="color: #0A0A0A; word-break: break-all;">${confirmLink}</a><br/>
             Dacă nu tu ai creat acest cont, poți ignora acest email.
           </p>
         </div>
       `,
+      text: [
+        `Bună, ${newUser.name}!`,
+        '',
+        'Cont creat cu succes. Confirmă adresa de email folosind linkul de mai jos:',
+        confirmLink,
+        '',
+        'Linkul este valabil timp de 24 de ore.',
+      ].join('\n'),
     });
 
     if (emailError) {

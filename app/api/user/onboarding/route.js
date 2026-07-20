@@ -296,7 +296,7 @@ export async function POST(request) {
     }
   } catch (usernameError) {
     console.error('[onboarding] username lookup error:', usernameError);
-    return NextResponse.json({ error: 'Nu am putut verifica numele de utilizator.' }, { status: 500 });
+    return NextResponse.json({ error: 'Nu am putut verifică numele de utilizator.' }, { status: 500 });
   }
 
   // Salvează profilul complet în tabela users
@@ -491,7 +491,7 @@ export async function GET(request) {
       return NextResponse.json({ available: !existingUsername });
     } catch (usernameError) {
       console.error('[onboarding] username availability error:', usernameError);
-      return NextResponse.json({ error: 'Nu am putut verifica numele de utilizator.' }, { status: 500 });
+      return NextResponse.json({ error: 'Nu am putut verifică numele de utilizator.' }, { status: 500 });
     }
   }
 

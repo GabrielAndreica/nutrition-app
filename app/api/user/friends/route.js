@@ -263,7 +263,7 @@ export async function POST(request) {
 
   if (targetError) {
     console.error('[user/friends] target lookup error:', targetError);
-    return NextResponse.json({ error: 'Nu am putut verifica utilizatorul.' }, { status: 500 });
+    return NextResponse.json({ error: 'Nu am putut verifică utilizatorul.' }, { status: 500 });
   }
   if (!targetUser) {
     return NextResponse.json({ error: 'Utilizatorul nu există.' }, { status: 404 });
@@ -288,7 +288,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Modulul de prieteni nu este activat încă.' }, { status: 409 });
     }
     console.error('[user/friends] existing lookup error:', existingError);
-    return NextResponse.json({ error: 'Nu am putut verifica invitația.' }, { status: 500 });
+    return NextResponse.json({ error: 'Nu am putut verifică invitația.' }, { status: 500 });
   }
 
   const existing = existingRows?.[0];
@@ -421,7 +421,7 @@ export async function PATCH(request) {
 
   if (friendshipError) {
     console.error('[user/friends] respond lookup error:', friendshipError);
-    return NextResponse.json({ error: 'Nu am putut verifica cererea.' }, { status: 500 });
+    return NextResponse.json({ error: 'Nu am putut verifică cererea.' }, { status: 500 });
   }
   if (!friendship || Number(friendship.friend_user_id) !== userId || friendship.status !== 'pending') {
     return NextResponse.json({ error: 'Cererea nu mai este disponibilă.' }, { status: 404 });
@@ -568,7 +568,7 @@ export async function DELETE(request) {
 
   if (friendshipError) {
     console.error('[user/friends] delete lookup error:', friendshipError);
-    return NextResponse.json({ error: 'Nu am putut verifica prietenia.' }, { status: 500 });
+    return NextResponse.json({ error: 'Nu am putut verifică prietenia.' }, { status: 500 });
   }
 
   const isAcceptedFriend = friendship

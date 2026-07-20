@@ -5,11 +5,17 @@ import { enforceRateLimit } from '@/app/lib/apiRateLimit';
 
 const CONFIRMATION_TOKEN_PATTERN = /^(?:[a-f0-9]{64}|[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12})$/i;
 
+function authRedirect(request) {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
+  return NextResponse.redirect(new URL('/auth?confirmed=1', appUrl));
+}
+
 // GET /api/auth/confirm/[token]
 export async function GET(request, { params }) {
   const supabase = getSupabase();
   const { ip, userAgent } = getRequestMeta(request);
   const { token } = await params;
+  const shouldRedirect = new URL(request.url).searchParams.get('redirect') === '1';
 
   const confirmLimit = await enforceRateLimit(request, {
     identifier: `ip:${ip}`,
@@ -43,6 +49,7 @@ export async function GET(request, { params }) {
 
   // Already confirmed
   if (user.status === 'confirmed') {
+    if (shouldRedirect) return authRedirect(request);
     return NextResponse.json({ message: 'Email deja confirmat. Te poți autentifica.' }, { status: 200 });
   }
 
@@ -73,6 +80,8 @@ export async function GET(request, { params }) {
   }
 
   await logActivity({ action: 'auth.confirm_email', status: 'success', userId: user.id, email: user.email, ipAddress: ip, userAgent });
+
+  if (shouldRedirect) return authRedirect(request);
 
   return NextResponse.json({ message: 'Email confirmat! Contul tău este acum activ.' }, { status: 200 });
 }

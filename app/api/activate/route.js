@@ -125,7 +125,7 @@ export async function POST(request) {
             user_id: clientData.trainer_id,
             type: 'invitation_expired',
             title: 'Link de invitație expirat',
-            message: `${clientData.name} a încercat să activeze contul dar link-ul a expirat`,
+            message: `${clientData.name} a încercât să activeze contul dar link-ul a expirat`,
             related_client_id: invitation.client_id,
             is_read: false
           });

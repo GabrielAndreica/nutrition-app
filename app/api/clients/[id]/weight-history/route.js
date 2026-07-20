@@ -192,8 +192,8 @@ params }) {
       .limit(20);
 
     if (cooldownError) {
-      console.error('Eroare la verificarea cooldown-ului progresului:', cooldownError);
-      return NextResponse.json({ error: 'Eroare la verificarea ultimei actualizări.' }, { status: 500 });
+      console.error('Eroare la verificărea cooldown-ului progresului:', cooldownError);
+      return NextResponse.json({ error: 'Eroare la verificărea ultimei actualizări.' }, { status: 500 });
     }
 
     const lastClientProgress = (recentProgressEntries || [])

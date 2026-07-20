@@ -175,10 +175,10 @@ export async function generateWorkoutPlanPDF(plan, clientData) {
   {
     const totalExercises = workoutDays.reduce((n, d) => n + (d.exercises || []).length, 0);
     const summaryItems = [
-      { label: 'Antrenamente/sapt', value: String(plan?.workoutsPerWeek || workoutDays.length) },
-      { label: 'Total exercitii',   value: String(totalExercises) },
+      { label: 'Antrenamente/săpt', value: String(plan?.workoutsPerWeek || workoutDays.length) },
+      { label: 'Total exerciții',   value: String(totalExercises) },
       { label: 'Echipament',        value: s(plan?.equipment || clientData?.availableEquipment) || null },
-      { label: 'Limitari',          value: s(clientData?.injuriesLimitations) || null },
+      { label: 'Limitări',          value: s(clientData?.injuriesLimitations) || null },
     ].filter(st => st.value && st.value !== 'undefined' && st.value !== 'null');
 
     doc.setFillColor(...C.dark);

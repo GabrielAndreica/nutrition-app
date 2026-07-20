@@ -851,7 +851,7 @@ function validatePlan(plan, input, exerciseCatalogMap = null, dayAllowedExercise
       // și poate exclude exerciții valide; validarea se face la nivel de catalog global.
 
       if (ex.sets < volume.minSetsPerExercise || ex.sets > volume.maxSetsPerExercise + 1) {
-        throw new Error(`Ziua ${d.day}: ${exName} are seturi în afara intervalului optim.`);
+        throw new Error(`Ziua ${d.day}: ${exName} are seturi în afără intervalului optim.`);
       }
       if (!String(ex.reps || '').trim()) {
         throw new Error(`Ziua ${d.day}: ${exName} nu are repetări.`);

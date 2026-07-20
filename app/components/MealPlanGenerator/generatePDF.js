@@ -228,7 +228,7 @@ export function generateMealPlanPDF(plan, clientData, nutritionalNeeds) {
   doc.setFontSize(8);
   doc.setTextColor(...C.midGray);
   doc.text(
-    'Paginile urmatoare contin planul detaliat — cate o zi per pagina.',
+    'Paginile urmatoare contin planul detaliat — câte o zi per pagina.',
     MARGIN, y + 8
   );
 

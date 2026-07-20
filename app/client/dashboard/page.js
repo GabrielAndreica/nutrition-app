@@ -1441,7 +1441,7 @@ function ClientDashboardContent() {
     const token = localStorage.getItem('token');
     if (!token) throw new Error('Token de autentificare lipsă.');
 
-    const notesFormatted = `[CLIENT] Nutriție - Respectare: ${progressData.adherence} | Energie: ${progressData.energyLevel} | Foame: ${progressData.hungerLevel}${progressData.notes ? ' | Mesaj: ' + progressData.notes : ''} || Antrenament - Respectare: ${progressData.workoutAdherence} | Dificultate: ${progressData.workoutDifficulty}${progressData.muscleSoreness ? ' | DOMS: ' + progressData.muscleSoreness : ''}${progressData.pump ? ' | Pump: ' + progressData.pump : ''}${progressData.generalFatigue ? ' | Oboseala: ' + progressData.generalFatigue : ''}${progressData.workoutNotes ? ' | Note: ' + progressData.workoutNotes : ''}`;
+    const notesFormatted = `[CLIENT] Nutriție - Respectare: ${progressData.adherence} | Energie: ${progressData.energyLevel} | Foame: ${progressData.hungerLevel}${progressData.notes ? ' | Mesaj: ' + progressData.notes : ''} || Antrenament - Respectare: ${progressData.workoutAdherence} | Dificultate: ${progressData.workoutDifficulty}${progressData.muscleSoreness ? ' | DOMS: ' + progressData.muscleSoreness : ''}${progressData.pump ? ' | Pump: ' + progressData.pump : ''}${progressData.generalFatigue ? ' | Oboseală: ' + progressData.generalFatigue : ''}${progressData.workoutNotes ? ' | Note: ' + progressData.workoutNotes : ''}`;
 
     const response = await fetch(`/api/clients/${clientData.clientId}/weight-history`, {
       method: 'POST',
@@ -1464,7 +1464,7 @@ function ClientDashboardContent() {
     setMealsCooldownUntil(nextDate.toISOString());
     setWorkoutCooldownUntil(nextDate.toISOString());
 
-    // Adauga 50 XP
+    // Adaugă 50 XP
     const previousLevelInfo = userLevel;
     fetch('/api/user/xp', {
       method: 'POST',
@@ -1813,6 +1813,10 @@ function ClientDashboardContent() {
   const handleLogout = () => { logout(); router.push('/'); };
   const handleTabChange = (tab) => {
     setError(null);
+    setProfileOpen(false);
+    setProfileError('');
+    setProfileSuccess('');
+    setNotificationsOpen(false);
     setActiveTab(tab);
     setSidebarOpen(false);
     requestAnimationFrame(() => {
@@ -2753,9 +2757,16 @@ function ClientDashboardContent() {
 
       <section className={`${styles.dashboardWaterPanel} ${waterDoneToday ? styles.dashboardWaterPanelDone : ''}`}>
         <div className={styles.dashboardWaterHead}>
-          <div>
-            <h2>Apă</h2>
-            <p>{waterProgressText}</p>
+          <div className={styles.dashboardActionTop}>
+            <div className={styles.dashboardActionIcon}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 2.5S5.5 9.4 5.5 14.4A6.5 6.5 0 0 0 18.5 14.4C18.5 9.4 12 2.5 12 2.5Z"/>
+              </svg>
+            </div>
+            <div>
+              <h2>Apă</h2>
+              <p>{waterProgressText}</p>
+            </div>
           </div>
           <button
             className={styles.dashboardWaterBtn}

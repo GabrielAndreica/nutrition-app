@@ -518,7 +518,7 @@ const FOCUS_STRUCTURE = {
     { group: 'rear_delts', large: false, patterns: {
       posteriori: [
         ['Face pull la cablu', 'Umeri posteriori', '12-15', 60, false],
-        ['Fluturări aplecate cu gantere', 'Umeri posteriori', '12-15', 60, false],
+        ['Fluturări aplecâte cu gantere', 'Umeri posteriori', '12-15', 60, false],
       ],
     }},
   ],
@@ -738,7 +738,7 @@ const FOCUS_STRUCTURE = {
       ],
       posteriori: [
         ['Face pull la cablu', 'Umeri posteriori', '12-15', 60, false],
-        ['Fluturări aplecate cu gantere', 'Umeri posteriori', '12-15', 60, false],
+        ['Fluturări aplecâte cu gantere', 'Umeri posteriori', '12-15', 60, false],
       ],
     }},
   ],

@@ -86,7 +86,7 @@ function AuthContent() {
     setSuccessMessage('');
 
     if (!validateForm()) {
-      setGeneralError('Corecteaza erorile inainte de a continua.');
+      setGeneralError('Corectează erorile înainte de a continua.');
       return;
     }
 
@@ -101,11 +101,11 @@ function AuthContent() {
 
       if (!response.ok) {
         if (response.status === 401) {
-          setGeneralError(data.error || 'Email sau parola incorecta.');
+          setGeneralError(data.error || 'Email sau parola incorectă.');
         } else if (response.status === 429) {
-          setGeneralError('Prea multe incercari. Incearca din nou mai tarziu.');
+          setGeneralError('Prea multe încercări. Încearcă din nou mai târziu.');
         } else {
-          setGeneralError(data.error || 'A aparut o eroare. Incearca din nou.');
+          setGeneralError(data.error || 'A apărut o eroare. Încearcă din nou.');
         }
         return;
       }
@@ -120,7 +120,7 @@ function AuthContent() {
         router.push('/client/dashboard');
       }
     } catch {
-      setGeneralError('Eroare de retea. Verifica conexiunea si incearca din nou.');
+      setGeneralError('Eroare de rețea. Verifică conexiunea și încearcă din nou.');
     } finally {
       setLoadingSubmit(false);
     }
@@ -192,7 +192,7 @@ function AuthContent() {
           ) : (
             <>
               <h2 className={styles.cardTitle}>Autentificare</h2>
-              <p className={styles.cardSub}>Bun venit inapoi.</p>
+              <p className={styles.cardSub}>Bun venit înapoi.</p>
 
               {successMessage && (
                 <div className={styles.success}>{successMessage}</div>
@@ -249,7 +249,7 @@ function AuthContent() {
 
                 <button type="submit" disabled={loadingSubmit} className={styles.submitBtn}>
                   {loadingSubmit
-                    ? <><span className={styles.spinner} />Se autentifica...</>
+                    ? <><span className={styles.spinner} />Se autentifică...</>
                     : 'Autentificare'
                   }
                 </button>

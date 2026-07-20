@@ -15,62 +15,62 @@ export const metadata = {
 };
 
 const problemItems = [
-  'Nu stii ce exercitii sa faci.',
-  'Nu stii cat sa mananci.',
-  'Incepi motivat, dar renunti dupa cateva saptamani.',
-  'Nu stii daca faci progres sau pierzi timpul.',
+  'Nu știi ce exerciții să faci.',
+  'Nu știi cât să mănânci.',
+  'Începi motivat, dar renunți după câteva săptămâni.',
+  'Nu știi dacă faci progres sau pierzi timpul.',
 ];
 
 const solutionSteps = [
-  'Iti alegi obiectivul.',
-  'Primesti planul personalizat de antrenament si alimentatie.',
+  'Îți alegi obiectivul.',
+  'Primești planul personalizat de antrenament și alimentație.',
   'Urmezi misiunile zilnice.',
-  'In fiecare saptamana iti urmaresti progresul.',
-  'Daca este nevoie, Trevano iti adapteaza planul.',
+  'În fiecare săptămână îți urmărești progresul.',
+  'Dacă este nevoie, Trevano îți adaptează planul.',
 ];
 
 const howItWorks = [
   {
     icon: 'target',
-    title: 'Stabileste obiectivul',
-    text: 'Introdu greutatea actuala si greutatea pe care vrei sa o atingi.',
+    title: 'Stabilește obiectivul',
+    text: 'Introdu greutatea actuală și greutatea pe care vrei să o atingi.',
   },
   {
     icon: 'plan',
-    title: 'Urmeaza planul',
-    text: 'Primesti exercitiile si mesele pentru fiecare zi. Fara ghicit. Fara planuri complicate.',
+    title: 'Urmează planul',
+    text: 'Primești exercițiile și mesele pentru fiecare zi. Fără ghicit. Fără planuri complicate.',
   },
   {
     icon: 'progress',
-    title: 'Urmareste progresul',
-    text: 'In fiecare saptamana vezi exact cum evoluezi si daca te apropii de obiectiv.',
+    title: 'Urmărește progresul',
+    text: 'În fiecare săptămână vezi exact cum evoluezi și dacă te apropii de obiectiv.',
   },
   {
     icon: 'coach',
     title: 'Trevano Coach',
-    text: 'Daca progresul incetineste, Trevano ajusteaza automat planul pentru directia potrivita.',
+    text: 'Dacă progresul încetinește, Trevano ajustează automat planul pentru direcția potrivită.',
   },
 ];
 
 const todayItems = [
-  'Nu stii ce sa faci la sala.',
+  'Nu știi ce să faci la sală.',
   'Nu ai un plan alimentar.',
-  'Nu esti consecvent.',
+  'Nu ești consecvent.',
   'Nu vezi rezultate.',
 ];
 
 const futureItems = [
-  'Ai o rutina.',
-  'Mananci fara sa te intrebi daca faci bine.',
-  'Te simti mai puternic.',
-  'Esti mult mai aproape de obiectivul tau.',
+  'Ai o rutină.',
+  'Mănânci fără să te întrebi dacă faci bine.',
+  'Te simți mai puternic.',
+  'Ești mult mai aproape de obiectivul tău.',
 ];
 
 const coachChanges = [
-  'ajusteaza aportul caloric',
-  'modifica mesele',
-  'adapteaza antrenamentele',
-  'te mentine pe drumul catre obiectiv',
+  'ajustează aportul caloric',
+  'modifică mesele',
+  'adaptează antrenamentele',
+  'te menține pe drumul către obiectiv',
 ];
 
 const LANDING_IMAGE_BUCKET = 'imagini-landing';
@@ -282,13 +282,13 @@ export default async function LandingPage() {
         applicationCategory: 'HealthApplication',
         operatingSystem: 'Web',
         url: SITE_URL,
-        description: 'Trevano iti spune ce sa mananci, cum sa te antrenezi si iti adapteaza planul pe masura ce progresezi.',
+        description: 'Trevano îți spune ce să mănânci, cum să te antrenezi și îți adaptează planul pe măsură ce progresezi.',
         publisher: {
           '@id': `${SITE_URL}/#organization`,
         },
         audience: {
           '@type': 'Audience',
-          audienceType: 'Persoane care vor sa slabeasca, sa ia in greutate sau sa inceapa sala',
+          audienceType: 'Persoane care vor să slăbească, să ia în greutate sau să înceapă sala',
         },
         offers: [
           { '@type': 'Offer', name: 'Gratuit', price: '0', priceCurrency: 'RON', url: `${SITE_URL}/register` },

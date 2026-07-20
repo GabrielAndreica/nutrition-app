@@ -83,7 +83,7 @@ export default function InlinePlanGenerator({ clientId, onBack, onPlanGenerated 
 
     try {
       const token = localStorage.getItem('token');
-      if (!token) throw new Error('Token de autentificare lipsă. Vă rog reconectați.');
+      if (!token) throw new Error('Token de autentificare lipsă. Te rog reconectează-te.');
 
       // Scrie imediat în DB că generarea a început — ÎNAINTE de fetch-ul SSE
       // Astfel, dacă utilizatorul dă back rapid, badge-ul apare instantaneu la polling

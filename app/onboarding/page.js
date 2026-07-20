@@ -201,7 +201,7 @@ export default function OnboardingPage() {
       headers: { 'Authorization': `Bearer ${tok}` },
     });
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || 'Nu am putut verifica numele de utilizator.');
+    if (!res.ok) throw new Error(data.error || 'Nu am putut verifică numele de utilizator.');
     if (data.available === false) throw new Error('Acest nume de utilizator este deja folosit. Alege altul.');
   };
 
