@@ -1588,6 +1588,9 @@ function ClientDashboardContent() {
   const workoutStartExerciseCount = workoutStartScreen
     ? Number(workoutStartScreen.exerciseCount) || (workoutStartScreen.exercises || []).length || 0
     : 0;
+  const workoutStartEquipmentText = workoutStartScreen?.availableEquipment === 'no equipment' && !workoutStartScreen?.isRestDay
+    ? 'Echipament necesar: benzi elastice și gantere.'
+    : '';
   const workoutPreloadVideoUrls = workoutStartScreen
     ? [...new Set((workoutStartScreen.exercises || []).map(ex => ex.videoUrl).filter(Boolean))]
     : [];
@@ -2866,6 +2869,7 @@ function ClientDashboardContent() {
         isRestDay: focusData.isRestDay === true,
         message: focusData.message,
         trainingSplit: focusData.trainingSplit,
+        availableEquipment: focusData.availableEquipment,
         workoutDayIndex: focusData.workoutDayIndex,
         exerciseCount: focusData.exerciseCount,
       });
@@ -3603,6 +3607,9 @@ function ClientDashboardContent() {
                     ? (workoutStartScreen.message || workoutStartCopy?.description)
                     : workoutStartCopy?.description}
                 </p>
+                {workoutStartEquipmentText && (
+                  <p className={styles.workoutStartEquipment}>{workoutStartEquipmentText}</p>
+                )}
                 {workoutStartScreen.isRestDay ? (
                   <div className={styles.workoutStartMeta}>
                     <div className={styles.workoutStartMetaItem}>

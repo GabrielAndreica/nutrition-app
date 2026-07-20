@@ -4252,6 +4252,18 @@
   margin: 0 0 16px;
 }
 
+.workoutStartEquipment {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c1c1e;
+  line-height: 1.45;
+  margin: -6px 0 16px;
+  padding: 10px 12px;
+  background: rgba(183, 255, 0, 0.18);
+  border: 1px solid rgba(10, 10, 10, 0.08);
+  border-radius: 10px;
+}
+
 .workoutStartMeta {
   display: flex;
   align-items: center;

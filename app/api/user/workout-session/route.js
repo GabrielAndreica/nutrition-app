@@ -1846,6 +1846,7 @@ export async function GET(request) {
       isRestDay: context.isRestDay,
       focus: context.focus,
       trainingSplit: context.trainingSplit,
+      availableEquipment: context.availableEquipment,
       workoutDayIndex: context.workoutDayIndex,
       workoutSlotIndex: context.workoutSlotIndex,
       scheduledWorkoutDays: context.scheduledWorkoutDays,

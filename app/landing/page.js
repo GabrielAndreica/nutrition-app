@@ -291,7 +291,7 @@ export default async function LandingPage() {
           audienceType: 'Persoane care vor sa slabeasca, sa ia in greutate sau sa inceapa sala',
         },
         offers: [
-          { '@type': 'Offer', name: 'Gratuit', price: '0', priceCurrency: 'RON', url: `${SITE_URL}/auth` },
+          { '@type': 'Offer', name: 'Gratuit', price: '0', priceCurrency: 'RON', url: `${SITE_URL}/register` },
           { '@type': 'Offer', name: 'Trevano Coach', price: '29.99', priceCurrency: 'RON', url: `${SITE_URL}/upgrade` },
         ],
       },
@@ -313,7 +313,7 @@ export default async function LandingPage() {
         <Link href="/" className={styles.logo}>trevano</Link>
         <div className={styles.navLinks}>
           <Link href="/auth" className={styles.navLogin}>Intră în cont</Link>
-          <Link href="/auth" className={styles.navCta}>Începe gratuit</Link>
+          <Link href="/register" className={styles.navCta}>Începe gratuit</Link>
         </div>
       </nav>
 
@@ -327,7 +327,7 @@ export default async function LandingPage() {
                 pe măsură ce progresezi, până îți atingi obiectivul.
               </p>
               <div className={styles.heroActions}>
-                <Link href="/auth" className={styles.primaryCta}>Începe gratuit</Link>
+                <Link href="/register" className={styles.primaryCta}>Începe gratuit</Link>
               </div>
             </div>
             <div className={styles.heroVisual} data-reveal data-delay="1">
@@ -425,7 +425,7 @@ export default async function LandingPage() {
               În fiecare săptămână, Trevano analizează progresul tău. Dacă este nevoie,
               ajustează planul ca să continui în direcția obiectivului.
             </p>
-            <Link href="/auth" className={styles.coachCta}>Începe gratuit</Link>
+            <Link href="/register" className={styles.coachCta}>Începe gratuit</Link>
           </div>
           <div className={styles.coachList}>
             {coachChanges.map(item => (

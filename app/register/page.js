@@ -103,7 +103,7 @@ export default function RegisterPage() {
               <h2 className={styles.cardTitle}>Verifică emailul</h2>
               <p className={styles.cardSub}>
                 Ți-am trimis un link de confirmare la <strong>{formData.email}</strong>.<br />
-                Linkul expiră în 24 de ore.
+                Linkul expiră în 24 de ore. Verifică și folderul SPAM.
               </p>
               <Link href="/auth" className={localStyles.backLink}>Mergi la autentificare</Link>
             </div>
