@@ -47,8 +47,10 @@
   .leftPanel {
     min-height: 64px;
     padding: 64px 0 0;
-    background: transparent;
-    border: 0;
+    background: #ffffff;
+    border-bottom: 1px solid rgba(10, 10, 10, 0.08);
+    box-shadow: 0 8px 24px rgba(10, 10, 10, 0.04);
+    z-index: 60;
   }
 
   .leftPanel::after {
