@@ -19,6 +19,7 @@ const PRICE_ENV_BY_PLAN = {
   starter: 'STRIPE_STARTER_PRICE_ID',
   pro: 'STRIPE_PRO_PRICE_ID',
 };
+const CHECKOUT_LEGAL_FLOW_VERSION = '2026-07-20';
 
 function isMissingStripeResource(error) {
   return error?.statusCode === 404 || /No such/i.test(error?.message || '');
@@ -119,6 +120,9 @@ export async function POST(request) {
   try {
     const stripe = getStripe();
     let customerId = user.stripe_customer_id;
+    const legalFlowMetadata = {
+      checkoutLegalFlowVersion: CHECKOUT_LEGAL_FLOW_VERSION,
+    };
 
     if (customerId) {
       try {
@@ -147,6 +151,7 @@ export async function POST(request) {
         name: user.name,
         metadata: {
           userId: String(user.id),
+          ...legalFlowMetadata,
         },
       });
 
@@ -180,6 +185,13 @@ export async function POST(request) {
         details: { customerId, source: user.stripe_customer_id ? 'recreated' : 'new' },
       });
     }
+
+    await stripe.customers.update(customerId, {
+      metadata: {
+        userId: String(user.id),
+        ...legalFlowMetadata,
+      },
+    });
 
     try {
       const price = await stripe.prices.retrieve(priceId);
@@ -220,8 +232,14 @@ export async function POST(request) {
         address: 'auto',
         name: 'auto',
       },
+      phone_number_collection: {
+        enabled: true,
+      },
       tax_id_collection: {
         enabled: true,
+      },
+      consent_collection: {
+        terms_of_service: 'required',
       },
       line_items: [
         {
@@ -235,11 +253,13 @@ export async function POST(request) {
       metadata: {
         userId: String(auth.userId),
         planType,
+        ...legalFlowMetadata,
       },
       subscription_data: {
         metadata: {
           userId: String(auth.userId),
           planType,
+          ...legalFlowMetadata,
         },
       },
     });
