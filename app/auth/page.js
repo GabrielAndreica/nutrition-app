@@ -50,8 +50,12 @@ function AuthContent() {
   useEffect(() => {
     if (searchParams.get('confirmed') === '1') {
       setSuccessMessage('Email confirmat! Te poți autentifica acum.');
+      const nextParams = new URLSearchParams(searchParams.toString());
+      nextParams.delete('confirmed');
+      const nextQuery = nextParams.toString();
+      router.replace(nextQuery ? `/auth?${nextQuery}` : '/auth', { scroll: false });
     }
-  }, [searchParams]);
+  }, [router, searchParams]);
 
   useEffect(() => {
     if (!loading && user) {
